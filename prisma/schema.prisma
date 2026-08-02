@@ -1,0 +1,1198 @@
+// Prisma Schema for Platform Super Admin, Subscription Infrastructure & Merchant Auth
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// --- Enums ---
+
+enum PlatformAdminRole {
+  SUPER_ADMIN
+  ADMIN
+  SUPPORT
+}
+
+enum MerchantStatus {
+  ACTIVE
+  SUSPENDED
+  PENDING
+  CANCELLED
+}
+
+enum RevenueStatus {
+  SUCCESS
+  PENDING
+  FAILED
+}
+
+enum CMSSection {
+  HERO
+  PRICING
+  FAQ
+  BLOG
+  TERMS
+  PRIVACY
+  FOOTER
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  EXPIRED
+  CANCELLED
+}
+
+enum BillingCycle {
+  MONTHLY
+  YEARLY
+}
+
+enum InvoicePaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED
+}
+
+enum SubscriptionAction {
+  REGISTER
+  RENEW
+  UPGRADE
+  DOWNGRADE
+  EXPIRE
+  CANCEL
+}
+
+enum MerchantUserRole {
+  OWNER
+  ADMIN
+  MANAGER
+  CASHIER
+}
+
+enum POSSessionStatus {
+  OPEN
+  CLOSED
+}
+
+enum POSPaymentStatus {
+  PAID
+  PARTIAL
+  DUE
+}
+
+enum POSFulfillmentStatus {
+  COMPLETED
+  REFUNDED
+  EXCHANGED
+}
+
+enum POSPaymentMethod {
+  CASH
+  BKASH
+  NAGAD
+  ROCKET
+  CARD
+  DUE
+}
+
+enum OTPType {
+  EMAIL_VERIFY
+  PHONE_VERIFY
+  PASSWORD_RESET
+  2FA
+}
+
+// --- Platform & Merchant Models ---
+
+model PlatformAdmin {
+  id           String            @id @default(uuid())
+  name         String
+  email        String            @unique
+  passwordHash String
+  role         PlatformAdminRole @default(ADMIN)
+  avatarUrl    String?
+  lastLoginAt  DateTime?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  auditLogs AuditLog[]
+
+  @@map("platform_admins")
+}
+
+model Merchant {
+  id           String         @id @default(uuid())
+  name         String
+  slug         String         @unique
+  customDomain String?        @unique
+  ownerName    String
+  email        String
+  phone        String?
+  status       MerchantStatus @default(PENDING)
+  planId       String
+  plan         Plan           @relation(fields: [planId], references: [id], onDelete: Restrict)
+  trialEndsAt  DateTime?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  revenues              PlatformRevenue[]
+  subscriptions         Subscription[]
+  invoices              SubscriptionInvoice[]
+  subscriptionHistories SubscriptionHistory[]
+  users                 MerchantUser[]
+  posRegisters          POSRegister[]
+  posHoldSales          POSHoldSale[]
+  posOrders             POSOrder[]
+  storeCustomers        StoreCustomer[]
+  courierMappings       OrderCourierMapping[]
+  orderInvoices         OrderInvoice[]
+  crmProfiles           CRMCustomerProfile[]
+  customerRewardLogs    CustomerRewardLog[]
+  customerNotes         CustomerNote[]
+  crmSegmentRules       CRMSegmentRule[]
+  expenseCategories     ExpenseCategory[]
+  merchantExpenses      MerchantExpense[]
+  dailyFinancialSnapshots DailyFinancialSnapshot[]
+
+  @@map("merchants")
+}
+
+model MerchantUser {
+  id                 String           @id @default(uuid())
+  merchantId         String
+  merchant           Merchant         @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  name               String
+  email              String           @unique
+  phone              String?
+  passwordHash       String
+  role               MerchantUserRole @default(OWNER)
+  isEmailVerified    Boolean          @default(false)
+  isPhoneVerified    Boolean          @default(false)
+  isTwoFactorEnabled Boolean          @default(false)
+  twoFactorSecret    String?
+  avatarUrl          String?
+  lastLoginAt        DateTime?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  sessions            AuthSession[]
+  posSessions         POSSession[]
+  posHoldSales        POSHoldSale[]
+  posOrders           POSOrder[]
+  posRefundsProcessed POSRefundExchange[] @relation("RefundProcessedBy")
+
+  @@map("merchant_users")
+}
+
+model AuthSession {
+  id        String       @id @default(uuid())
+  userId    String
+  user      MerchantUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String       @unique
+  ipAddress String?
+  userAgent String?
+  expiresAt DateTime
+  createdAt DateTime     @default(now())
+
+  @@map("auth_sessions")
+}
+
+model OTPVerification {
+  id         String   @id @default(uuid())
+  identifier String // email or phone number
+  codeHash   String
+  type       OTPType  @default(EMAIL_VERIFY)
+  expiresAt  DateTime
+  isUsed     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@map("otp_verifications")
+}
+
+model Plan {
+  id           String   @id @default(uuid())
+  name         String
+  description  String?
+  monthlyPrice Float
+  yearlyPrice  Float
+  trialDays    Int      @default(14)
+  features     Json // Array of strings (e.g. ["custom_domain", "analytics"])
+  limits       Json // e.g. { "maxProducts": 500, "maxUsers": 5 }
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  merchants     Merchant[]
+  revenues      PlatformRevenue[]
+  subscriptions Subscription[]
+
+  @@map("plans")
+}
+
+model PlatformRevenue {
+  id            String        @id @default(uuid())
+  merchantId    String
+  merchant      Merchant      @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  planId        String
+  plan          Plan          @relation(fields: [planId], references: [id], onDelete: Restrict)
+  amount        Float
+  currency      String        @default("USD")
+  paymentMethod String
+  transactionId String        @unique
+  status        RevenueStatus @default(PENDING)
+  createdAt     DateTime      @default(now())
+
+  @@map("platform_revenues")
+}
+
+// --- Subscription Engine Models ---
+
+model Subscription {
+  id                 String             @id @default(uuid())
+  merchantId         String
+  merchant           Merchant           @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  planId             String
+  plan               Plan               @relation(fields: [planId], references: [id], onDelete: Restrict)
+  status             SubscriptionStatus @default(TRIALING)
+  billingCycle       BillingCycle       @default(MONTHLY)
+  currentPeriodStart DateTime           @default(now())
+  currentPeriodEnd   DateTime
+  trialEndsAt        DateTime?
+  cancelledAt        DateTime?
+  autoRenew          Boolean            @default(true)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  invoices SubscriptionInvoice[]
+
+  @@map("subscriptions")
+}
+
+model SubscriptionInvoice {
+  id             String               @id @default(uuid())
+  invoiceNumber  String               @unique
+  merchantId     String
+  merchant       Merchant             @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  subscriptionId String
+  subscription   Subscription         @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  amount         Float
+  discountAmount Float                @default(0)
+  taxAmount      Float                @default(0)
+  totalAmount    Float
+  paymentStatus  InvoicePaymentStatus @default(PENDING)
+  paymentMethod  String?
+  transactionId  String?
+  pdfUrl         String?
+  createdAt      DateTime             @default(now())
+
+  @@map("subscription_invoices")
+}
+
+model Coupon {
+  id            String       @id @default(uuid())
+  code          String       @unique
+  discountType  DiscountType @default(PERCENTAGE)
+  discountValue Float
+  maxUses       Int          @default(100)
+  usedCount     Int          @default(0)
+  validFrom     DateTime     @default(now())
+  validUntil    DateTime?
+  isActive      Boolean      @default(true)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@map("coupons")
+}
+
+model SubscriptionHistory {
+  id         String             @id @default(uuid())
+  merchantId String
+  merchant   Merchant           @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  action     SubscriptionAction
+  oldPlanId  String?
+  newPlanId  String?
+  amountPaid Float              @default(0)
+  createdAt  DateTime           @default(now())
+
+  @@map("subscription_histories")
+}
+
+// --- CMS & Platform Config Models ---
+
+model CMSContent {
+  id          String     @id @default(uuid())
+  section     CMSSection
+  title       String
+  slug        String?    @unique
+  payload     Json // Dynamic JSON payload structure per section
+  isPublished Boolean    @default(false)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@map("cms_contents")
+}
+
+model BrandSetting {
+  id           String   @id @default(uuid())
+  logoUrl      String?
+  faviconUrl   String?
+  brandName    String
+  primaryColor String   @default("#2563eb")
+  themeMode    String   @default("system")
+  email        String
+  phone        String?
+  socialLinks  Json? // { "facebook": "...", "twitter": "..." }
+  seoConfig    Json? // { "metaTitle": "...", "metaDescription": "..." }
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("brand_settings")
+}
+
+model SystemConfig {
+  id                   String   @id @default(uuid())
+  isMaintenanceMode    Boolean  @default(false)
+  featureFlags         Json // { "registrationEnabled": true, "stripeEnabled": true }
+  smtpConfig           Json // { "host": "...", "port": 587, "user": "..." }
+  smsGatewayConfig     Json // { "provider": "twilio", "apiKey": "..." }
+  paymentGatewayConfig Json // { "stripePublicKey": "...", "stripeSecretKey": "..." }
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@map("system_configs")
+}
+
+model AuditLog {
+  id             String        @id @default(uuid())
+  adminId        String
+  admin          PlatformAdmin @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  action         String
+  targetResource String
+  ipAddress      String?
+  details        Json?
+  createdAt      DateTime      @default(now())
+
+  @@map("audit_logs")
+}
+
+model SystemAPIKey {
+  id          String    @id @default(uuid())
+  keyName     String
+  hashedKey   String    @unique
+  permissions Json // Array of allowed permission scopes e.g. ["read:merchants"]
+  isRevoked   Boolean   @default(false)
+  expiresAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@map("system_api_keys")
+}
+
+// --- Store Builder & Storefront Customization Models ---
+
+enum SSLStatus {
+  PENDING
+  ACTIVE
+  FAILED
+}
+
+enum StoreFontFamily {
+  INTER
+  ROBOTO
+  POPPINS
+  HIND_SILIGURI
+}
+
+model StorefrontConfig {
+  id              String           @id @default(uuid())
+  merchantId      String           @unique
+  storeName       String
+  logoUrl         String?
+  faviconUrl      String?
+  primaryColor    String           @default("#2563eb")
+  secondaryColor  String           @default("#1e40af")
+  backgroundColor String           @default("#ffffff")
+  textColor       String           @default("#0f172a")
+  fontFamily      StoreFontFamily  @default(INTER)
+  headerStyle     Json?            // { "layout": "standard", "sticky": true, "showSearch": true }
+  footerStyle     Json?            // { "layout": "multi-column", "copyrightText": "..." }
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  sliders         StoreBannerSlider[]
+  announcements   StoreAnnouncementBar[]
+  popups          StorePopup[]
+
+  @@map("storefront_configs")
+}
+
+model StoreBannerSlider {
+  id            String           @id @default(uuid())
+  storeConfigId String
+  storeConfig   StorefrontConfig @relation(fields: [storeConfigId], references: [id], onDelete: Cascade)
+  title         String
+  subtitle      String?
+  imageUrl      String
+  linkUrl       String?
+  ctaText       String?
+  sortOrder     Int              @default(0)
+  isActive      Boolean          @default(true)
+  createdAt     DateTime         @default(now())
+
+  @@map("store_banner_sliders")
+}
+
+model StoreAnnouncementBar {
+  id              String           @id @default(uuid())
+  storeConfigId   String
+  storeConfig     StorefrontConfig @relation(fields: [storeConfigId], references: [id], onDelete: Cascade)
+  contentText     String
+  linkUrl         String?
+  backgroundColor String           @default("#1e293b")
+  textColor       String           @default("#ffffff")
+  isActive        Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+
+  @@map("store_announcement_bars")
+}
+
+model StorePopup {
+  id            String           @id @default(uuid())
+  storeConfigId String
+  storeConfig   StorefrontConfig @relation(fields: [storeConfigId], references: [id], onDelete: Cascade)
+  title         String
+  contentText   String
+  imageUrl      String?
+  triggerDelay  Int              @default(5) // Delay in seconds
+  isActive      Boolean          @default(true)
+  createdAt     DateTime         @default(now())
+
+  @@map("store_popups")
+}
+
+model StoreCustomPage {
+  id              String   @id @default(uuid())
+  merchantId      String
+  title           String
+  slug            String
+  contentHtml     String
+  isPublished     Boolean  @default(true)
+  metaTitle       String?
+  metaDescription String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([merchantId, slug])
+  @@map("store_custom_pages")
+}
+
+model StoreDomain {
+  id           String    @id @default(uuid())
+  merchantId   String    @unique
+  customDomain String    @unique
+  isVerified   Boolean   @default(false)
+  sslStatus    SSLStatus @default(PENDING)
+  dnsRecords   Json?     // { "cname": "...", "aRecord": "..." }
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@map("store_domains")
+}
+
+// --- Inventory, Catalog & Warehouse Models ---
+
+enum TransferStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
+enum AdjustmentType {
+  ADD
+  SUBTRACT
+  SET
+}
+
+enum AdjustmentReason {
+  DAMAGE
+  LOSS
+  CORRECT_COUNT
+  EXPIRED
+}
+
+enum POPaymentStatus {
+  UNPAID
+  PARTIAL
+  PAID
+}
+
+enum POStatus {
+  DRAFT
+  ORDERED
+  RECEIVED
+  CANCELLED
+}
+
+enum InventoryChangeType {
+  PURCHASE
+  SALE_ONLINE
+  SALE_POS
+  ADJUSTMENT
+  TRANSFER_IN
+  TRANSFER_OUT
+  RETURN
+}
+
+model Category {
+  id         String     @id @default(uuid())
+  merchantId String
+  name       String
+  slug       String
+  parentId   String?
+  parent     Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children   Category[] @relation("CategoryHierarchy")
+  imageUrl   String?
+  isActive   Boolean    @default(true)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  products   Product[]
+
+  @@unique([merchantId, slug])
+  @@map("categories")
+}
+
+model Brand {
+  id         String    @id @default(uuid())
+  merchantId String
+  name       String
+  slug       String
+  logoUrl    String?
+  isActive   Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  products   Product[]
+
+  @@unique([merchantId, slug])
+  @@map("brands")
+}
+
+model Supplier {
+  id             String          @id @default(uuid())
+  merchantId     String
+  name           String
+  companyName    String?
+  phone          String
+  email          String?
+  address        String?
+  taxNumber      String?
+  isActive       Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  products       Product[]
+  purchaseOrders PurchaseOrder[]
+
+  @@map("suppliers")
+}
+
+model Warehouse {
+  id           String            @id @default(uuid())
+  merchantId   String
+  name         String
+  code         String
+  address      String?
+  phone        String?
+  isDefault    Boolean           @default(false)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  stocks       InventoryStock[]
+  adjustments  StockAdjustment[]
+  purchaseOrders PurchaseOrder[]
+
+  @@unique([merchantId, code])
+  @@map("warehouses")
+}
+
+model Product {
+  id          String           @id @default(uuid())
+  merchantId  String
+  categoryId  String?
+  category    Category?        @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  brandId     String?
+  brand       Brand?           @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  supplierId  String?
+  supplier    Supplier?        @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  name        String
+  slug        String
+  description String?
+  basePrice   Float            @default(0.0)
+  costPrice   Float            @default(0.0)
+  sellingPrice Float           @default(0.0)
+  isVariant   Boolean          @default(false)
+  isActive    Boolean          @default(true)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  variants    ProductVariant[]
+  reviews     ProductReview[]
+
+  @@unique([merchantId, slug])
+  @@map("products")
+}
+
+model ProductVariant {
+  id           String            @id @default(uuid())
+  productId    String
+  product      Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  sku          String            @unique
+  barcode      String?           @unique
+  qrCodeUrl    String?
+  variantName  String            // e.g. "XL / Red"
+  costPrice    Float
+  sellingPrice Float
+  attributes   Json              // { "size": "XL", "color": "Red" }
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  stocks       InventoryStock[]
+  adjustments  StockAdjustment[]
+  logs         InventoryLog[]
+  wishlistItems CustomerWishlist[]
+
+  @@map("product_variants")
+}
+
+model InventoryStock {
+  id               String         @id @default(uuid())
+  warehouseId      String
+  warehouse        Warehouse      @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  variantId        String
+  variant          ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  quantity         Int            @default(0)
+  reorderLevel     Int            @default(10)
+  updatedAt        DateTime       @updatedAt
+
+  @@unique([warehouseId, variantId])
+  @@map("inventory_stocks")
+}
+
+model StockTransfer {
+  id                     String         @id @default(uuid())
+  merchantId             String
+  sourceWarehouseId      String
+  destinationWarehouseId String
+  status                 TransferStatus @default(PENDING)
+  notes                  String?
+  createdBy              String
+  createdAt              DateTime       @default(now())
+  updatedAt              DateTime       @updatedAt
+
+  @@map("stock_transfers")
+}
+
+model StockAdjustment {
+  id             String           @id @default(uuid())
+  merchantId     String
+  warehouseId    String
+  warehouse      Warehouse        @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  variantId      String
+  variant        ProductVariant   @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  adjustmentType AdjustmentType
+  quantity       Int
+  reason         AdjustmentReason
+  notes          String?
+  createdBy      String
+  createdAt      DateTime         @default(now())
+
+  @@map("stock_adjustments")
+}
+
+model PurchaseOrder {
+  id            String          @id @default(uuid())
+  merchantId    String
+  supplierId    String
+  supplier      Supplier        @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  warehouseId   String
+  warehouse     Warehouse       @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  orderNumber   String          @unique
+  totalAmount   Float
+  paymentStatus POPaymentStatus @default(UNPAID)
+  status        POStatus        @default(DRAFT)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@map("purchase_orders")
+}
+
+model InventoryLog {
+  id              String              @id @default(uuid())
+  merchantId      String
+  warehouseId     String
+  variantId       String
+  variant         ProductVariant      @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  changeType      InventoryChangeType
+  quantityChanged Int
+  quantityAfter   Int
+  referenceId     String?
+  createdAt       DateTime            @default(now())
+
+  @@map("inventory_logs")
+}
+
+// --- Barcode Engine & Sticker Label Models ---
+
+enum BarcodeSymbologyType {
+  CODE128
+  EAN13
+  UPCA
+  QR_CODE
+}
+
+model BarcodeTemplate {
+  id              String   @id @default(uuid())
+  merchantId      String
+  name            String
+  widthMm         Float    @default(50.0) // Label width in millimeters
+  heightMm        Float    @default(25.0) // Label height in millimeters
+  labelsPerRow    Int      @default(1)    // 1, 2, 3 sticker labels per row
+  showStoreName   Boolean  @default(true)
+  showProductName Boolean  @default(true)
+  showPrice       Boolean  @default(true)
+  showSKU         Boolean  @default(true)
+  showVariantName Boolean  @default(true)
+  isDefault       Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("barcode_templates")
+}
+
+model BarcodeGenerationLog {
+  id              String               @id @default(uuid())
+  merchantId      String
+  variantId       String
+  barcodeType     BarcodeSymbologyType @default(CODE128)
+  quantityPrinted Int                  @default(1)
+  generatedBy     String
+  labelTemplateId String?
+  createdAt       DateTime             @default(now())
+
+  @@map("barcode_generation_logs")
+}
+
+// --- POS Counter Engine & Cash Register Session Models ---
+
+model POSRegister {
+  id           String        @id @default(uuid())
+  merchantId   String
+  merchant     Merchant      @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  name         String
+  locationName String?
+  isActive     Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  sessions     POSSession[]
+  holdSales    POSHoldSale[]
+  orders       POSOrder[]
+
+  @@map("pos_registers")
+}
+
+model POSSession {
+  id             String           @id @default(uuid())
+  registerId     String
+  register       POSRegister      @relation(fields: [registerId], references: [id], onDelete: Cascade)
+  cashierId      String
+  cashier        MerchantUser     @relation(fields: [cashierId], references: [id], onDelete: Cascade)
+  openingBalance Float            @default(0.0)
+  closingBalance Float?
+  expectedCash   Float?
+  actualCash     Float?
+  cashDifference Float?
+  status         POSSessionStatus @default(OPEN)
+  openedAt       DateTime         @default(now())
+  closedAt       DateTime?
+
+  orders         POSOrder[]
+
+  @@map("pos_sessions")
+}
+
+model POSHoldSale {
+  id         String       @id @default(uuid())
+  merchantId String
+  merchant   Merchant     @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  registerId String
+  register   POSRegister  @relation(fields: [registerId], references: [id], onDelete: Cascade)
+  cashierId  String
+  cashier    MerchantUser @relation(fields: [cashierId], references: [id], onDelete: Cascade)
+  customerId String?
+  cartData   Json
+  holdNote   String?
+  createdAt  DateTime     @default(now())
+
+  @@map("pos_hold_sales")
+}
+
+model POSOrder {
+  id                String               @id @default(uuid())
+  merchantId        String
+  merchant          Merchant             @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  registerId        String
+  register          POSRegister          @relation(fields: [registerId], references: [id], onDelete: Restrict)
+  sessionId         String
+  session           POSSession           @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  cashierId         String
+  cashier           MerchantUser         @relation(fields: [cashierId], references: [id], onDelete: Restrict)
+  customerId        String?
+  orderNumber       String               @unique
+  subtotal          Float
+  discountAmount    Float                @default(0.0)
+  taxAmount         Float                @default(0.0)
+  grandTotal        Float
+  paidAmount        Float                @default(0.0)
+  dueAmount         Float                @default(0.0)
+  paymentStatus     POSPaymentStatus     @default(PAID)
+  fulfillmentStatus POSFulfillmentStatus @default(COMPLETED)
+  notes             String?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  payments          POSPayment[]
+  refundsOriginal   POSRefundExchange[]  @relation("OriginalPOSOrder")
+  refundsNew        POSRefundExchange[]  @relation("NewPOSOrder")
+
+  @@map("pos_orders")
+}
+
+model POSPayment {
+  id                   String           @id @default(uuid())
+  posOrderId           String
+  posOrder             POSOrder         @relation(fields: [posOrderId], references: [id], onDelete: Cascade)
+  paymentMethod        POSPaymentMethod
+  amount               Float
+  transactionReference String?
+  createdAt            DateTime         @default(now())
+
+  @@map("pos_payments")
+}
+
+model POSRefundExchange {
+  id              String       @id @default(uuid())
+  originalOrderId String
+  originalOrder   POSOrder     @relation("OriginalPOSOrder", fields: [originalOrderId], references: [id], onDelete: Cascade)
+  newOrderId      String?
+  newOrder        POSOrder?    @relation("NewPOSOrder", fields: [newOrderId], references: [id], onDelete: SetNull)
+  refundedAmount  Float
+  reason          String
+  items           Json
+  processedBy     String
+  processor       MerchantUser @relation("RefundProcessedBy", fields: [processedBy], references: [id], onDelete: Restrict)
+  createdAt       DateTime     @default(now())
+
+  @@map("pos_refund_exchanges")
+}
+
+// --- Customer Website, Storefront Accounts & Product Reviews Models ---
+
+enum OrderTrackingStatus {
+  PENDING
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+model StoreCustomer {
+  id             String            @id @default(uuid())
+  merchantId     String
+  merchant       Merchant          @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  name           String
+  phone          String
+  email          String?
+  passwordHash   String
+  isVerified     Boolean           @default(false)
+  defaultAddress Json?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  wishlists      CustomerWishlist[]
+  reviews        ProductReview[]
+  addresses      CustomerAddress[]
+  crmProfile     CRMCustomerProfile?
+
+  @@map("store_customers")
+}
+
+model CustomerWishlist {
+  id         String         @id @default(uuid())
+  customerId String
+  customer   StoreCustomer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  variantId  String
+  variant    ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  createdAt  DateTime       @default(now())
+
+  @@unique([customerId, variantId])
+  @@map("customer_wishlists")
+}
+
+model ProductReview {
+  id          String        @id @default(uuid())
+  productId   String
+  product     Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  customerId  String
+  customer    StoreCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  orderId     String?
+  rating      Int           @default(5)
+  reviewText  String
+  images      Json?
+  isApproved  Boolean       @default(false)
+  createdAt   DateTime      @default(now())
+
+  @@map("product_reviews")
+}
+
+model CustomerAddress {
+  id             String        @id @default(uuid())
+  customerId     String
+  customer       StoreCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  addressTitle   String        @default("Home")
+  recipientName  String
+  phone          String
+  division       String
+  district       String
+  addressDetails String
+  isDefault      Boolean       @default(false)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@map("customer_addresses")
+}
+
+model OrderTrackingLog {
+  id         String              @id @default(uuid())
+  orderId    String
+  status     OrderTrackingStatus @default(PENDING)
+  statusNote String?
+  updatedBy  String
+  createdAt  DateTime            @default(now())
+
+  @@map("order_tracking_logs")
+}
+
+// --- Unified Order Lifecycle, Courier Integration & Invoicing Models ---
+
+enum CourierProvider {
+  STEADFAST
+  PATHAO
+  PAPERFLY
+  REDX
+  MANUAL
+}
+
+enum UnifiedOrderStatus {
+  PENDING
+  PROCESSING
+  PACKED
+  SHIPPED
+  DELIVERED
+  RETURNED
+  CANCELLED
+}
+
+enum OrderSourceType {
+  ONLINE
+  POS
+}
+
+model OrderCourierMapping {
+  id              String          @id @default(uuid())
+  orderId         String
+  merchantId      String
+  merchant        Merchant        @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  courierProvider CourierProvider @default(MANUAL)
+  consignmentId   String?
+  trackingCode    String?
+  deliveryFee     Float           @default(0.0)
+  codAmount       Float           @default(0.0)
+  courierStatus   String?
+  lastSyncedAt    DateTime?
+  createdAt       DateTime        @default(now())
+
+  @@map("order_courier_mappings")
+}
+
+model OrderStatusHistory {
+  id             String             @id @default(uuid())
+  orderId        String
+  previousStatus UnifiedOrderStatus
+  newStatus      UnifiedOrderStatus
+  changedBy      String
+  note           String?
+  createdAt      DateTime           @default(now())
+
+  @@map("order_status_histories")
+}
+
+model OrderInvoice {
+  id            String   @id @default(uuid())
+  orderId       String
+  merchantId    String
+  merchant      Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  invoiceNumber String   @unique
+  pdfUrl        String?
+  isPrinted     Boolean  @default(false)
+  generatedAt   DateTime @default(now())
+
+  @@map("order_invoices")
+}
+
+// --- Customer CRM, Loyalty & Segment Models ---
+
+enum MembershipTier {
+  BRONZE
+  SILVER
+  GOLD
+  PLATINUM
+}
+
+enum RewardActionType {
+  EARNED_PURCHASE
+  REDEEMED_ORDER
+  BONUS_BIRTHDAY
+  MANUAL_ADJUSTMENT
+}
+
+model CRMCustomerProfile {
+  id                String         @id @default(uuid())
+  merchantId        String
+  merchant          Merchant       @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  customerId        String         @unique
+  customer          StoreCustomer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  totalOrdersCount  Int            @default(0)
+  lifetimeValue     Float          @default(0.0)
+  averageOrderValue Float          @default(0.0)
+  rewardPoints      Int            @default(0)
+  membershipTier    MembershipTier @default(BRONZE)
+  dateOfBirth       DateTime?
+  gender            String?
+  tags              Json?
+  lastOrderAt       DateTime?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  @@map("crm_customer_profiles")
+}
+
+model CustomerRewardLog {
+  id               String           @id @default(uuid())
+  merchantId       String
+  merchant         Merchant         @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  customerId       String
+  pointsChanged    Int
+  actionType       RewardActionType @default(EARNED_PURCHASE)
+  referenceOrderId String?
+  note             String?
+  createdAt        DateTime         @default(now())
+
+  @@map("customer_reward_logs")
+}
+
+model CustomerNote {
+  id          String   @id @default(uuid())
+  merchantId  String
+  merchant    Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  customerId  String
+  createdBy   String
+  noteText    String
+  isImportant Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@map("customer_notes")
+}
+
+model CRMSegmentRule {
+  id           String   @id @default(uuid())
+  merchantId   String
+  merchant     Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  segmentName  String
+  criteriaJson Json
+  autoAssign   Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("crm_segment_rules")
+}
+
+// --- Expense Tracking, Financial Reports & Daily Snapshots Models ---
+
+enum ExpensePaymentMethod {
+  CASH
+  BANK
+  MOBILE_BANKING
+}
+
+model ExpenseCategory {
+  id          String            @id @default(uuid())
+  merchantId  String
+  merchant    Merchant          @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  isActive    Boolean           @default(true)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  expenses    MerchantExpense[]
+
+  @@map("expense_categories")
+}
+
+model MerchantExpense {
+  id            String               @id @default(uuid())
+  merchantId    String
+  merchant      Merchant             @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  categoryId    String
+  category      ExpenseCategory      @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  title         String
+  amount        Float
+  expenseDate   DateTime             @default(now())
+  paymentMethod ExpensePaymentMethod @default(CASH)
+  referenceNo   String?
+  note          String?
+  createdBy     String
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  @@map("merchant_expenses")
+}
+
+model DailyFinancialSnapshot {
+  id                   String   @id @default(uuid())
+  merchantId           String
+  merchant             Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  date                 DateTime
+  totalSalesAmount     Float    @default(0.0)
+  totalCostOfGoodsSold Float    @default(0.0)
+  grossProfit          Float    @default(0.0)
+  totalExpenses        Float    @default(0.0)
+  netProfit            Float    @default(0.0)
+  posSalesCount        Int      @default(0)
+  onlineSalesCount     Int      @default(0)
+  createdAt            DateTime @default(now())
+
+  @@map("daily_financial_snapshots")
+}
+
+
+
+
+
+
+
