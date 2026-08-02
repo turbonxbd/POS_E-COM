@@ -1,0 +1,72 @@
+/* Core Design Tokens & Theme Variables */
+:root {
+  /* Color Palette - Light Theme Default */
+  --background: #ffffff;
+  --foreground: #0f172a;
+
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+
+  /* Tenant Dynamic Branding Colors */
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --primary-foreground: #ffffff;
+
+  --secondary: #64748b;
+  --secondary-hover: #475569;
+  --secondary-foreground: #ffffff;
+
+  --accent: #f1f5f9;
+  --accent-foreground: #0f172a;
+
+  --muted: #f8fafc;
+  --muted-foreground: #64748b;
+
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+
+  --border: #e2e8f0;
+  --input: #cbd5e1;
+  --ring: #3b82f6;
+
+  /* Typography & Layout Tokens */
+  --font-family-base: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --border-radius: 0.5rem;
+  --transition-speed: 0.2s;
+}
+
+/* Dark Theme Overrides */
+[data-theme='dark'] {
+  --background: #090d16;
+  --foreground: #f8fafc;
+
+  --card: #111827;
+  --card-foreground: #f8fafc;
+
+  --popover: #111827;
+  --popover-foreground: #f8fafc;
+
+  --primary: #3b82f6;
+  --primary-hover: #60a5fa;
+  --primary-foreground: #ffffff;
+
+  --secondary: #475569;
+  --secondary-hover: #64748b;
+  --secondary-foreground: #ffffff;
+
+  --accent: #1e293b;
+  --accent-foreground: #f8fafc;
+
+  --muted: #1e293b;
+  --muted-foreground: #94a3b8;
+
+  --destructive: #f87171;
+  --destructive-foreground: #ffffff;
+
+  --border: #1e293b;
+  --input: #334155;
+  --ring: #60a5fa;
+}
