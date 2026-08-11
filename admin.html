@@ -1,0 +1,1890 @@
+<!DOCTYPE html>
+<html lang="bn" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SmartPOS Pro - মার্চেন্ট এডমিন ও ওয়্যারহাউস প্যানেল</title>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Hind+Siliguri:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='25' fill='%23f59e0b'/><path d='M30 40h40v30H30z' fill='%23ffffff'/><circle cx='50' cy='30' r='10' fill='%23ffffff'/></svg>">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <div class="app-container">
+    <!-- Admin Sidebar -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-logo" style="background: linear-gradient(135deg, var(--accent-orange), var(--accent-purple));">
+          <i class="fa-solid fa-user-shield"></i>
+        </div>
+        <div class="brand-info">
+          <h2>Merchant Admin</h2>
+          <span class="badge" style="background: rgba(245, 158, 11, 0.15); color: var(--accent-orange);">ওয়্যারহাউস ও মালিকানা প্যানেল</span>
+        </div>
+        <button class="mobile-sidebar-close" id="closeMobileSidebarBtn" title="মেনু বন্ধ করুন">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <nav class="nav-menu">
+        <button class="nav-item active" data-tab="adminDashboard" title="ওভারভিউ ও অ্যানালিটিক্স">
+          <i class="fa-solid fa-chart-line"></i>
+          <span>ওভারভিউ ও অ্যানালিটিক্স</span>
+        </button>
+        <button class="nav-item" data-tab="adminAllProducts" title="All Product (সকল প্রোডাক্ট)">
+          <i class="fa-solid fa-boxes-stacked"></i>
+          <span>All Product (সকল প্রোডাক্ট)</span>
+        </button>
+        <button class="nav-item" data-tab="adminVariants" title="Product Category (প্রোডাক্ট ক্যাটাগরি)">
+          <i class="fa-solid fa-layer-group"></i>
+          <span>Product Category (প্রোডাক্ট ক্যাটাগরি)</span>
+        </button>
+        <button class="nav-item" data-tab="adminBarcodes" title="বারকোড স্টিকার জেনারেটর">
+          <i class="fa-solid fa-barcode"></i>
+          <span>বারকোড স্টিকার জেনারেটর</span>
+        </button>
+        <button class="nav-item" data-tab="adminSales" title="বিক্রি ইতিহাস ও লাভ (Sales Log)">
+          <i class="fa-solid fa-file-invoice-dollar"></i>
+          <span>বিক্রি ইতিহাস ও লাভ (Sales Log)</span>
+        </button>
+        <button class="nav-item" data-tab="adminCustomers" title="কাস্টমার (Customers)">
+          <i class="fa-solid fa-users"></i>
+          <span>কাস্টমার (Customers)</span>
+        </button>
+        <button class="nav-item" data-tab="adminSettings" title="দোকান সেটিংস (Shop Settings)">
+          <i class="fa-solid fa-gears"></i>
+          <span>দোকান সেটিংস (Shop Settings)</span>
+        </button>
+        
+        <div style="margin-top: auto;"></div>
+
+        <!-- Back to Cashier Counter -->
+        <a href="cashier.html" class="nav-item" title="ক্যাশিয়ার কাউন্টারে যান" style="background: rgba(16, 185, 129, 0.15); color: var(--accent-green); text-decoration: none;">
+          <i class="fa-solid fa-cash-register"></i>
+          <span>ক্যাশিয়ার কাউন্টারে যান</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="store-profile">
+          <i class="fa-solid fa-store"></i>
+          <div>
+            <strong>সুপার শপ ও ওয়্যারহাউস</strong>
+            <small>মালিক: মো: আব্দুল বাকী</small>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <header class="top-header">
+        <div class="header-left">
+          <button class="mobile-menu-btn" id="mobileMenuToggle" title="মেনু খুলুন">
+            <i class="fa-solid fa-bars"></i>
+          </button>
+          <h1 id="adminPageTitle">মার্চেন্ট ওভারভিউ ও অ্যানালিটিক্স</h1>
+        </div>
+
+        <div class="header-center">
+          <div class="top-clock-card" id="adminClock">
+            <div class="live-dot-container" title="লাইভ সময় রানিং">
+              <span class="live-dot-ping"></span>
+              <span class="live-dot-core"></span>
+            </div>
+            <div class="clock-section time-section">
+              <i class="fa-regular fa-clock clock-icon"></i>
+              <span class="clock-time">00:00:00 AM</span>
+            </div>
+            <div class="clock-divider"></div>
+            <div class="clock-section date-section">
+              <i class="fa-regular fa-calendar-days date-icon"></i>
+              <span class="clock-date">--/--/----</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="header-actions">
+          <button class="btn-icon" id="themeToggleBtn">
+            <i class="fa-solid fa-moon"></i>
+          </button>
+          <a href="cashier.html" class="btn btn-success btn-sm">
+            <i class="fa-solid fa-cash-register"></i> <span class="btn-text">কাউন্টার টার্মিনাল</span>
+          </a>
+        </div>
+      </header>
+
+      <!-- TAB 1: ADMIN DASHBOARD & FINANCIAL ANALYTICS -->
+      <section class="tab-view active" id="adminDashboardView">
+        <!-- Date Filter Control Bar -->
+        <div class="dashboard-filter-bar mb-3" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; background: var(--bg-sidebar); border: 1px solid var(--border-color); padding: 0.85rem 1.25rem; border-radius: 14px;">
+          <div style="display: flex; align-items: center; gap: 0.6rem;">
+            <i class="fa-solid fa-chart-line" style="color: var(--accent-green); font-size: 1.2rem;"></i>
+            <h3 style="font-size: 1.05rem; font-weight: 700; margin: 0;">ওভারভিউ ও সেলস অ্যানালিটিক্স সামারি</h3>
+          </div>
+          <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+            <button type="button" class="analytics-date-trigger-btn" id="openCustomDateRangeModalBtn" title="তারিখ নির্বাচন ও পরিবর্তন করুন">
+              <i class="fa-regular fa-calendar-days" style="color: var(--accent-blue);"></i>
+              <span id="customDateRangeBtnText">Today</span>
+              <i class="fa-solid fa-caret-down" style="font-size: 0.8rem; color: var(--text-muted);"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Main 7 Stat Cards (Exact User Requested Order) -->
+        <div class="stats-grid mb-3">
+          <!-- Card 1: Total Sale -->
+          <div class="stat-card" id="adminCardTotalSale" title="মোট বিক্রির বিস্তারিত মেমো লগে যান">
+            <div class="stat-icon bg-green"><i class="fa-solid fa-cart-shopping"></i></div>
+            <div class="stat-info">
+              <small><span>টোটাল সেল (Total Sale)</span> <span class="stat-card-badge">সেলস লগে <i class="fa-solid fa-arrow-right"></i></span></small>
+              <h3 id="statGrossRevenue">৳0.00</h3>
+            </div>
+          </div>
+
+          <!-- Card 2: Cash Payment -->
+          <div class="stat-card" id="adminCardCashPayment" title="ক্যাশ পেমেন্টের বিস্তারিত ইনভয়েস দেখুন">
+            <div class="stat-icon bg-purple"><i class="fa-solid fa-money-bill-wave"></i></div>
+            <div class="stat-info">
+              <small><span>ক্যাশ পেমেন্ট (Cash Payment)</span> <span class="stat-card-badge">ক্যাশ লগে <i class="fa-solid fa-arrow-right"></i></span></small>
+              <h3 id="statCashPayment">৳0.00</h3>
+            </div>
+          </div>
+
+          <!-- Card 3: E-Payment -->
+          <div class="stat-card" id="adminCardEpayPayment" title="ডিজিটাল ই-পেমেন্টের বিস্তারিত দেখুন">
+            <div class="stat-icon bg-orange"><i class="fa-solid fa-mobile-screen-button"></i></div>
+            <div class="stat-info">
+              <small><span>ই-পেমেন্ট (E-Payment)</span> <span class="stat-card-badge">ই-পে লগে <i class="fa-solid fa-arrow-right"></i></span></small>
+              <h3 id="statEpayPayment">৳0.00</h3>
+            </div>
+          </div>
+
+          <!-- Card 4: Total Order / Total Invoice -->
+          <div class="stat-card" id="adminCardTotalOrders" title="মোট অর্ডারের বিস্তারিত ইনভয়েস তালিকা দেখুন">
+            <div class="stat-icon bg-blue"><i class="fa-solid fa-receipt"></i></div>
+            <div class="stat-info">
+              <small><span>টোটাল ইনভয়েস (Total Invoice)</span> <span class="stat-card-badge">অর্ডারসমূহ <i class="fa-solid fa-arrow-right"></i></span></small>
+              <h3 id="statTotalOrders">0 টি</h3>
+            </div>
+          </div>
+
+          <!-- Card 5: Total Item -->
+          <div class="stat-card" id="adminCardTotalItem" title="বিক্রিত পণ্যের আইটেম বিবরণী দেখুন">
+            <div class="stat-icon bg-cyan"><i class="fa-solid fa-boxes-stacked"></i></div>
+            <div class="stat-info">
+              <small><span>টোটাল আইটেম (Total Item)</span> <span class="stat-card-badge">আইটেম লগে <i class="fa-solid fa-arrow-right"></i></span></small>
+              <h3 id="statTotalItem">0 টি</h3>
+            </div>
+          </div>
+
+          <!-- Card 6: Revenue -->
+          <div class="stat-card" id="adminCardRevenue" title="মোট রাজস্ব রিভেনিউ রিপ্রপোর্টিং দেখুন">
+            <div class="stat-icon bg-emerald"><i class="fa-solid fa-chart-line"></i></div>
+            <div class="stat-info">
+              <small><span>টোটাল রিভেনিউ (Revenue)</span> <span class="stat-card-badge">রিভেনিউ লগে <i class="fa-solid fa-arrow-right"></i></span></small>
+              <h3 id="statRevenue">৳0.00</h3>
+            </div>
+          </div>
+
+          <!-- Card 7: Total Net Profit -->
+          <div class="stat-card" id="adminCardNetProfit" title="পাইকারি কেনা দাম ও বিক্রয় মূল্যের প্রোডাক্টভিত্তিক প্রফিট রিপ্রপোর্ট দেখুন">
+            <div class="stat-icon bg-indigo"><i class="fa-solid fa-sack-dollar"></i></div>
+            <div class="stat-info">
+              <small><span>মোট নিট লাভ (Total Profit)</span> <span class="stat-card-badge" style="background: rgba(99,102,241,0.15); color: #818cf8; border-color: rgba(99,102,241,0.3);">প্রোডাক্ট লাভ <i class="fa-solid fa-arrow-right"></i></span></small>
+              <h3 id="statNetProfit">৳0.00</h3>
+            </div>
+          </div>
+        </div>
+
+        <!-- Prominent Low Stock Alert Banner -->
+        <div class="low-stock-banner mb-3" id="adminLowStockBanner" style="background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(239, 68, 68, 0.1)); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 16px; padding: 1.15rem 1.5rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; cursor: pointer; transition: all 0.25s ease;">
+          <div style="display: flex; align-items: center; gap: 1rem;">
+            <div style="width: 50px; height: 50px; border-radius: 14px; background: linear-gradient(135deg, #d97706, #ef4444); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 1.45rem; flex-shrink: 0; box-shadow: 0 6px 16px rgba(239, 68, 68, 0.3);">
+              <i class="fa-solid fa-boxes-packing"></i>
+            </div>
+            <div>
+              <div style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
+                <h4 style="font-size: 1.05rem; font-weight: 700; margin: 0; color: var(--text-main);">ইনভেন্টরি লো স্টক অ্যালার্ট (Low Stock Alert)</h4>
+                <span class="badge" style="background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.4); font-weight: 700; font-size: 0.8rem; padding: 3px 10px;" id="bannerLowStockBadge">0 টি পণ্য লো স্টক</span>
+              </div>
+              <p style="font-size: 0.84rem; color: var(--text-muted); margin: 3px 0 0 0;">কম স্টক সম্পন্ন পণ্যের বিস্তারিত দেখুন এবং ১ ক্লিকে সরাসরি নতুন স্টক রিফিল / রেস্টক করুন।</p>
+            </div>
+          </div>
+          <button type="button" class="btn btn-warning" id="bannerLowStockBtn" style="font-weight: 700; border-radius: 10px; display: flex; align-items: center; gap: 0.5rem; padding: 0.65rem 1.25rem;">
+            <i class="fa-solid fa-triangle-exclamation"></i> লো স্টক দেখা ও রেস্টক করা <i class="fa-solid fa-arrow-right"></i>
+          </button>
+        </div>
+
+        <div class="charts-grid">
+          <div class="chart-card">
+            <h3><i class="fa-solid fa-chart-column"></i> ক্যাটাগরি অনুযায়ী সেলস রিভেনিউ</h3>
+            <div class="chart-container">
+              <canvas id="adminCategoryChart"></canvas>
+            </div>
+          </div>
+          <div class="chart-card">
+            <h3><i class="fa-solid fa-piggy-bank"></i> পেমেন্ট মেথড অনুপাত (Cash vs E-Pay)</h3>
+            <div class="chart-container">
+              <canvas id="adminPaymentChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 2: ALL PRODUCTS CATALOG & INVENTORY -->
+      <section class="tab-view" id="adminAllProductsView">
+        <div class="panel-card">
+          <div class="panel-header">
+            <div>
+              <h2><i class="fa-solid fa-boxes-stacked" style="color: var(--accent-green);"></i> সকল প্রোডাক্ট তালিকা (All Products Catalog)</h2>
+              <p>দোকানের সকল প্রোডাক্ট, ভেরিয়েন্ট ও তাদের মজুদ স্টক দেখতে ও পরিবর্তন করতে নিচে অপশনসমূহ ব্যবহার করুন</p>
+            </div>
+            <button class="btn btn-primary btn-lg" id="allProdAddProdBtn">
+              <i class="fa-solid fa-plus-circle"></i> + Add Product (নতুন প্রোডাক্ট)
+            </button>
+          </div>
+
+          <!-- Search & Filter Controls -->
+          <div class="form-row mt-3 mb-3" style="background: var(--bg-sidebar); padding: 1rem; border-radius: 14px; border: 1px solid var(--border-color);">
+            <div class="form-group col-5">
+              <label><i class="fa-solid fa-magnifying-glass"></i> প্রোডাক্ট অনুসন্ধান:</label>
+              <input type="text" id="allProductSearch" class="form-control" placeholder="পণ্যের নাম, বারকোড বা ভেরিয়েন্ট দিয়ে সার্চ করুন...">
+            </div>
+            <div class="form-group col-4">
+              <label><i class="fa-solid fa-filter"></i> ক্যাটাগরি অনুযায়ী ফিল্টার:</label>
+              <select id="allProductCategoryFilter" class="form-control">
+                <option value="ALL">সকল ক্যাটাগরি (All Categories)</option>
+              </select>
+            </div>
+            <div class="form-group col-3">
+              <label><i class="fa-solid fa-cubes-stacked"></i> স্টক অবস্থা:</label>
+              <select id="allProductStockFilter" class="form-control">
+                <option value="ALL">সকল স্টক (All Stock)</option>
+                <option value="LOW">কম স্টক (Low Stock <= 10)</option>
+                <option value="IN_STOCK">পর্যাপ্ত স্টক (> 10)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table class="custom-table">
+              <thead>
+                <tr>
+                  <th>ছবি</th>
+                  <th>পণ্যের নাম ও ক্যাটাগরি</th>
+                  <th>ভেরিয়েন্ট (কালার / সাইজ / স্টোরেজ)</th>
+                  <th>বারকোড</th>
+                  <th>কেনা দাম (Cost)</th>
+                  <th>এমআরপি (MRP)</th>
+                  <th>বিক্রয় মূল্য (Price)</th>
+                  <th>মোট স্টক</th>
+                  <th>অ্যাকশন</th>
+                </tr>
+              </thead>
+              <tbody id="adminInventoryTableBody">
+                <!-- Rendered dynamically by JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 3: PRODUCT CATEGORY MANAGER -->
+      <section class="tab-view" id="adminVariantsView">
+        <div class="panel-card">
+          <div class="panel-header">
+            <div>
+              <h2><i class="fa-solid fa-layer-group" style="color: var(--accent-purple);"></i> প্রোডাক্ট ক্যাটাগরি হাব (Product Category Hub)</h2>
+              <p>দোকানের ক্যাটাগরি (যেমন: ব্যাগ, জুতা, পোশাক, গ্যাজেট, ফোন ইত্যাদি) যোগ ও কাস্টমাইজ করুন</p>
+            </div>
+            <button class="btn btn-success btn-lg" id="categoryViewAddCatBtn">
+              <i class="fa-solid fa-folder-plus"></i> + Add Category (নতুন ক্যাটাগরি যোগ করুন)
+            </button>
+          </div>
+
+          <!-- Category Visual Cards Grid -->
+          <div style="margin-top: 1.5rem;">
+            <h3 style="font-size: 1.1rem; color: var(--accent-orange);"><i class="fa-solid fa-icons"></i> ক্যাটাগরি সমূহ (Product Categories)</h3>
+            <div class="category-cards-grid" id="categoryCardsContainer">
+              <!-- Dynamically populated by JS -->
+            </div>
+          </div>
+
+          <!-- Selected Category Products Display -->
+          <div style="margin-top: 2rem; border-top: 1px dashed var(--border-color); padding-top: 1.5rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+              <h3 style="font-size: 1.1rem; color: var(--accent-blue);" id="variantCategoryTableTitle">
+                <i class="fa-solid fa-list-check"></i> সিলেক্টেড ক্যাটাগরির ভেরিয়েন্ট ও প্রোডাক্টসমূহ
+              </h3>
+              <span class="badge" id="variantCategoryBadge" style="background: rgba(59, 130, 246, 0.15); color: var(--accent-blue); font-size: 0.85rem; padding: 4px 12px;">
+                সকল ক্যাটাগরি দেখানো হচ্ছে
+              </span>
+            </div>
+
+            <div class="table-responsive">
+              <table class="custom-table">
+                <thead>
+                  <tr>
+                    <th>ছবি</th>
+                    <th>প্রোডাক্টের নাম</th>
+                    <th>ক্যাটাগরি</th>
+                    <th>ভেরিয়েন্ট তালিকা</th>
+                    <th>প্রাইস রেঞ্জ</th>
+                    <th>মোট মজুদ</th>
+                    <th>অ্যাকশন</th>
+                  </tr>
+                </thead>
+                <tbody id="variantCategoryProductsTableBody">
+                  <!-- Dynamically populated by JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 3: STANDALONE BATCH BARCODE STICKER GENERATOR -->
+      <section class="tab-view" id="adminBarcodesView">
+        <div class="panel-card">
+          <div class="panel-header">
+            <div>
+              <h2><i class="fa-solid fa-barcode" style="color: var(--accent-orange);"></i> বারকোড স্টিকার প্রিন্টার হাব (Barcode Generator Hub)</h2>
+              <p>যেকোনো পণ্যের সাইজ ও কালার ভেরিয়েন্ট অনুযায়ী সঠিক দামসহ অটোমেটিক বারকোড স্টিকার তৈরি ও ব্যাচ প্রিন্ট দিন</p>
+            </div>
+          </div>
+
+          <div class="form-row mb-3">
+            <div class="form-group col-3">
+              <label><i class="fa-solid fa-box"></i> পণ্য নির্বাচন করুন:</label>
+              <select id="barcodeProdSelect" class="form-control">
+                <!-- Rendered options -->
+              </select>
+            </div>
+            <div class="form-group col-3">
+              <label><i class="fa-solid fa-layer-group"></i> ভেরিয়েন্ট ফিল্টার:</label>
+              <select id="barcodeVariantSelect" class="form-control">
+                <!-- Rendered options -->
+              </select>
+            </div>
+            <div class="form-group col-3">
+              <label><i class="fa-solid fa-copy"></i> প্রিন্ট মোড / কপি সংখ্যা:</label>
+              <select id="barcodePrintModeSelect" class="form-control">
+                <option value="custom">ম্যানুয়াল ফিক্সড কপি (Custom Copies)</option>
+                <option value="auto_stock">মজুদ কোয়ান্টিটি অনুযায়ী অটো প্রিন্ট (Auto Stock Quantity)</option>
+              </select>
+            </div>
+            <div class="form-group col-3">
+              <label><i class="fa-solid fa-scroll"></i> স্টিকার রোল / পেপার সাইজ:</label>
+              <select id="barcodePaperFormatSelect" class="form-control">
+                <option value="sticker_50x30">🏷️ 50mm × 30mm স্টিকার রোল (BD Standard 1-Up Roll)</option>
+                <option value="sticker_38x25">🏷️ 38mm × 25mm কসমেটিকস ও পোশাক ১-আপ রোল (Small Roll)</option>
+                <option value="sticker_50x25">🏷️ 50mm × 25mm গ্যাজেট ও জুয়েলারি ১-আপ রোল (Medium Roll)</option>
+                <option value="sticker_75x50">🏷️ 75mm × 50mm কার্টন ও শিপিং লেবেল (Large Shipping Label)</option>
+                <option value="sticker_25x15">🏷️ 25mm × 15mm ফার্মেসী ও অ্যাকসেসোরিজ ট্যাগ (Micro Tag)</option>
+                <option value="2up_label">🏷️ 2-Up ডাবল কলাম স্টিকার (2 Labels Per Row)</option>
+                <option value="a4_grid">📄 A4 বারকোড স্টিকার শিট (Multi-Sticker Grid)</option>
+                <option value="80mm">🧾 80mm POS থার্মাল পেপার রোল</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group mb-3" id="barcodeCustomCountGroup" style="display: block;">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; background: var(--bg-sidebar); padding: 0.85rem 1.25rem; border-radius: 12px; border: 1px solid var(--border-color);">
+              <div>
+                <label style="font-weight: 700; margin: 0; color: var(--accent-blue);"><i class="fa-solid fa-calculator"></i> প্রতি ভেরিয়েন্টের জন্য স্টিকার কপি সংখ্যা:</label>
+                <small class="text-muted display-block mt-1">কতগুলো বারকোড স্টিকার প্রিন্ট করতে চান তা নিচে টাইপ করুন (যেমন: 5, 10, 20, 50)</small>
+              </div>
+              <input type="number" id="barcodeBatchCount" class="form-control form-control-lg text-center" value="6" min="1" max="1000" style="max-width: 140px; font-weight: 700; font-size: 1.2rem;">
+            </div>
+          </div>
+
+          <div class="text-center p-4" style="background: var(--bg-card); border-radius: 14px; border: 1px dashed var(--border-color);">
+            <div id="barcodeBatchGrid" style="display: flex; flex-wrap: wrap; gap: 1.5rem; justify-content: center;">
+              <!-- Dynamically generated sticker previews -->
+            </div>
+          </div>
+
+          <div class="mt-3 text-right">
+            <button class="btn btn-success btn-lg" id="printBatchStickersBtn">
+              <i class="fa-solid fa-print"></i> সিলেক্টেড বারকোড স্টিকার প্রিন্ট দিন
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 4: SALES LOG & PROFIT AUDIT -->
+      <section class="tab-view" id="adminSalesView">
+        <div class="panel-card">
+          <div class="panel-header">
+            <div>
+              <h2>বিক্রি ও পেমেন্ট হিস্ট্রি রেকর্ড</h2>
+              <p>সকল ক্যাশিয়ারের সম্পন্ন করা পেমেন্ট এবং ইনভয়েস রিসিট তালিকা</p>
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table class="custom-table">
+              <thead>
+                <tr>
+                  <th>ইনভয়েস #</th>
+                  <th>তারিখ ও সময়</th>
+                  <th>কাস্টমার</th>
+                  <th>পেমেন্ট মাধ্যম</th>
+                  <th>মোট বিল</th>
+                  <th>মেমো</th>
+                </tr>
+              </thead>
+              <tbody id="adminSalesTableBody">
+                <!-- Rendered dynamically -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 5: SHOP SETTINGS & STORE MANAGEMENT HUB -->
+      <section class="tab-view" id="adminSettingsView">
+        <div class="panel-card">
+          <div class="panel-header">
+            <div>
+              <h2><i class="fa-solid fa-gears"></i> দোকান সেটিংস ও শপ ম্যানেজমেন্ট (Shop Settings Hub)</h2>
+              <p>দোকানের নাম, পেমেন্ট গেটওয়ে, কুপন, ভ্যাট ও সিকিউরিটি ব্যবস্থাপনা করুন</p>
+            </div>
+            <button class="btn btn-success btn-lg" id="saveSettingsBtn">
+              <i class="fa-solid fa-floppy-disk"></i> সেটিংস সেভ করুন
+            </button>
+          </div>
+
+          <!-- Settings Sub-Navigation Tabs -->
+          <div class="settings-subnav" style="display: flex; gap: 0.5rem; margin-top: 1rem; margin-bottom: 1.25rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem; flex-wrap: wrap;">
+            <button type="button" class="btn btn-outline settings-subtab-btn active" data-subtab="settingSubPanelShop">
+              <i class="fa-solid fa-store"></i> ১. ম্যানেজ শপ (Manage Shop)
+            </button>
+            <button type="button" class="btn btn-outline settings-subtab-btn" data-subtab="settingSubPanelPayment">
+              <i class="fa-solid fa-credit-card"></i> ২. পেমেন্ট গেটওয়ে (Payment Gateway)
+            </button>
+            <button type="button" class="btn btn-outline settings-subtab-btn" data-subtab="settingSubPanelOffers">
+              <i class="fa-solid fa-tags"></i> ৩. অফার, কুপন ও ভ্যাট (Offer & VAT)
+            </button>
+            <button type="button" class="btn btn-outline settings-subtab-btn" data-subtab="settingSubPanelSecurity">
+              <i class="fa-solid fa-user-shield"></i> ৪. সিকিউরিটি ও ব্যাকআপ (Security & Backup)
+            </button>
+          </div>
+
+          <!-- SUB-PANEL 1: MANAGE SHOP -->
+          <div class="settings-subpanel active" id="settingSubPanelShop" style="display: block;">
+            <div style="background: var(--bg-sidebar); border: 1px solid var(--border-color); border-radius: 16px; padding: 1.5rem; max-width: 800px;">
+              <h4 style="color: var(--accent-green); margin-bottom: 1.25rem;"><i class="fa-solid fa-store"></i> দোকানের মূল প্রোফাইল ও ব্র্যান্ডিং</h4>
+              
+              <div class="form-row mb-3">
+                <div class="form-group col-6">
+                  <label>দোকানের মূল নাম (Store Title) *</label>
+                  <input type="text" id="settingStoreName" class="form-control" placeholder="e.g. Super Shop Dhaka">
+                </div>
+                <div class="form-group col-6">
+                  <label>মালিকের নাম (Store Owner Name)</label>
+                  <input type="text" id="settingStoreOwner" class="form-control" placeholder="e.g. Md. Abdul Baqui">
+                </div>
+              </div>
+
+              <div class="form-row mb-3">
+                <div class="form-group col-6">
+                  <label>মোবাইল / ফোন *</label>
+                  <input type="text" id="settingStorePhone" class="form-control" placeholder="+880 1700-000000">
+                </div>
+                <div class="form-group col-6">
+                  <label>ইমেইল ঠিকানা</label>
+                  <input type="email" id="settingStoreEmail" class="form-control" placeholder="info@supershop.com">
+                </div>
+              </div>
+
+              <div class="form-group mb-3">
+                <label>দোকানের ঠিকানা / ব্রাঞ্চ (Full Address) *</label>
+                <input type="text" id="settingStoreAddress" class="form-control" placeholder="Mirpur 10, Dhaka - 1216">
+              </div>
+
+              <div class="form-group mb-3">
+                <label>স্টোর লোগো ইউআরএল (Store Logo Image URL)</label>
+                <input type="url" id="settingStoreLogo" class="form-control" placeholder="https://images.unsplash.com/photo-...">
+              </div>
+
+              <div class="form-row mb-2">
+                <div class="form-group col-6">
+                  <label>মেমো রিসিট হেডার টেক্সট (Receipt Header)</label>
+                  <input type="text" id="settingReceiptHeader" class="form-control" placeholder="Mirpur 10, Dhaka - 1216">
+                </div>
+                <div class="form-group col-6">
+                  <label>মেমো রিসিট কাস্টম ফুটার নোটিশ (Thank You Note)</label>
+                  <input type="text" id="settingReceiptFooter" class="form-control" placeholder="Thank you! Come again.">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- SUB-PANEL 2: PAYMENT GATEWAY -->
+          <div class="settings-subpanel" id="settingSubPanelPayment" style="display: none;">
+            <div style="background: var(--bg-sidebar); border: 1px solid var(--border-color); border-radius: 16px; padding: 1.5rem; max-width: 900px;">
+              <h4 style="color: var(--accent-blue); margin-bottom: 1.25rem;"><i class="fa-solid fa-credit-card"></i> ডিজিটাল পেমেন্ট গেটওয়ে সেটআপ (Payment Gateways)</h4>
+              <p class="text-muted mb-4" style="font-size: 0.9rem;">ক্যাশিয়ার ই-পে (E-Pay) অপশনে কোন কোন ডিজিটাল গেটওয়ে চালু থাকবে এবং মার্চেন্ট নম্বরগুলো সেটিংস করুন:</p>
+
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 1.25rem;">
+                
+                <!-- bKash -->
+                <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; padding: 1.1rem;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                      <i class="fa-solid fa-wallet" style="color: #e2136e; font-size: 1.4rem;"></i>
+                      <strong>bKash (বিকাশ)</strong>
+                    </div>
+                    <label style="display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-size: 0.88rem;">
+                      <input type="checkbox" id="gwEnableBkash" checked> সক্রিয় (Active)
+                    </label>
+                  </div>
+                  <div class="form-group mb-2">
+                    <label style="font-size: 0.82rem;">মার্চেন্ট / পার্সোনাল নম্বর:</label>
+                    <input type="text" id="gwNumBkash" class="form-control form-control-sm" placeholder="017XXXXXXXX" value="01700-000000">
+                  </div>
+                  <div class="form-group">
+                    <label style="font-size: 0.82rem;">নির্দেশনা নোটিশ:</label>
+                    <input type="text" id="gwNoteBkash" class="form-control form-control-sm" placeholder="পেমেন্ট করার পর TrxID লিখুন" value="bKash মার্চেন্ট বা পার্সোনাল নম্বরে পেমেন্ট করুন এবং TrxID দিন।">
+                  </div>
+                </div>
+
+                <!-- Nagad -->
+                <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; padding: 1.1rem;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                      <i class="fa-solid fa-mobile-retro" style="color: #f7941d; font-size: 1.4rem;"></i>
+                      <strong>Nagad (নগদ)</strong>
+                    </div>
+                    <label style="display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-size: 0.88rem;">
+                      <input type="checkbox" id="gwEnableNagad" checked> সক্রিয় (Active)
+                    </label>
+                  </div>
+                  <div class="form-group mb-2">
+                    <label style="font-size: 0.82rem;">মার্চেন্ট / পার্সোনাল নম্বর:</label>
+                    <input type="text" id="gwNumNagad" class="form-control form-control-sm" placeholder="018XXXXXXXX" value="01800-000000">
+                  </div>
+                  <div class="form-group">
+                    <label style="font-size: 0.82rem;">নির্দেশনা নোটিশ:</label>
+                    <input type="text" id="gwNoteNagad" class="form-control form-control-sm" placeholder="পেমেন্ট করার পর TrxID লিখুন" value="Nagad নম্বরে ক্যাশইন/পেমেন্ট করুন এবং TrxID দিন।">
+                  </div>
+                </div>
+
+                <!-- Bangla QR -->
+                <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; padding: 1.1rem;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                      <i class="fa-solid fa-qrcode" style="color: #10b981; font-size: 1.4rem;"></i>
+                      <strong>Bangla QR (বাংলা কিউআর)</strong>
+                    </div>
+                    <label style="display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-size: 0.88rem;">
+                      <input type="checkbox" id="gwEnableQR" checked> সক্রিয় (Active)
+                    </label>
+                  </div>
+                  <div class="form-group mb-2">
+                    <label style="font-size: 0.82rem;">QR অ্যাকাউন্ট / আইডি:</label>
+                    <input type="text" id="gwNumQR" class="form-control form-control-sm" placeholder="e.g. SuperShop-BanglaQR" value="SuperShop-BanglaQR">
+                  </div>
+                  <div class="form-group">
+                    <label style="font-size: 0.82rem;">নির্দেশনা নোটিশ:</label>
+                    <input type="text" id="gwNoteQR" class="form-control form-control-sm" placeholder="QR স্ক্যান নির্দেশনা" value="কাউন্টারে টানানো বাংলা QR কোড স্ক্যান করে পেমেন্ট করুন।">
+                  </div>
+                </div>
+
+                <!-- Card Payment -->
+                <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; padding: 1.1rem;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                      <i class="fa-solid fa-credit-card" style="color: #0066cc; font-size: 1.4rem;"></i>
+                      <strong>Card (ডেবিট/ক্রেডিট কার্ড)</strong>
+                    </div>
+                    <label style="display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-size: 0.88rem;">
+                      <input type="checkbox" id="gwEnableCard" checked> সক্রিয় (Active)
+                    </label>
+                  </div>
+                  <div class="form-group mb-2">
+                    <label style="font-size: 0.82rem;">POS টার্মিনাল আইডি / বিবরণ:</label>
+                    <input type="text" id="gwNumCard" class="form-control form-control-sm" placeholder="e.g. POS Terminal #1" value="POS Terminal #1">
+                  </div>
+                  <div class="form-group">
+                    <label style="font-size: 0.82rem;">নির্দেশনা নোটিশ:</label>
+                    <input type="text" id="gwNoteCard" class="form-control form-control-sm" placeholder="কার্ড সোয়াইপ নির্দেশনা" value="কাউন্টার POS মেশিনে ডেবিট/ক্রেডিট কার্ড সোয়াইপ/ট্যাপ করুন।">
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+
+          <!-- SUB-PANEL 3: OFFER, COUPON & VAT -->
+          <div class="settings-subpanel" id="settingSubPanelOffers" style="display: none;">
+            <div style="display: flex; flex-direction: column; gap: 1.5rem; max-width: 900px;">
+              
+              <!-- Default Discount, Tax & Currency Card -->
+              <div style="background: var(--bg-sidebar); border: 1px solid var(--border-color); border-radius: 16px; padding: 1.25rem;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.8rem; flex-wrap: wrap; gap: 0.5rem;">
+                  <h4 style="color: var(--accent-orange); margin: 0; display: flex; align-items: center; gap: 8px;">
+                    <i class="fa-solid fa-sliders"></i> ডিফল্ট ডিসকাউন্ট ও ভ্যাট/ট্যাক্স কন্ট্রোল প্যানেল
+                  </h4>
+                  <span class="badge" style="background: rgba(245, 158, 11, 0.15); color: var(--accent-orange); border: 1px dashed var(--accent-orange); padding: 4px 10px; font-size: 0.78rem;">
+                    <i class="fa-solid fa-bolt"></i> ক্যাশিয়ার পিওএস এ অটোলোড হবে
+                  </span>
+                </div>
+                
+                <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 1.2rem;">
+                  এখান থেকে ডিসকাউন্ট ও ভ্যাট/ট্যাক্স মোড (% পার্সেন্টেজ বা ৳ টাকা) এবং মান সিলেক্ট করে রাখলে ক্যাশিয়ার কাউন্টারে প্রতিবার তা অটোমেটিক সেট হয়ে থাকবে।
+                </p>
+
+                <div class="form-row">
+                  <!-- Default Discount Box -->
+                  <div class="form-group col-6">
+                    <div style="background: var(--bg-card); padding: 1rem; border-radius: 12px; border: 1px solid var(--border-color);">
+                      <label style="font-weight: 700; color: var(--accent-green); margin-bottom: 0.6rem; display: flex; align-items: center; gap: 6px; font-size: 0.88rem;">
+                        <i class="fa-solid fa-percent"></i> ডিফল্ট ডিসকাউন্ট (Discount Control)
+                      </label>
+                      <div style="display: flex; gap: 8px;">
+                        <div style="flex: 1;">
+                          <label style="font-size: 0.78rem; color: var(--text-muted);">ডিফল্ট মোড (Type):</label>
+                          <select id="settingDefaultDiscountMode" class="form-control form-control-sm">
+                            <option value="percent">পার্সেন্টেজ (%)</option>
+                            <option value="flat">টাকার পরিমাণ (৳)</option>
+                          </select>
+                        </div>
+                        <div style="flex: 1;">
+                          <label style="font-size: 0.78rem; color: var(--text-muted);">ডিফল্ট পরিমাণ:</label>
+                          <input type="number" id="settingDefaultDiscountValue" class="form-control form-control-sm" value="0" min="0" step="any" placeholder="0">
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Default VAT/Tax Box -->
+                  <div class="form-group col-6">
+                    <div style="background: var(--bg-card); padding: 1rem; border-radius: 12px; border: 1px solid var(--border-color);">
+                      <label style="font-weight: 700; color: var(--accent-blue); margin-bottom: 0.6rem; display: flex; align-items: center; gap: 6px; font-size: 0.88rem;">
+                        <i class="fa-solid fa-receipt"></i> ডিফল্ট ভ্যাট/ট্যাক্স (VAT / Tax Control)
+                      </label>
+                      <div style="display: flex; gap: 8px;">
+                        <div style="flex: 1;">
+                          <label style="font-size: 0.78rem; color: var(--text-muted);">ডিফল্ট মোড (Type):</label>
+                          <select id="settingDefaultTaxMode" class="form-control form-control-sm">
+                            <option value="percent">পার্সেন্টেজ (%)</option>
+                            <option value="flat">টাকার পরিমাণ (৳)</option>
+                          </select>
+                        </div>
+                        <div style="flex: 1;">
+                          <label style="font-size: 0.78rem; color: var(--text-muted);">ডিফল্ট পরিমাণ:</label>
+                          <input type="number" id="settingDefaultTax" class="form-control form-control-sm" value="0" min="0" step="any" placeholder="0">
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="form-row mt-2">
+                  <div class="form-group col-6">
+                    <label style="font-size: 0.82rem; color: var(--text-muted);"><i class="fa-solid fa-bangladeshi-taka-sign"></i> কারেন্সি প্রতীক (Currency Symbol)</label>
+                    <input type="text" id="settingCurrencySymbol" class="form-control form-control-sm" value="৳">
+                  </div>
+                </div>
+              </div>
+
+              <!-- Coupon Code Table Card -->
+              <div style="background: var(--bg-sidebar); border: 1px solid var(--border-color); border-radius: 16px; padding: 1.25rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+                  <h4 style="color: var(--accent-green); margin: 0;"><i class="fa-solid fa-tags"></i> কুপন কোড ও প্রমোশন ব্যবস্থাপনা</h4>
+                  <button type="button" class="btn btn-sm btn-primary" id="addNewCouponBtn">
+                    <i class="fa-solid fa-plus"></i> নতুন কুপন যুক্ত করুন
+                  </button>
+                </div>
+
+                <div class="table-container" style="max-height: 300px; overflow-y: auto;">
+                  <table class="table" style="margin: 0;">
+                    <thead>
+                      <tr>
+                        <th>কুপন কোড</th>
+                        <th>ছাড়ের বিবরণ</th>
+                        <th>সর্বনিম্ন কেনাকাটা</th>
+                        <th>স্ট্যাটাস</th>
+                        <th style="text-align: right;">অ্যাকশন</th>
+                      </tr>
+                    </thead>
+                    <tbody id="couponsTableBody">
+                      <!-- Coupons rendered dynamically -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- SUB-PANEL 4: SECURITY & BACKUP -->
+          <div class="settings-subpanel" id="settingSubPanelSecurity" style="display: none;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 1.25rem; max-width: 900px;">
+              
+              <!-- Admin PIN Card -->
+              <div style="background: var(--bg-sidebar); border: 1px solid var(--border-color); border-radius: 16px; padding: 1.25rem;">
+                <h4 style="color: var(--accent-orange); margin-bottom: 1rem;"><i class="fa-solid fa-user-shield"></i> সিকিউরিটি সেটিংস (Admin PIN)</h4>
+
+                <div class="form-group mb-3">
+                  <label>নতুন এডমিন সিকিউরিটি পিন (New Admin PIN) *</label>
+                  <input type="password" id="settingAdminPin" class="form-control form-control-lg text-center" placeholder="1234" maxlength="8" style="letter-spacing: 6px; font-size: 1.4rem;">
+                  <small class="text-muted mt-1 display-block">(ক্যাশিয়ার থেকে এডমিন প্যানেলে ঢোকার সময় এই পিনটি লাগবে)</small>
+                </div>
+
+                <div class="form-group mb-2">
+                  <label>ডিফল্ট ইন্টারফেস থিম</label>
+                  <select id="settingDefaultTheme" class="form-control">
+                    <option value="dark">ডার্ক মোড (Dark Theme)</option>
+                    <option value="light">লাইট মোড (Light Theme)</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- System Backup & Reset Card -->
+              <div style="background: var(--bg-sidebar); border: 1px solid var(--border-color); border-radius: 16px; padding: 1.25rem;">
+                <h4 style="color: var(--accent-purple); margin-bottom: 1rem;"><i class="fa-solid fa-database"></i> ডেটা ব্যাকআপ ও রিসেট</h4>
+
+                <p class="text-muted mb-3" style="font-size: 0.88rem;">আপনার দোকানের সকল প্রোডাক্ট, স্টক ভেরিয়েন্ট, সেলস হিস্ট্রি ও সেটিংস ব্যাকআপ ফাইল হিসেবে ডাউনলোড বা রিস্টোর করুন:</p>
+
+                <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                  <button type="button" class="btn btn-outline" id="exportBackupBtn">
+                    <i class="fa-solid fa-download"></i> সিস্টেম ব্যাকআপ JSON ডাউনলোড করুন
+                  </button>
+
+                  <button type="button" class="btn btn-outline" id="restoreDemoBtn" style="border-color: var(--accent-orange); color: var(--accent-orange);">
+                    <i class="fa-solid fa-rotate-left"></i> ডেমো ডেটা রিস্টোর করুন
+                  </button>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+      <!-- VIEW: CUSTOMER MANAGEMENT HUB -->
+      <section class="tab-view" id="adminCustomers" style="display: none;">
+        <div class="panel-card mb-3">
+          <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+            <div>
+              <h2><i class="fa-solid fa-users"></i> কাস্টমার প্রোফাইল ও ব্যবস্থাপনা (Customer Management Hub)</h2>
+              <p>আপনার সকল নিবন্ধিত গ্রাহকের প্রোফাইল, ফোন নম্বর, কেনাকাটার ইতিহাস ও লাইফটাইম খরচের তালিকা</p>
+            </div>
+            <button class="btn btn-success btn-md" id="adminAddNewCustomerBtn">
+              <i class="fa-solid fa-user-plus"></i> নতুন কাস্টমার যুক্ত করুন
+            </button>
+          </div>
+
+          <!-- Stats Grid for Customers -->
+          <div class="stats-grid mt-3">
+            <div class="stat-card" id="adminCardTotalCust" title="সকল কাস্টমার তালিকা রিসেট ও ফিল্টার করুন">
+              <div class="stat-icon bg-blue"><i class="fa-solid fa-users"></i></div>
+              <div class="stat-info">
+                <small><span>মোট নিবন্ধিত কাস্টমার</span> <span class="stat-card-badge">তালিকা <i class="fa-solid fa-arrow-right"></i></span></small>
+                <h3 id="custStatTotalCount">0 জন</h3>
+              </div>
+            </div>
+            <div class="stat-card" id="adminCardCustOrders" title="কাস্টমার ভিত্তিক অর্ডারের তালিকা দেখুন">
+              <div class="stat-icon bg-purple"><i class="fa-solid fa-cart-shopping"></i></div>
+              <div class="stat-info">
+                <small><span>মোট কাস্টমার অর্ডার</span> <span class="stat-card-badge">অর্ডারসমূহ <i class="fa-solid fa-arrow-right"></i></span></small>
+                <h3 id="custStatTotalOrders">0 টি</h3>
+              </div>
+            </div>
+            <div class="stat-card" id="adminCardCustSpent" title="কাস্টমার বাকি ও পেমেন্ট সামারি দেখুন">
+              <div class="stat-icon bg-green"><i class="fa-solid fa-sack-dollar"></i></div>
+              <div class="stat-info">
+                <small><span>কাস্টমারদের মোট সেলস</span> <span class="stat-card-badge">সামারি <i class="fa-solid fa-arrow-right"></i></span></small>
+                <h3 id="custStatTotalSpent">৳0.00</h3>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel-card">
+          <!-- Action Bar: Search & Filter -->
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.75rem;">
+            <div class="search-box" style="max-width: 380px; width: 100%;">
+              <i class="fa-solid fa-magnifying-glass"></i>
+              <input type="text" id="custSearchInput" class="form-control" placeholder="নাম, ফোন নম্বর বা ঠিকানা দিয়ে খুঁজুন...">
+            </div>
+            <span class="text-muted" style="font-size: 0.85rem;" id="custTableCountBadge">মোট ০ জন কাস্টমার</span>
+          </div>
+
+          <div class="table-responsive">
+            <table class="table custom-table">
+              <thead>
+                <tr>
+                  <th>কাস্টমার আইডি</th>
+                  <th>কাস্টমারের নাম</th>
+                  <th>ফোন নম্বর</th>
+                  <th>ইমেইল</th>
+                  <th>ঠিকানা</th>
+                  <th>মোট অর্ডার</th>
+                  <th>মোট খরচ</th>
+                  <th>নিবন্ধনের তারিখ</th>
+                  <th style="text-align: right;">অ্যাকশন</th>
+                </tr>
+              </thead>
+              <tbody id="adminCustomersTableBody">
+                <!-- Dynamically rendered -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- MODAL: ADD / EDIT CUSTOMER -->
+  <div class="modal" id="customerModal">
+    <div class="modal-content modal-md">
+      <div class="modal-header">
+        <h3 id="customerModalTitle"><i class="fa-solid fa-user-plus"></i> কাস্টমার প্রোফাইল তথ্য</h3>
+        <button class="close-modal"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <form id="customerForm">
+        <input type="hidden" id="custFormId">
+        <div class="modal-body">
+          <!-- Row 1: First Name & Last Name -->
+          <div class="form-row mb-3">
+            <div class="form-group col-6">
+              <label>ফার্স্ট নেম (First Name) *</label>
+              <input type="text" id="custFormFirstName" class="form-control" placeholder="যেমন: রহিম" required>
+            </div>
+            <div class="form-group col-6">
+              <label>লাস্ট নেম (Last Name)</label>
+              <input type="text" id="custFormLastName" class="form-control" placeholder="যেমন: আহমেদ">
+            </div>
+          </div>
+
+          <!-- Row 2: Phone Number & Email -->
+          <div class="form-row mb-3">
+            <div class="form-group col-6">
+              <label>ফোন নম্বর (১১ ডিজিট) *</label>
+              <input type="tel" id="custFormPhone" class="form-control" maxlength="11" placeholder="যেমন: 01700000000" required>
+            </div>
+            <div class="form-group col-6">
+              <label>ইমেইল ঠিকানা (Email)</label>
+              <input type="email" id="custFormEmail" class="form-control" placeholder="যেমন: customer@gmail.com">
+            </div>
+          </div>
+
+          <!-- Row 3: Address (Full Width Box Across Bottom) -->
+          <div class="form-group mb-0">
+            <label>পূর্ণাঙ্গ ঠিকানা (Address)</label>
+            <textarea id="custFormAddress" class="form-control" rows="2" placeholder="বাসা/মিরপুর ১০, ঢাকা..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary close-modal">বাতিল</button>
+          <button type="submit" class="btn btn-success">
+            <i class="fa-solid fa-floppy-disk"></i> সংরক্ষণ করুন
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: CUSTOMER ORDERS HISTORY -->
+  <div class="modal" id="customerOrdersModal">
+    <div class="modal-content modal-lg">
+      <div class="modal-header">
+        <h3 id="custOrdersModalTitle"><i class="fa-solid fa-clock-rotate-left"></i> কাস্টমার কেনাকাটার ইতিহাস</h3>
+        <button class="close-modal"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <div id="custOrdersModalHeaderInfo" style="background: var(--bg-card); padding: 0.75rem 1rem; border-radius: 10px; margin-bottom: 1rem; border: 1px solid var(--border-color);"></div>
+        <div class="table-responsive">
+          <table class="table custom-table">
+            <thead>
+              <tr>
+                <th>ইনভয়েস #</th>
+                <th>তারিখ ও সময়</th>
+                <th>পেমেন্ট মেথড</th>
+                <th>মোট বিল</th>
+                <th style="text-align: right;">অ্যাকশন</th>
+              </tr>
+            </thead>
+            <tbody id="custOrdersTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 1: FULL WAREHOUSE PRODUCT & VARIANT ENTRY / EDIT MODAL -->
+  <div class="modal" id="productModal">
+    <div class="modal-content modal-lg" style="max-width: 880px;">
+      <div class="modal-header">
+        <h3 id="productModalTitle"><i class="fa-solid fa-boxes-stacked"></i> ওয়্যারহাউস পণ্য এন্ট্রি ও ভেরিয়েন্ট সেটিংস</h3>
+        <button class="close-modal"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <form id="productForm">
+        <input type="hidden" id="prodFormId">
+        <div class="modal-body" style="max-height: 72vh; overflow-y: auto;">
+          
+          <!-- Base Product Information -->
+          <h4 style="color: var(--accent-green); margin-bottom: 0.75rem;"><i class="fa-solid fa-info-circle"></i> সাধারণ পণ্যের তথ্য</h4>
+          <div class="form-row">
+            <div class="form-group col-6">
+              <label>পণ্যের মূল নাম (Product Title) *</label>
+              <input type="text" id="prodFormName" class="form-control" required placeholder="যেমন: Men's Cotton Polo T-Shirt">
+            </div>
+            <div class="form-group col-6">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                <label style="margin: 0;">ক্যাটাগরি *</label>
+                <button type="button" class="btn btn-sm btn-outline" id="modalQuickAddCategoryBtn" style="border-color: var(--accent-blue); color: var(--accent-blue); font-size: 0.75rem; padding: 2px 8px;">
+                  <i class="fa-solid fa-plus"></i> নতুন ক্যাটাগরি
+                </button>
+              </div>
+              <select id="prodFormCategory" class="form-control">
+                <!-- Dynamically populated by JS -->
+              </select>
+            </div>
+          </div>
+
+          <!-- Direct Device / Gallery File Upload -->
+          <div class="form-group mt-3" style="background: var(--bg-sidebar); padding: 1.25rem; border-radius: 14px; border: 1px dashed var(--border-highlight);">
+            <label style="font-weight: 700; color: var(--accent-green); display: flex; justify-content: space-between; align-items: center;">
+              <span><i class="fa-solid fa-image"></i> পণ্যের ছবি (Upload Product Photo) *</span>
+              <small class="text-muted">আপনার ডিভাইস বা মোবাইলের গ্যালারি থেকে সরাসরি ছবি যোগ করুন</small>
+            </label>
+
+            <div style="display: flex; gap: 1rem; align-items: center; margin-top: 0.75rem; flex-wrap: wrap;">
+              <!-- File Input (Hidden) -->
+              <input type="file" id="prodFormFileInput" accept="image/*" style="display: none;">
+
+              <!-- Upload Button -->
+              <button type="button" class="btn btn-primary" id="prodFormUploadBtn">
+                <i class="fa-solid fa-cloud-arrow-up"></i> গ্যালারি থেকে ছবি আপলোড করুন
+              </button>
+
+              <!-- Image Value Storage -->
+              <input type="hidden" id="prodFormImage">
+
+              <!-- Live Image Preview -->
+              <div id="prodImgPreviewWrapper" style="display: flex; align-items: center; gap: 0.75rem;">
+                <img id="prodFormImgPreview" src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'><rect width='100' height='100' fill='%231e293b'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='%2394a3b8' font-family='sans-serif' font-size='12'>No Image</text></svg>" style="width: 56px; height: 56px; border-radius: 12px; object-fit: cover; border: 2px solid var(--accent-green);">
+                <small id="prodImgFileName" class="text-muted" style="font-size: 0.82rem;">গ্যালারি থেকে ছবি সিলেক্ট করুন</small>
+              </div>
+            </div>
+          </div>
+
+          <!-- DYNAMIC VARIANTS SECTION -->
+          <div style="border-top: 1px dashed var(--border-color); margin-top: 1.5rem; padding-top: 1rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+              <div>
+                <h4 style="color: var(--accent-orange); margin: 0;"><i class="fa-solid fa-layer-group"></i> কালার, সাইজ ও আলাদা প্রাইস ভেরিয়েন্ট তালিকা</h4>
+                <small class="text-muted">প্রতিটি সাইজ বা কালারের জন্য আলাদা কেনা দাম, নিয়মিত MRP (আগের দাম), বিক্রি মূল্য, নতুন স্টক ও বারকোড দিন</small>
+              </div>
+              <button type="button" class="btn btn-sm btn-primary" id="addVariantRowBtn">
+                <i class="fa-solid fa-plus"></i> ভেরিয়েন্ট যোগ করুন
+              </button>
+            </div>
+
+            <!-- Variant Rows Box -->
+            <div id="variantRowsContainer" style="display: flex; flex-direction: column; gap: 1rem;">
+              <!-- Dynamically Populated Variant Rows -->
+            </div>
+          </div>
+
+        </div>
+        <div class="modal-footer" style="display: flex; justify-content: space-between;">
+          <button type="button" class="btn btn-secondary close-modal">বাতিল</button>
+          <div style="display: flex; gap: 0.75rem;">
+            <button type="button" class="btn btn-outline" id="saveOnlyBtn">
+              <i class="fa-solid fa-floppy-disk"></i> শুধুমাত্র সেভ করুন
+            </button>
+            <button type="button" class="btn btn-success btn-lg" id="saveAndPrintBtn">
+              <i class="fa-solid fa-print"></i> সেভ করুন ও বারকোড স্টিকার প্রিন্ট দিন
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 2: DEDICATED RESTOCK & PRICE UPDATE MODAL -->
+  <div class="modal" id="restockModal">
+    <div class="modal-content modal-md" style="max-width: 750px;">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-boxes-packing"></i> স্টক রিস্টক (Restock) ও নতুন দাম আপডেট</h3>
+        <button class="close-modal"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <form id="restockForm">
+        <input type="hidden" id="restockProdId">
+        <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+          <div style="display: flex; gap: 1rem; align-items: center; margin-bottom: 1.25rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border-color);">
+            <img id="restockProdImg" src="" style="width: 56px; height: 56px; border-radius: 12px; object-fit: cover;">
+            <div>
+              <h4 id="restockProdTitle" style="margin: 0;">পণ্যের নাম</h4>
+              <span class="badge" id="restockProdCategory" style="background: rgba(59,130,246,0.15); color: var(--accent-blue);">ক্যাটাগরি</span>
+            </div>
+          </div>
+
+          <p class="text-muted mb-3" style="font-size: 0.9rem;">
+            সদ্য আসা নতুন স্টক সংখ্যা দিন। প্রয়োজন হলে বিক্রয় মূল্য বা কেনা দাম বাড়াতে/কমাতে পারবেন। <strong>সদ্য আসা নতুন স্টকের বারকোড অটোমেটিক প্রিন্ট হবে!</strong>
+          </p>
+
+          <div id="restockVariantsContainer" style="display: flex; flex-direction: column; gap: 1rem;">
+            <!-- Dynamically populated variant restock cards -->
+          </div>
+        </div>
+        <div class="modal-footer" style="display: flex; justify-content: space-between;">
+          <button type="button" class="btn btn-secondary close-modal">বাতিল</button>
+          <div style="display: flex; gap: 0.75rem;">
+            <button type="button" class="btn btn-outline" id="confirmRestockOnlyBtn">
+              <i class="fa-solid fa-floppy-disk"></i> শুধুমাত্র রিস্টক সেভ করুন
+            </button>
+            <button type="button" class="btn btn-success btn-lg" id="confirmRestockAndPrintBtn">
+              <i class="fa-solid fa-print"></i> রিস্টক সেভ করুন ও নতুন বারকোড প্রিন্ট দিন
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 3: ADD/MANAGE CATEGORY MODAL -->
+  <div class="modal" id="variantCategoryModal">
+    <div class="modal-content modal-md" style="max-width: 650px;">
+      <div class="modal-header">
+        <h3 id="variantCategoryModalTitle"><i class="fa-solid fa-folder-plus"></i> নতুন প্রোডাক্ট ক্যাটাগরি যোগ করুন</h3>
+        <button class="close-modal"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <form id="variantCategoryForm">
+        <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+          <input type="hidden" id="modalActionType" value="CATEGORY">
+
+          <!-- Section A: Add Category Fields -->
+          <div id="categoryFieldsSection">
+            <div class="form-row mb-2">
+              <div class="form-group col-6">
+                <label>ক্যাটাগরির নাম (English) *</label>
+                <input type="text" id="catNameEng" class="form-control" placeholder="যেমন: Bags, Shoes, Apparel, Phones">
+              </div>
+              <div class="form-group col-6">
+                <label>ক্যাটাগরির নাম (বাংলা) *</label>
+                <input type="text" id="catNameBn" class="form-control" placeholder="যেমন: ব্যাগ, জুতা, পোশাক, ফোন">
+              </div>
+            </div>
+
+            <!-- Category Gallery Image Upload -->
+            <div class="form-group mb-3" style="background: var(--bg-sidebar); padding: 1rem; border-radius: 12px; border: 1px dashed var(--border-highlight);">
+              <label style="font-weight: 600; color: var(--accent-blue); display: flex; justify-content: space-between; align-items: center;">
+                <span><i class="fa-solid fa-image"></i> ক্যাটাগরি ছবি (Upload Category Photo) *</span>
+                <small class="text-muted">গ্যালারি থেকে ছবি সিলেক্ট করুন</small>
+              </label>
+              
+              <div style="display: flex; gap: 1rem; align-items: center; margin-top: 0.5rem; flex-wrap: wrap;">
+                <input type="file" id="catFormFileInput" accept="image/*" style="display: none;">
+
+                <button type="button" class="btn btn-outline" id="catFormUploadBtn" style="border-color: var(--accent-blue); color: var(--accent-blue);">
+                  <i class="fa-solid fa-cloud-arrow-up"></i> গ্যালারি থেকে ছবি আপলোড করুন
+                </button>
+
+                <input type="hidden" id="catImgUrl">
+
+                <div id="catImgPreviewWrapper" style="display: flex; align-items: center; gap: 0.75rem;">
+                  <img id="catFormImgPreview" src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'><rect width='100' height='100' fill='%231e293b'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='%2394a3b8' font-family='sans-serif' font-size='12'>Cover</text></svg>" style="width: 50px; height: 50px; border-radius: 10px; object-fit: cover; border: 2px solid var(--accent-blue);">
+                  <small id="catImgFileName" class="text-muted" style="font-size: 0.8rem;">গ্যালারি থেকে ছবি সিলেক্ট করুন</small>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-group mb-2">
+              <label>সংক্ষিপ্ত বিবরণ (Short Description)</label>
+              <input type="text" id="catDescription" class="form-control" placeholder="যেমন: জুতা, স্নিকার্স, কেডস ও ফরমাল শু">
+            </div>
+
+            <div class="form-row mb-2">
+              <div class="form-group col-6">
+                <label>আইকন (FontAwesome Icon) *</label>
+                <select id="catIconSelect" class="form-control">
+                  <option value="fa-bag-shopping">👜 Bag / ব্যাগ (fa-bag-shopping)</option>
+                  <option value="fa-shoe-prints">👟 Shoes / জুতা (fa-shoe-prints)</option>
+                  <option value="fa-shirt">👗 Apparel / পোশাক (fa-shirt)</option>
+                  <option value="fa-headphones">🎧 Gadgets / গ্যাজেট (fa-headphones)</option>
+                  <option value="fa-wand-magic-sparkles">💄 Cosmetics / কসমেটিকস (fa-wand-magic-sparkles)</option>
+                  <option value="fa-mobile-screen-button">📱 Phone / ফোন (fa-mobile-screen-button)</option>
+                  <option value="fa-cookie-bite">🍿 Snacks / স্ন্যাক্স (fa-cookie-bite)</option>
+                  <option value="fa-glass-water">🥤 Beverages / পানীয় (fa-glass-water)</option>
+                  <option value="fa-laptop">💻 Electronics / ইলেকট্রনিক্স (fa-laptop)</option>
+                  <option value="fa-tag">🏷️ General Tag (fa-tag)</option>
+                </select>
+              </div>
+              <div class="form-group col-6">
+                <label>থিম কালার (Badge Color) *</label>
+                <input type="color" id="catColorSelect" class="form-control" value="#3b82f6" style="height: 42px; padding: 2px;">
+              </div>
+            </div>
+          </div>
+
+          <!-- Section B: Add Variant Attribute Fields -->
+          <div id="variantFieldsSection" style="display: none;">
+            <div class="form-group mb-2">
+              <label>ভেরিয়েন্ট টাইপ নাম (Variant Attribute Title) *</label>
+              <input type="text" id="variantAttrTitle" class="form-control" placeholder="যেমন: Storage Capacity, Color, Size">
+            </div>
+
+            <div class="form-group mb-2">
+              <label>প্রিসেট অপশন সমূহের তালিকা (Comma separated options) *</label>
+              <input type="text" id="variantAttrValues" class="form-control" placeholder="যেমন: 64GB, 128GB, 256GB, 512GB">
+              <small class="text-muted">কমা (,) দিয়ে আলাদা করুন</small>
+            </div>
+          </div>
+
+        </div>
+        <div class="modal-footer" style="display: flex; justify-content: space-between;">
+          <button type="button" class="btn btn-secondary close-modal">বাতিল</button>
+          <button type="submit" class="btn btn-success btn-lg">
+            <i class="fa-solid fa-check"></i> সেভ করুন ও যোগ করুন
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- RECEIPT PREVIEW MODAL -->
+  <div class="modal" id="adminReceiptModal">
+    <div class="modal-content modal-md">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-receipt"></i> Sales Invoice Memo</h3>
+        <button class="close-modal"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body p-0">
+        <div class="receipt-feed-container">
+          <div class="thermal-slot-header">
+            <div class="slot-brand"><i class="fa-solid fa-print"></i> SmartPOS Thermal Printer</div>
+            <div class="slot-status-indicator" id="adminRcptStatusIndicator">
+              <span class="slot-status-dot"></span>
+              <span class="slot-status-text">Ready</span>
+            </div>
+          </div>
+          <div class="thermal-paper-slot-mouth"></div>
+
+          <div class="receipt-feed-viewport" id="adminReceiptFeedViewport">
+            <div class="thermal-feed-scanline" id="adminReceiptFeedScanline"></div>
+
+            <div class="receipt-paper" id="printableReceipt">
+              <div class="receipt-header">
+                <h2 id="rcptStoreTitle">Super Shop Warehouse</h2>
+                <p id="rcptStoreAddress">Mirpur 10, Dhaka - 1216</p>
+                <p id="rcptStorePhone">Mobile: +880 1700-000000</p>
+                <hr class="dashed">
+                <div class="receipt-info-grid">
+                  <div class="receipt-info-row">
+                    <span class="receipt-info-label">Invoice No.:</span>
+                    <span class="receipt-info-value" id="rcptInvId">INV-000</span>
+                  </div>
+                  <div class="receipt-info-row">
+                    <span class="receipt-info-label">Date & Time:</span>
+                    <span class="receipt-info-value" id="rcptDate">--/--/----</span>
+                  </div>
+                  <div class="receipt-info-row">
+                    <span class="receipt-info-label">Customer:</span>
+                    <span class="receipt-info-value" id="rcptCustomer">Walk-in Customer</span>
+                  </div>
+                  <div class="receipt-info-row" id="rcptPhoneRow" style="display: none;">
+                    <span class="receipt-info-label">Mobile:</span>
+                    <span class="receipt-info-value" id="rcptPhone"></span>
+                  </div>
+                  <div class="receipt-info-row" id="rcptAddressRow" style="display: none;">
+                    <span class="receipt-info-label">Address:</span>
+                    <span class="receipt-info-value" id="rcptAddress"></span>
+                  </div>
+                </div>
+                <hr class="dashed">
+              </div>
+              <table class="receipt-table">
+                <thead>
+                  <tr>
+                    <th class="col-name">Products & Details</th>
+                    <th class="col-qty text-center">Quantity</th>
+                    <th class="col-price text-right">Price</th>
+                  </tr>
+                </thead>
+                <tbody id="rcptItemsBody"></tbody>
+              </table>
+              <hr class="dashed">
+              <table class="receipt-totals-table">
+                <tbody>
+                  <tr>
+                    <td class="total-label">Subtotal:</td>
+                    <td class="total-value text-right" id="rcptSubtotal">৳0.00</td>
+                  </tr>
+                  <tr>
+                    <td class="total-label">Discount:</td>
+                    <td class="total-value text-right" id="rcptDiscount">৳0.00</td>
+                  </tr>
+                  <tr>
+                    <td class="total-label" id="rcptTaxLabel">VAT / Tax:</td>
+                    <td class="total-value text-right" id="rcptTax">৳0.00</td>
+                  </tr>
+                  <tr class="grand-total-row">
+                    <td class="total-label"><strong>Grand Total:</strong></td>
+                    <td class="total-value text-right grand-price" id="rcptGrandTotal">৳0.00</td>
+                  </tr>
+                </tbody>
+              </table>
+              <div class="receipt-footer">
+                <svg id="rcptBarcodeSvg"></svg>
+                <p class="thank-you">Thank you! Come again.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" style="flex-wrap:wrap; gap:0.5rem; justify-content:space-between; position:relative; z-index:100;">
+        <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+          <button class="btn btn-secondary btn-sm" id="adminRcptReplayAnimBtn" type="button" title="Play Thermal Feed Animation">
+            <i class="fa-solid fa-play"></i> Print animation
+          </button>
+          <button class="btn btn-success btn-sm" id="adminRcptDownloadPdfBtn" type="button" title="Download Invoice PDF">
+            <i class="fa-solid fa-file-pdf"></i> PDF Download
+          </button>
+        </div>
+        <div style="display:flex; gap:0.5rem;">
+          <button class="btn btn-primary btn-sm" id="adminPrintReceiptBtn" type="button" title="Send to Physical Printer">
+            <i class="fa-solid fa-print"></i> Send to printer
+          </button>
+          <button class="btn btn-outline btn-sm close-modal" type="button">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: ADD / EDIT COUPON MODAL -->
+  <div class="modal" id="couponModal">
+    <div class="modal-content modal-md">
+      <div class="modal-header">
+        <h3 id="couponModalTitle"><i class="fa-solid fa-ticket"></i> নতুন কুপন যুক্ত করুন</h3>
+        <button class="close-modal"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <form id="couponForm">
+        <input type="hidden" id="couponFormId">
+        <div class="modal-body">
+          <div class="form-group mb-2">
+            <label>কুপন কোড (Coupon Code) *</label>
+            <input type="text" id="couponFormCode" class="form-control" placeholder="যেমন: EID2026" required style="text-transform: uppercase;">
+          </div>
+          
+          <div class="form-row mb-2">
+            <div class="form-group col-6">
+              <label>ছাড়ের ধরন (Discount Type) *</label>
+              <select id="couponFormType" class="form-control">
+                <option value="percent">পার্সেন্টেজ (% Off)</option>
+                <option value="flat">ফ্লাট টাকা (৳ Flat Off)</option>
+              </select>
+            </div>
+            <div class="form-group col-6">
+              <label>ছাড়ের পরিমাণ (Value) *</label>
+              <input type="number" id="couponFormValue" class="form-control" min="0" step="any" placeholder="10" required>
+            </div>
+          </div>
+
+          <div class="form-row mb-2">
+            <div class="form-group col-6">
+              <label>সর্বনিম্ন কেনাকাটা (Min Order ৳)</label>
+              <input type="number" id="couponFormMinOrder" class="form-control" min="0" value="0" placeholder="0">
+            </div>
+            <div class="form-group col-6">
+              <label>স্ট্যাটাস (Status)</label>
+              <select id="couponFormStatus" class="form-control">
+                <option value="active">সক্রিয় (Active)</option>
+                <option value="inactive">নিষ্ক্রিয় (Inactive)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group mb-2">
+            <label>নোট / বিবরণ (Optional Note)</label>
+            <input type="text" id="couponFormNote" class="form-control" placeholder="যেমন: ঈদুল ফিতর বিশেষ অফার">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary close-modal">বাতিল</button>
+          <button type="submit" class="btn btn-success"><i class="fa-solid fa-save"></i> কুপন সেভ করুন</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: GROSS SALES & REVENUE BREAKDOWN MODAL -->
+  <div class="modal" id="grossSalesModal">
+    <div class="modal-content modal-lg" style="max-width: 820px;">
+      <div class="modal-header">
+        <h3 class="modal-title"><i class="fa-solid fa-chart-line" style="color: var(--accent-green);"></i> মোট বিক্রি ও আয়ের বিবরণী (Gross Revenue Breakdown)</h3>
+        <button class="close-modal"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body" style="max-height: 75vh; overflow-y: auto;">
+        <!-- Top Stats Row -->
+        <div class="stats-grid mb-3">
+          <div class="stat-card" style="cursor: default;">
+            <div class="stat-icon bg-green"><i class="fa-solid fa-bangladeshi-taka-sign"></i></div>
+            <div class="stat-info">
+              <small>সর্বমোট বিক্রি (Gross Total)</small>
+              <h3 id="modalGrossSalesTotal">৳0.00</h3>
+            </div>
+          </div>
+          <div class="stat-card" style="cursor: default;">
+            <div class="stat-icon bg-blue"><i class="fa-solid fa-receipt"></i></div>
+            <div class="stat-info">
+              <small>মোট অর্ডার (Invoices)</small>
+              <h3 id="modalGrossOrdersCount">0 টি</h3>
+            </div>
+          </div>
+          <div class="stat-card" style="cursor: default;">
+            <div class="stat-icon bg-purple"><i class="fa-solid fa-calculator"></i></div>
+            <div class="stat-info">
+              <small>গড় অর্ডার মূল্য (AOV)</small>
+              <h3 id="modalGrossAvgOrder">৳0.00</h3>
+            </div>
+          </div>
+        </div>
+
+        <!-- Payment Breakdown Cards -->
+        <div class="form-row mb-3">
+          <div class="col-6">
+            <div class="panel-card" style="padding: 1rem; border-left: 4px solid #10b981;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                  <small class="text-muted"><i class="fa-solid fa-money-bill-wave"></i> ক্যাশ পেমেন্ট মোট</small>
+                  <h4 id="modalGrossCashTotal" style="font-size: 1.2rem; color: var(--accent-green); margin-top: 4px;">৳0.00</h4>
+                </div>
+                <span class="badge" id="modalGrossCashPct" style="background: rgba(16,185,129,0.15); color: var(--accent-green); padding: 4px 10px; font-weight: 700;">0%</span>
+              </div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="panel-card" style="padding: 1rem; border-left: 4px solid #3b82f6;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                  <small class="text-muted"><i class="fa-solid fa-mobile-screen-button"></i> ডিজিটাল ই-পে মোট</small>
+                  <h4 id="modalGrossEpayTotal" style="font-size: 1.2rem; color: var(--accent-blue); margin-top: 4px;">৳0.00</h4>
+                </div>
+                <span class="badge" id="modalGrossEpayPct" style="background: rgba(59,130,246,0.15); color: var(--accent-blue); padding: 4px 10px; font-weight: 700;">0%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent Invoices Table -->
+        <div class="panel-card p-3">
+          <h4 class="mb-2" style="font-size: 0.95rem; font-weight: 700;"><i class="fa-solid fa-clock-rotate-left"></i> সাম্প্রতিক ৫ টি ইনভয়েস</h4>
+          <div class="table-responsive">
+            <table class="custom-table">
+              <thead>
+                <tr>
+                  <th>মেমো নম্বর</th>
+                  <th>তারিখ ও সময়</th>
+                  <th>কাস্টমার</th>
+                  <th>মেথড</th>
+                  <th style="text-align: right;">মোট টাকা</th>
+                </tr>
+              </thead>
+              <tbody id="modalGrossRecentInvoicesBody">
+                <!-- Rendered by admin.js -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center;">
+        <button type="button" class="btn btn-secondary close-modal">বন্ধ করুন</button>
+        <button type="button" class="btn btn-success" id="modalGrossGoToSalesBtn">
+          <i class="fa-solid fa-arrow-right"></i> পূর্ণাঙ্গ বিক্রি ইতিহাস লগে যান (Sales Log)
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: TOTAL ORDERS DETAILED MODAL -->
+  <div class="modal" id="totalOrdersModal">
+    <div class="modal-content modal-lg" style="max-width: 850px;">
+      <div class="modal-header">
+        <h3 class="modal-title"><i class="fa-solid fa-receipt" style="color: var(--accent-blue);"></i> সর্বমোট অর্ডার ও মেমো তালিকা (All Orders & Invoices List)</h3>
+        <button class="close-modal"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body" style="max-height: 75vh; overflow-y: auto;">
+        <div class="panel-card p-3 mb-3">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+            <div>
+              <span class="text-muted"><i class="fa-solid fa-filter"></i> সময়কাল মেমো সংখ্যা:</span>
+              <h3 id="modalOrdersCountBadge" style="color: var(--accent-blue); margin-top: 2px;">0 টি মেমো</h3>
+            </div>
+            <div>
+              <span class="text-muted"><i class="fa-solid fa-money-bill"></i> মোট ইনভয়েস মূল্য:</span>
+              <h3 id="modalOrdersTotalAmountBadge" style="color: var(--accent-green); margin-top: 2px;">৳0.00</h3>
+            </div>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="custom-table">
+            <thead>
+              <tr>
+                <th>ইনভয়েস ID</th>
+                <th>তারিখ ও সময়</th>
+                <th>কাস্টমার</th>
+                <th>মেথড</th>
+                <th>আইটেম সংখ্যা</th>
+                <th style="text-align: right;">মোট টাকা</th>
+              </tr>
+            </thead>
+            <tbody id="modalOrdersTableBody">
+              <!-- Rendered by admin.js -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: space-between;">
+        <button type="button" class="btn btn-secondary close-modal">বন্ধ করুন</button>
+        <button type="button" class="btn btn-primary" id="btnModalOrdersGoToSales">
+          <i class="fa-solid fa-arrow-right"></i> বিক্রি ইতিহাস লগে বিস্তারিত দেখুন
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: CASH PAYMENT DETAILS MODAL -->
+  <div class="modal" id="cashPaymentModalDetails">
+    <div class="modal-content modal-lg" style="max-width: 850px;">
+      <div class="modal-header">
+        <h3 class="modal-title"><i class="fa-solid fa-money-bill-wave" style="color: var(--accent-purple);"></i> ক্যাশ পেমেন্ট ইনভয়েস বিবরণী (Cash Sales Invoices)</h3>
+        <button class="close-modal"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body" style="max-height: 75vh; overflow-y: auto;">
+        <div class="stats-grid mb-3">
+          <div class="stat-card" style="cursor: default;">
+            <div class="stat-icon bg-purple"><i class="fa-solid fa-wallet"></i></div>
+            <div class="stat-info">
+              <small>ক্যাশ মোট জমা (Total Cash)</small>
+              <h3 id="modalCashTotalAmount">৳0.00</h3>
+            </div>
+          </div>
+          <div class="stat-card" style="cursor: default;">
+            <div class="stat-icon bg-blue"><i class="fa-solid fa-receipt"></i></div>
+            <div class="stat-info">
+              <small>ক্যাশ ইনভয়েস সংখ্যা</small>
+              <h3 id="modalCashOrdersCount">0 টি</h3>
+            </div>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="custom-table">
+            <thead>
+              <tr>
+                <th>ইনভয়েস ID</th>
+                <th>তারিখ ও সময়</th>
+                <th>কাস্টমার</th>
+                <th style="text-align: right;">ক্যাশ জমা টাকা</th>
+              </tr>
+            </thead>
+            <tbody id="modalCashTableBody">
+              <!-- Rendered by admin.js -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary close-modal">বন্ধ করুন</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: E-PAY PAYMENT DETAILS MODAL -->
+  <div class="modal" id="epayPaymentModalDetails">
+    <div class="modal-content modal-lg" style="max-width: 850px;">
+      <div class="modal-header">
+        <h3 class="modal-title"><i class="fa-solid fa-mobile-screen-button" style="color: var(--accent-orange);"></i> ডিজিটাল ই-পে ইনভয়েস বিবরণী (E-Pay Transactions)</h3>
+        <button class="close-modal"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body" style="max-height: 75vh; overflow-y: auto;">
+        <div class="stats-grid mb-3">
+          <div class="stat-card" style="cursor: default;">
+            <div class="stat-icon bg-orange"><i class="fa-solid fa-mobile"></i></div>
+            <div class="stat-info">
+              <small>ডিজিটাল ই-পে মোট</small>
+              <h3 id="modalEpayTotalAmount">৳0.00</h3>
+            </div>
+          </div>
+          <div class="stat-card" style="cursor: default;">
+            <div class="stat-icon bg-blue"><i class="fa-solid fa-receipt"></i></div>
+            <div class="stat-info">
+              <small>ই-পে ইনভয়েস সংখ্যা</small>
+              <h3 id="modalEpayOrdersCount">0 টি</h3>
+            </div>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="custom-table">
+            <thead>
+              <tr>
+                <th>ইনভয়েস ID</th>
+                <th>তারিখ ও সময়</th>
+                <th>পেমেন্ট প্রোভাইডার</th>
+                <th>কাস্টমার</th>
+                <th style="text-align: right;">ডিজিটাল টাকা</th>
+              </tr>
+            </thead>
+            <tbody id="modalEpayTableBody">
+              <!-- Rendered by admin.js -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary close-modal">বন্ধ করুন</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: TOTAL ITEMS SOLD BREAKDOWN MODAL -->
+  <div class="modal" id="totalItemsSoldModal">
+    <div class="modal-content modal-lg" style="max-width: 860px;">
+      <div class="modal-header">
+        <h3 class="modal-title"><i class="fa-solid fa-boxes-stacked" style="color: var(--accent-cyan);"></i> বিক্রিত পণ্যের বিস্তারিত আইটেম সামারি (Total Items Sold Report)</h3>
+        <button class="close-modal"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body" style="max-height: 75vh; overflow-y: auto;">
+        <div class="stats-grid mb-3">
+          <div class="stat-card" style="cursor: default;">
+            <div class="stat-icon bg-cyan"><i class="fa-solid fa-boxes-stacked"></i></div>
+            <div class="stat-info">
+              <small>মোট বিক্রিত আইটেম (Total Units)</small>
+              <h3 id="modalItemsSoldTotalCount">0 টি</h3>
+            </div>
+          </div>
+          <div class="stat-card" style="cursor: default;">
+            <div class="stat-icon bg-purple"><i class="fa-solid fa-layer-group"></i></div>
+            <div class="stat-info">
+              <small>ইউনিক প্রোডাক্ট সংখ্যা</small>
+              <h3 id="modalItemsSoldUniqueProducts">0 টি</h3>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel-card p-3 mb-3" style="background: var(--bg-sidebar); border: 1px solid var(--border-color);">
+          <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+            <div class="search-box" style="flex: 1; min-width: 240px;">
+              <i class="fa-solid fa-magnifying-glass"></i>
+              <input type="text" id="modalItemsSearchInput" class="form-control" placeholder="পণ্যের নাম দিয়ে সার্চ করুন...">
+            </div>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="custom-table">
+            <thead>
+              <tr>
+                <th>পণ্যের নাম ও ভেরিয়েন্ট</th>
+                <th>ক্যাটাগরি</th>
+                <th>একক বিক্রির সংখ্যা</th>
+                <th>বিক্রয় মূল্য</th>
+                <th style="text-align: right;">মোট বিক্রয় টাকা</th>
+              </tr>
+            </thead>
+            <tbody id="modalItemsSoldTableBody">
+              <!-- Rendered dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary close-modal">বন্ধ করুন</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: ESTIMATED NET PROFIT BREAKDOWN MODAL -->
+  <div class="modal" id="netProfitModal">
+    <div class="modal-content modal-lg" style="max-width: 880px;">
+      <div class="modal-header">
+        <h3 class="modal-title"><i class="fa-solid fa-chart-pie" style="color: var(--accent-purple);"></i> নিট লাভ ও প্রোডাক্টভিত্তিক প্রফিট রিপোর্ট (Product Net Profit Report)</h3>
+        <button class="close-modal"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body" style="max-height: 75vh; overflow-y: auto;">
+        <!-- Profit Overview Bar -->
+        <div class="stats-grid mb-3">
+          <div class="stat-card" style="cursor: default;">
+            <div class="stat-icon bg-green"><i class="fa-solid fa-sack-dollar"></i></div>
+            <div class="stat-info">
+              <small>মোট বিক্রয় রিভেনিউ</small>
+              <h3 id="modalProfitTotalSales">৳0.00</h3>
+            </div>
+          </div>
+          <div class="stat-card" style="cursor: default;">
+            <div class="stat-icon bg-orange"><i class="fa-solid fa-boxes-packing"></i></div>
+            <div class="stat-info">
+              <small>পাইকারি কেনা খরচ (Cost COGS)</small>
+              <h3 id="modalProfitTotalCost">৳0.00</h3>
+            </div>
+          </div>
+          <div class="stat-card" style="cursor: default;">
+            <div class="stat-icon bg-purple"><i class="fa-solid fa-hand-holding-dollar"></i></div>
+            <div class="stat-info">
+              <small>মোট নিট লাভ (Net Profit)</small>
+              <h3 id="modalProfitNetTotal">৳0.00</h3>
+            </div>
+          </div>
+        </div>
+
+        <!-- Profit Margin Pill Bar -->
+        <div class="panel-card p-3 mb-3" style="background: rgba(139,92,246,0.08); border: 1px dashed var(--accent-purple);">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+            <div>
+              <span class="text-muted" style="font-weight: 600; font-size: 0.88rem;"><i class="fa-solid fa-percent"></i> গড় প্রফিট মার্জিন (Average Profit Margin):</span>
+              <h3 id="modalProfitMarginPercent" style="color: var(--accent-purple); font-size: 1.5rem; margin-top: 2px;">0%</h3>
+            </div>
+            <div id="modalProfitStatusBadge" class="badge" style="background: var(--accent-purple); color: #fff; padding: 6px 14px; font-size: 0.85rem; border-radius: 20px;">
+              মার্জিন এনালাইজড
+            </div>
+          </div>
+        </div>
+
+        <!-- Search & Filter Controls for Product Profit Breakdown -->
+        <div class="panel-card p-3 mb-3" style="background: var(--bg-sidebar); border: 1px solid var(--border-color);">
+          <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+            <div class="search-box" style="flex: 1; min-width: 220px;">
+              <i class="fa-solid fa-magnifying-glass"></i>
+              <input type="text" id="modalProfitSearchInput" class="form-control" placeholder="প্রোডাক্টের নাম বা বারকোড দিয়ে খুঁজুন...">
+            </div>
+            <select id="modalProfitSortSelect" class="form-control" style="width: auto; cursor: pointer; font-weight: 600;">
+              <option value="highest_profit">সর্বোচ্চ লাভ (Highest Profit)</option>
+              <option value="highest_qty">সর্বোচ্চ বিক্রি (Highest Sold Qty)</option>
+              <option value="lowest_profit">কম লাভ (Lowest Profit)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Top Profit Products Table -->
+        <div class="panel-card p-3">
+          <h4 class="mb-2" style="font-size: 0.95rem; font-weight: 700; color: var(--accent-purple);"><i class="fa-solid fa-layer-group"></i> কোন প্রোডাক্ট থেকে কত টাকা লাভ হল (Product-wise Profit Breakdown)</h4>
+          <div class="table-responsive">
+            <table class="custom-table">
+              <thead>
+                <tr>
+                  <th>পণ্যের নাম ও ভেরিয়েন্ট</th>
+                  <th>ক্যাটাগরি</th>
+                  <th>বিক্রিত সংখ্যা</th>
+                  <th>কেনা দাম (Cost)</th>
+                  <th>বিক্রি দাম (Price)</th>
+                  <th>মোট বিক্রি</th>
+                  <th>মোট কেনা খরচ</th>
+                  <th style="text-align: right;">মোট নিট লাভ</th>
+                </tr>
+              </thead>
+              <tbody id="modalProfitTopItemsBody">
+                <!-- Rendered by admin.js -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center;">
+        <button type="button" class="btn btn-secondary close-modal">বন্ধ করুন</button>
+        <button type="button" class="btn btn-success" id="modalProfitGoToSalesBtn">
+          <i class="fa-solid fa-arrow-right"></i> পূর্ণাঙ্গ লাভ রিলেটেড বিক্রি ইতিহাস দেখুন
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: LOW STOCK ALERT DETAIL & RESTOCK MODAL -->
+  <div class="modal" id="lowStockDetailModal">
+    <div class="modal-content modal-lg" style="max-width: 860px;">
+      <div class="modal-header" style="border-bottom: 2px solid var(--accent-orange);">
+        <h3 class="modal-title" style="color: var(--accent-orange);"><i class="fa-solid fa-triangle-exclamation"></i> কম স্টক অ্যালার্ট রিপোর্ট ও দ্রুত রেস্টক (Low Stock Alert)</h3>
+        <button class="close-modal"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body" style="max-height: 75vh; overflow-y: auto;">
+        <div class="alert alert-warning mb-3" style="background: rgba(245,158,11,0.12); border: 1px solid rgba(245,158,11,0.3); border-radius: 12px; padding: 1rem; display: flex; align-items: center; gap: 0.75rem;">
+          <i class="fa-solid fa-boxes-packing" style="font-size: 1.5rem; color: var(--accent-orange);"></i>
+          <div>
+            <strong style="color: var(--accent-orange); font-size: 0.95rem;">সতর্কবার্তা: স্টক ১০ টি বা তার নিচে নেমেছে!</strong>
+            <p style="font-size: 0.83rem; color: var(--text-muted); margin-top: 2px;">নিচের পণ্যগুলোর ইনভেন্টরি শেষ হতে চলেছে। দ্রুত রেস্টক করতে ডানপাশের <strong>'স্টক রিফিল'</strong> বাটনে ক্লিক করুন।</p>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="custom-table">
+            <thead>
+              <tr>
+                <th>ছবি</th>
+                <th>পণ্যের নাম ও স্কু</th>
+                <th>ক্যাটাগরি</th>
+                <th>বর্তমান স্টক</th>
+                <th>সতর্কতা লেভেল</th>
+                <th style="text-align: right;">অ্যাকশন</th>
+              </tr>
+            </thead>
+            <tbody id="modalLowStockTableBody">
+              <!-- Rendered by admin.js -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center;">
+        <button type="button" class="btn btn-secondary close-modal">বন্ধ করুন</button>
+        <button type="button" class="btn btn-primary" id="modalLowStockGoToProductsBtn">
+          <i class="fa-solid fa-boxes-stacked"></i> সকল ইনভেন্টরি প্রোডাক্ট তালিকায় যান (All Products)
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Custom Interactive Date Range Picker Modal (Shopify/GA Design) -->
+  <div class="modal" id="dateRangePickerModal">
+    <div class="modal-content analytics-date-picker-content">
+      <div class="analytics-date-picker-layout">
+        <!-- Left Sidebar Preset Radio Options -->
+        <div class="analytics-date-sidebar" id="datePickerPresetsContainer">
+          <label class="preset-radio-item active" data-preset="today">
+            <input type="radio" name="datePreset" value="today" checked>
+            <span>Today</span>
+          </label>
+          <label class="preset-radio-item" data-preset="yesterday">
+            <input type="radio" name="datePreset" value="yesterday">
+            <span>Yesterday</span>
+          </label>
+          <label class="preset-radio-item" data-preset="today_yesterday">
+            <input type="radio" name="datePreset" value="today_yesterday">
+            <span>Today and yesterday</span>
+          </label>
+          <label class="preset-radio-item" data-preset="7days">
+            <input type="radio" name="datePreset" value="7days">
+            <span>Last 7 days</span>
+          </label>
+          <label class="preset-radio-item" data-preset="14days">
+            <input type="radio" name="datePreset" value="14days">
+            <span>Last 14 days</span>
+          </label>
+          <label class="preset-radio-item" data-preset="28days">
+            <input type="radio" name="datePreset" value="28days">
+            <span>Last 28 days</span>
+          </label>
+          <label class="preset-radio-item" data-preset="30days">
+            <input type="radio" name="datePreset" value="30days">
+            <span>Last 30 days</span>
+          </label>
+          <label class="preset-radio-item" data-preset="thisWeek">
+            <input type="radio" name="datePreset" value="thisWeek">
+            <span>This week</span>
+          </label>
+          <label class="preset-radio-item" data-preset="lastWeek">
+            <input type="radio" name="datePreset" value="lastWeek">
+            <span>Last week</span>
+          </label>
+          <label class="preset-radio-item" data-preset="thisMonth">
+            <input type="radio" name="datePreset" value="thisMonth">
+            <span>This month</span>
+          </label>
+          <label class="preset-radio-item" data-preset="lastMonth">
+            <input type="radio" name="datePreset" value="lastMonth">
+            <span>Last month</span>
+          </label>
+          <label class="preset-radio-item" data-preset="all">
+            <input type="radio" name="datePreset" value="all">
+            <span>Maximum</span>
+          </label>
+          <label class="preset-radio-item" data-preset="custom">
+            <input type="radio" name="datePreset" value="custom">
+            <span>Custom</span>
+          </label>
+        </div>
+
+        <!-- Right Main Calendar View -->
+        <div class="analytics-date-main">
+          <!-- Month Nav & Header Selectors -->
+          <div class="analytics-calendar-header">
+            <button type="button" class="cal-nav-btn" id="calPrevMonthBtn" title="Previous Month">
+              <i class="fa-solid fa-chevron-left"></i>
+            </button>
+            
+            <div class="month-select-pair">
+              <select id="calMonth1Select" class="cal-dropdown"></select>
+              <select id="calYear1Select" class="cal-dropdown"></select>
+            </div>
+
+            <div class="month-select-pair">
+              <select id="calMonth2Select" class="cal-dropdown"></select>
+              <select id="calYear2Select" class="cal-dropdown"></select>
+            </div>
+
+            <button type="button" class="cal-nav-btn" id="calNextMonthBtn" title="Next Month">
+              <i class="fa-solid fa-chevron-right"></i>
+            </button>
+          </div>
+
+          <!-- Dual Month Calendar Grid -->
+          <div class="analytics-calendar-body" id="calendarGridContainer">
+            <!-- Dynamically populated by JS -->
+          </div>
+
+          <!-- Controls & Inputs Row -->
+          <div class="analytics-controls-row">
+            <label class="compare-checkbox-label">
+              <input type="checkbox" id="calCompareCheckbox">
+              <span>Compare</span>
+            </label>
+            <div class="range-inputs-group">
+              <select id="calModeDropdown" class="cal-dropdown">
+                <option value="today">Today</option>
+                <option value="yesterday">Yesterday</option>
+                <option value="today_yesterday">Today and yesterday</option>
+                <option value="7days">Last 7 days</option>
+                <option value="14days">Last 14 days</option>
+                <option value="28days">Last 28 days</option>
+                <option value="30days">Last 30 days</option>
+                <option value="thisWeek">This week</option>
+                <option value="lastWeek">Last week</option>
+                <option value="thisMonth">This month</option>
+                <option value="lastMonth">Last month</option>
+                <option value="all">Maximum</option>
+                <option value="custom" selected>Custom</option>
+              </select>
+              <div class="date-input-pair">
+                <input type="text" id="calStartDateInput" class="cal-date-input" readonly placeholder="Start Date">
+                <span style="color: var(--text-muted);">-</span>
+                <input type="text" id="calEndDateInput" class="cal-date-input" readonly placeholder="End Date">
+              </div>
+            </div>
+          </div>
+
+          <!-- Footer Actions Row -->
+          <div class="analytics-footer-row">
+            <span class="timezone-note">Dates are shown in Dhaka Time</span>
+            <div class="footer-btn-group">
+              <button type="button" class="btn btn-outline btn-sm" id="closeDateRangeModalBtn" style="border-radius: 8px;">Cancel</button>
+              <button type="button" class="btn btn-primary btn-sm" id="applyDateRangeBtn" style="border-radius: 8px; font-weight: 600; padding: 0.4rem 1.25rem;">Update</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="print_hub.js"></script>
+  <script src="demo_data.js"></script>
+  <script src="admin.js"></script>
+</body>
+</html>

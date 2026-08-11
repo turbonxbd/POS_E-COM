@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="bn" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SmartPOS Pro - রিটেইল পয়েন্ট অফ সেল ও ম্যানেজমেন্ট প্যানেল</title>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Hind+Siliguri:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='25' fill='%2310b981'/><path d='M30 25h40v50H30z' fill='%23ffffff'/></svg>">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div class="portal-hero">
+    <div class="portal-header">
+      <div class="brand-logo" style="width:64px; height:64px; font-size:2rem; margin: 0 auto 1rem; border-radius:18px;">
+        <i class="fa-solid fa-barcode"></i>
+      </div>
+      <h1>SmartPOS Retail Hub</h1>
+      <p>স্বাগতম! আপনার দোকানের পয়েন্ট অফ সেল (POS) কাউন্টার অথবা মার্চেন্ট এডমিন প্যানেলে প্রবেশ করতে রোল নির্বাচন করুন।</p>
+    </div>
+
+    <div class="portal-grid">
+      <!-- CASHIER COUNTER OPTION -->
+      <a href="cashier.html" class="portal-card">
+        <div class="portal-icon bg-blue">
+          <i class="fa-solid fa-cash-register"></i>
+        </div>
+        <h3>দোকানের সেলস কাউন্টার</h3>
+        <p>বারকোড স্ক্যান করে দ্রুত পণ্য বিক্রি করুন, কার্ট সাজান, মেমো প্রিন্ট দিন এবং শিফট সেলস চার্ট দেখুন। (ম্যানেজমেন্ট এক্সেস সুরক্ষিত)</p>
+        <span class="portal-badge" style="background: rgba(59,130,246,0.15); color: var(--accent-blue);">
+          <i class="fa-solid fa-bolt"></i> ক্যাশিয়ার সেলস অপশন
+        </span>
+      </a>
+
+      <!-- MERCHANT ADMIN OPTION -->
+      <div class="portal-card admin" id="openAdminPinCard">
+        <div class="portal-icon bg-orange">
+          <i class="fa-solid fa-user-shield"></i>
+        </div>
+        <h3>মার্চেন্ট এডমিন প্যানেল</h3>
+        <p>স্টক পরিমার্জন, নতুন প্রোডাক্ট এন্ট্রি, কস্ট/সেল প্রাইস আপডেট, বারকোড স্টিকার জেনারেট এবং পূর্ণাঙ্গ সেলস ও নিট প্রফিট অ্যানালিটিক্স।</p>
+        <span class="portal-badge" style="background: rgba(245,158,11,0.15); color: var(--accent-orange);">
+          <i class="fa-solid fa-lock"></i> পিন দ্বারা সুরক্ষিত (Merchant Admin)
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECURITY PIN MODAL FOR ADMIN ACCESS -->
+  <div class="modal" id="portalPinModal">
+    <div class="modal-content modal-sm">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-lock"></i> মার্চেন্ট সিকিউরিটি ভেরিফিকেশন</h3>
+        <button class="close-modal"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-2 text-muted">এডমিন প্যানেলে প্রবেশের জন্য সিকিউরিটি পিন দিন:</p>
+        <div class="form-group">
+          <input type="password" id="portalPinInput" class="form-control form-control-lg text-center" placeholder="****" maxlength="8" style="font-size:1.6rem; letter-spacing:8px;">
+          <small class="text-muted mt-1 display-block">ডিফল্ট এডমিন পিন: <code>1234</code></small>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary close-modal">বাতিল</button>
+        <button class="btn btn-success" id="submitPortalPinBtn">
+          <i class="fa-solid fa-key"></i> প্রবেশ করুন
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const card = document.getElementById('openAdminPinCard');
+      const modal = document.getElementById('portalPinModal');
+      const pinInput = document.getElementById('portalPinInput');
+      const submitBtn = document.getElementById('submitPortalPinBtn');
+
+      card.addEventListener('click', () => {
+        pinInput.value = '';
+        modal.classList.add('active');
+        setTimeout(() => pinInput.focus(), 100);
+      });
+
+      submitBtn.addEventListener('click', () => {
+        const savedSettings = JSON.parse(localStorage.getItem('pos_settings')) || {};
+        const expectedPin = savedSettings.adminPin || '1234';
+        if (pinInput.value.trim() === expectedPin) {
+          window.location.href = 'admin.html';
+        } else {
+          alert('ভুল এডমিন সিকিউরিটি পিন! সঠিক পিন ইনপুট দিন।');
+        }
+      });
+
+      pinInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') submitBtn.click();
+      });
+
+      document.querySelectorAll('.close-modal').forEach(btn => {
+        btn.addEventListener('click', () => modal.classList.remove('active'));
+      });
+    });
+  </script>
+</body>
+</html>
