@@ -14,6 +14,8 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='25' fill='%23f59e0b'/><path d='M30 40h40v30H30z' fill='%23ffffff'/><circle cx='50' cy='30' r='10' fill='%23ffffff'/></svg>">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#f59e0b">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -28,7 +30,7 @@
           <i class="fa-solid fa-user-shield"></i>
         </div>
         <div class="brand-info">
-          <h2>Merchant Admin</h2>
+          <h2 id="adminSidebarStoreName">Merchant Admin</h2>
           <span class="badge" style="background: rgba(245, 158, 11, 0.15); color: var(--accent-orange);">ওয়্যারহাউস ও মালিকানা প্যানেল</span>
         </div>
         <button class="mobile-sidebar-close" id="closeMobileSidebarBtn" title="মেনু বন্ধ করুন">
@@ -68,19 +70,27 @@
         
         <div style="margin-top: auto;"></div>
 
-        <!-- Back to Cashier Counter -->
+        <!-- Navigation buttons to other portals -->
         <a href="cashier.html" class="nav-item" title="ক্যাশিয়ার কাউন্টারে যান" style="background: rgba(16, 185, 129, 0.15); color: var(--accent-green); text-decoration: none;">
           <i class="fa-solid fa-cash-register"></i>
           <span>ক্যাশিয়ার কাউন্টারে যান</span>
         </a>
+        <a href="portal.html" class="nav-item" title="পোর্টালে ফিরে যান" style="background: rgba(59, 130, 246, 0.15); color: var(--accent-blue); text-decoration: none;">
+          <i class="fa-solid fa-border-all"></i>
+          <span>পোর্টালে ফিরে যান</span>
+        </a>
       </nav>
 
       <div class="sidebar-footer">
+        <div class="scanner-indicator active" id="cloudStatusAdmin" style="margin-bottom: 0.5rem; background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.3); display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; border-radius: 8px;">
+          <span class="status-dot" style="background: #10b981; box-shadow: 0 0 8px #10b981; width: 8px; height: 8px; border-radius: 50%; display: inline-block;"></span>
+          <span class="status-text" style="color: #10b981; font-weight: 600; font-size: 0.85rem;">Cloud Sync Active 🔥</span>
+        </div>
         <div class="store-profile">
           <i class="fa-solid fa-store"></i>
           <div>
-            <strong>সুপার শপ ও ওয়্যারহাউস</strong>
-            <small>মালিক: মো: আব্দুল বাকী</small>
+            <strong id="adminSidebarStoreTitle">মার্চেন্ট ড্যাশবোর্ড</strong>
+            <small id="adminSidebarOwnerName">মালিক প্যানেল</small>
           </div>
         </div>
       </div>
@@ -453,7 +463,81 @@
         </div>
       </section>
 
-      <!-- TAB 5: SHOP SETTINGS & STORE MANAGEMENT HUB -->
+      <!-- TAB 5: CUSTOMERS MANAGEMENT HUB -->
+      <section class="tab-view" id="adminCustomersView">
+        <div class="panel-card mb-3">
+          <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+            <div>
+              <h2><i class="fa-solid fa-users"></i> কাস্টমার প্রোফাইল ও সেলস রেকর্ড (Customer Management Hub)</h2>
+              <p>আপনার দোকান/কাউন্টারে নিবন্ধিত সকল গ্রাহকের প্রোফাইল তথ্য ও সেলস ইতিহাস</p>
+            </div>
+            <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+              <span class="badge" id="custTableCountBadge" style="background: rgba(59, 130, 246, 0.15); color: var(--accent-blue); font-size: 0.9rem; padding: 0.5rem 0.85rem;">
+                মোট 0 জন কাস্টমার
+              </span>
+              <button class="btn btn-success btn-md" onclick="adminApp.openCustomerModal()">
+                <i class="fa-solid fa-user-plus"></i> নতুন কাস্টমার এন্ট্রি
+              </button>
+            </div>
+          </div>
+
+          <div class="stats-grid mt-3">
+            <div class="stat-card">
+              <div class="stat-icon bg-blue"><i class="fa-solid fa-users"></i></div>
+              <div class="stat-info">
+                <small>মোট নিবন্ধিত কাস্টমার</small>
+                <h3 id="custStatTotalCount">0 জন</h3>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon bg-purple"><i class="fa-solid fa-cart-shopping"></i></div>
+              <div class="stat-info">
+                <small>কাস্টমার সেলস অর্ডার</small>
+                <h3 id="custStatTotalOrders">0 টি</h3>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon bg-green"><i class="fa-solid fa-sack-dollar"></i></div>
+              <div class="stat-info">
+                <small>কাস্টমার মোট বেচাকেনা</small>
+                <h3 id="custStatTotalSpent">৳0.00</h3>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel-card">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.75rem;">
+            <div class="search-box" style="max-width: 380px; width: 100%;">
+              <i class="fa-solid fa-magnifying-glass"></i>
+              <input type="text" id="custSearchInput" class="form-control" placeholder="নাম, ফোন নম্বর বা ঠিকানা দিয়ে খুঁজুন..." oninput="adminApp.renderAdminCustomers()">
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table class="table custom-table">
+              <thead>
+                <tr>
+                  <th>আইডি</th>
+                  <th>কাস্টমারের নাম</th>
+                  <th>ফোন নম্বর</th>
+                  <th>ইমেইল</th>
+                  <th>ঠিকানা</th>
+                  <th>মোট অর্ডার</th>
+                  <th>মোট খরচ</th>
+                  <th>নিবন্ধনের তারিখ</th>
+                  <th style="text-align: right;">অ্যাকশন</th>
+                </tr>
+              </thead>
+              <tbody id="adminCustomersTableBody">
+                <!-- Dynamically rendered -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 6: SHOP SETTINGS & STORE MANAGEMENT HUB -->
       <section class="tab-view" id="adminSettingsView">
         <div class="panel-card">
           <div class="panel-header">
@@ -883,7 +967,16 @@
             </div>
           </div>
 
-          <!-- Row 3: Address (Full Width Box Across Bottom) -->
+          <!-- Row 3: Status & Address -->
+          <div class="form-group mb-3">
+            <label>প্রোফাইল স্ট্যাটাস (Account Status)</label>
+            <select id="custFormStatus" class="form-control">
+              <option value="active">🟢 অ্যাক্টিভ (Active - কেনাকাটা চালু)</option>
+              <option value="blocked">🔴 ব্লকড (Blocked - কেনাকাটা বন্ধ)</option>
+            </select>
+          </div>
+
+          <!-- Row 4: Address (Full Width Box Across Bottom) -->
           <div class="form-group mb-0">
             <label>পূর্ণাঙ্গ ঠিকানা (Address)</label>
             <textarea id="custFormAddress" class="form-control" rows="2" placeholder="বাসা/মিরপুর ১০, ঢাকা..."></textarea>
@@ -899,28 +992,47 @@
     </div>
   </div>
 
-  <!-- MODAL: CUSTOMER ORDERS HISTORY -->
+  <!-- MODAL: CUSTOMER ORDERS & PROFILE HISTORY -->
   <div class="modal" id="customerOrdersModal">
-    <div class="modal-content modal-lg">
+    <div class="modal-content modal-lg" style="max-width: 900px;">
       <div class="modal-header">
-        <h3 id="custOrdersModalTitle"><i class="fa-solid fa-clock-rotate-left"></i> কাস্টমার কেনাকাটার ইতিহাস</h3>
-        <button class="close-modal"><i class="fa-solid fa-xmark"></i></button>
+        <h3 id="custOrdersModalTitle"><i class="fa-solid fa-id-card"></i> কাস্টমার প্রোফাইল ও কেনাকাটার বিবরণ</h3>
+        <button class="close-modal" onclick="adminApp.closeModal('customerOrdersModal')"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div class="modal-body">
-        <div id="custOrdersModalHeaderInfo" style="background: var(--bg-card); padding: 0.75rem 1rem; border-radius: 10px; margin-bottom: 1rem; border: 1px solid var(--border-color);"></div>
-        <div class="table-responsive">
-          <table class="table custom-table">
-            <thead>
-              <tr>
-                <th>ইনভয়েস #</th>
-                <th>তারিখ ও সময়</th>
-                <th>পেমেন্ট মেথড</th>
-                <th>মোট বিল</th>
-                <th style="text-align: right;">অ্যাকশন</th>
-              </tr>
-            </thead>
-            <tbody id="custOrdersTableBody"></tbody>
-          </table>
+        <div id="custOrdersModalHeaderInfo"></div>
+
+        <!-- Navigation Tabs -->
+        <div class="cust-profile-nav-tabs">
+          <button type="button" class="cust-profile-tab-btn active" id="adminTabMemosBtn" onclick="adminApp.switchCustProfileTab('memos')">
+            <i class="fa-solid fa-file-invoice"></i> মেমো ও কেনাকাটার ইতিহাস
+          </button>
+          <button type="button" class="cust-profile-tab-btn" id="adminTabProductsBtn" onclick="adminApp.switchCustProfileTab('products')">
+            <i class="fa-solid fa-boxes-packing"></i> ক্রয়কৃত পণ্যের সামারি (কী কী অর্ডার করেছে)
+          </button>
+        </div>
+
+        <!-- Tab 1: Memos & Orders List -->
+        <div id="adminCustMemosTabContent" class="cust-tab-content">
+          <div id="adminCustMemosContainer"></div>
+        </div>
+
+        <!-- Tab 2: Aggregated Purchased Products Summary -->
+        <div id="adminCustProductsTabContent" class="cust-tab-content" style="display: none;">
+          <div class="table-responsive">
+            <table class="table custom-table">
+              <thead>
+                <tr>
+                  <th>পণ্যের নাম</th>
+                  <th>ভেরিয়েন্ট / সাইজ</th>
+                  <th>একক মূল্য</th>
+                  <th>মোট কেনা পরিমাণ</th>
+                  <th>মোট পেমেন্ট (৳)</th>
+                </tr>
+              </thead>
+              <tbody id="adminCustProductsTableBody"></tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -1883,6 +1995,9 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+  <script src="firebase-db.js"></script>
   <script src="print_hub.js"></script>
   <script src="demo_data.js"></script>
   <script src="admin.js"></script>

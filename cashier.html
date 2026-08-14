@@ -16,6 +16,8 @@
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
 
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='25' fill='%233b82f6'/><path d='M25 35h50v40H25z' fill='%23ffffff'/><circle cx='50' cy='55' r='12' fill='%233b82f6'/></svg>">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#3b82f6">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -30,8 +32,8 @@
           <i class="fa-solid fa-cash-register"></i>
         </div>
         <div class="brand-info">
-          <h2>SmartPOS Cashier</h2>
-          <span class="badge" style="background: rgba(59, 130, 246, 0.15); color: var(--accent-blue);">কাউন্টার সেলস</span>
+          <h2 id="cashierSidebarStoreName">SmartPOS Cashier</h2>
+          <span class="badge" style="background: rgba(59, 130, 246, 0.15); color: var(--accent-blue);">ক্যাশিয়ার কাউন্টার</span>
         </div>
         <button class="mobile-sidebar-close" id="closeMobileSidebarBtn" title="মেনু বন্ধ করুন">
           <i class="fa-solid fa-xmark"></i>
@@ -70,6 +72,10 @@
       </nav>
 
       <div class="sidebar-footer">
+        <div class="scanner-indicator active" id="cloudStatus" style="margin-bottom: 0.5rem; background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.3);">
+          <span class="status-dot" style="background: #10b981; box-shadow: 0 0 8px #10b981;"></span>
+          <span class="status-text" style="color: #10b981; font-weight: 600;">Cloud Sync Active 🔥</span>
+        </div>
         <div class="scanner-indicator active" id="scannerStatus">
           <span class="status-dot"></span>
           <span class="status-text">স্ক্যানার প্রস্তুত (Ready)</span>
@@ -77,8 +83,8 @@
         <div class="store-profile">
           <i class="fa-solid fa-user-clock"></i>
           <div>
-            <strong>ক্যাশিয়ার: শফিক ইসলাম</strong>
-            <small>শিফট: সেশন #১০২</small>
+            <strong id="cashierNameDisplay">ক্যাশিয়ার টার্মিনাল</strong>
+            <small id="cashierShiftDisplay">শিফট চলমান</small>
           </div>
         </div>
       </div>
@@ -341,6 +347,27 @@
             <div class="cart-header">
               <h3><i class="fa-solid fa-cart-shopping"></i> চলতি অর্ডার কার্ট</h3>
               <span class="cart-count-badge" id="cartCountBadge">0 আইটেম</span>
+            </div>
+
+            <!-- POS Cart Customer Selector Bar -->
+            <div class="cart-customer-bar" style="background: rgba(59, 130, 246, 0.05); border-bottom: 1px solid var(--border-color); padding: 0.65rem 0.85rem;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                <label style="font-size: 0.78rem; font-weight: 700; color: var(--accent-blue); display: flex; align-items: center; gap: 5px; margin: 0;">
+                  <i class="fa-solid fa-user-tag"></i> কাস্টমার নির্বাচন / প্রোফাইল এন্ট্রি
+                </label>
+                <span id="posCartCustBadge" class="badge" style="background: rgba(16, 185, 129, 0.15); color: var(--accent-green); font-size: 0.72rem; display: none;">
+                  <i class="fa-solid fa-circle-check"></i> নিবন্ধিত
+                </span>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 6px;">
+                <select id="customerSelect" class="form-control form-control-sm" style="font-size: 0.82rem; background: var(--bg-card); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 6px; padding: 4px 8px;">
+                  <option value="Walk-in Customer">ওয়াক-ইন কাস্টমার (Walk-in)</option>
+                </select>
+                <div style="display: flex; gap: 6px;">
+                  <input type="tel" id="cartCustPhone" class="form-control form-control-sm" placeholder="ফোন নম্বর (017...)" maxlength="11" style="flex: 1; font-size: 0.8rem;">
+                  <input type="text" id="cartCustName" class="form-control form-control-sm" placeholder="কাস্টমারের নাম" style="flex: 1; font-size: 0.8rem;">
+                </div>
+              </div>
             </div>
 
             <div class="cart-items-list" id="cartItemsList">
@@ -1386,8 +1413,94 @@
     </div>
   </div>
 
+  <!-- MODAL: CASHIER CUSTOMER PROFILE & HISTORY MODAL -->
+  <div class="modal" id="cashierCustomerProfileModal">
+    <div class="modal-content modal-lg" style="max-width: 900px;">
+      <div class="modal-header">
+        <h3 id="cashierCustProfileModalTitle"><i class="fa-solid fa-id-card"></i> কাস্টমার প্রোফাইল ও কেনাকাটার বিবরণ</h3>
+        <button class="close-modal" onclick="cashier.closeModal('cashierCustomerProfileModal')"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <!-- Customer Info Summary Card -->
+        <div id="cashierCustProfileHeaderInfo"></div>
+
+        <!-- Navigation Tabs -->
+        <div class="cust-profile-nav-tabs">
+          <button type="button" class="cust-profile-tab-btn active" id="cashierTabMemosBtn" onclick="cashier.switchCustProfileTab('memos')">
+            <i class="fa-solid fa-file-invoice"></i> মেমো ও কেনাকাটার ইতিহাস
+          </button>
+          <button type="button" class="cust-profile-tab-btn" id="cashierTabProductsBtn" onclick="cashier.switchCustProfileTab('products')">
+            <i class="fa-solid fa-boxes-packing"></i> ক্রয়কৃত পণ্যের সামারি (কী কী অর্ডার করেছে)
+          </button>
+        </div>
+
+        <!-- Tab 1: Memos & Orders List -->
+        <div id="cashierCustMemosTabContent" class="cust-tab-content">
+          <div id="cashierCustMemosContainer"></div>
+        </div>
+
+        <!-- Tab 2: Aggregated Purchased Products Summary -->
+        <div id="cashierCustProductsTabContent" class="cust-tab-content" style="display: none;">
+          <div class="table-responsive">
+            <table class="table custom-table">
+              <thead>
+                <tr>
+                  <th>পণ্যের নাম</th>
+                  <th>ভেরিয়েন্ট / সাইজ</th>
+                  <th>একক মূল্য</th>
+                  <th>মোট কেনা পরিমাণ</th>
+                  <th>মোট পেমেন্ট (৳)</th>
+                </tr>
+              </thead>
+              <tbody id="cashierCustProductsTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+
+  <!-- MODAL: CASHIER ADD/EDIT CUSTOMER MODAL -->
+  <div class="modal" id="cashierCustomerFormModal">
+    <div class="modal-content" style="max-width: 500px;">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-user-plus"></i> নতুন কাস্টমার প্রোফাইল যুক্ত করুন</h3>
+        <button class="close-modal" onclick="cashier.closeModal('cashierCustomerFormModal')"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <form id="cashierCustForm" onsubmit="event.preventDefault(); cashier.saveCustomerFromModal();">
+          <div class="form-group mb-3">
+            <label class="form-label">ফোন নম্বর (বাধ্যতামূলক)</label>
+            <input type="text" id="cashierFormPhone" class="form-control" placeholder="01700000000" maxlength="11" required>
+          </div>
+          <div class="form-group mb-3">
+            <label class="form-label">কাস্টমারের নাম</label>
+            <input type="text" id="cashierFormName" class="form-control" placeholder="কাস্টমারের নাম লিখুন">
+          </div>
+          <div class="form-group mb-3">
+            <label class="form-label">ইমেইল (ঐচ্ছিক)</label>
+            <input type="email" id="cashierFormEmail" class="form-control" placeholder="example@gmail.com">
+          </div>
+          <div class="form-group mb-3">
+            <label class="form-label">ঠিকানা (ঐচ্ছিক)</label>
+            <textarea id="cashierFormAddress" class="form-control" rows="2" placeholder="কাস্টমারের পূর্ণাঙ্গ ঠিকানা"></textarea>
+          </div>
+          <div style="text-align: right; margin-top: 1.5rem;">
+            <button type="button" class="btn btn-outline" onclick="cashier.closeModal('cashierCustomerFormModal')">বাতিল</button>
+            <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> সংরক্ষণ করুন</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+  <script src="firebase-db.js"></script>
   <script src="print_hub.js"></script>
   <script src="demo_data.js"></script>
   <script src="cashier.js"></script>

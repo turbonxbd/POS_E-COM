@@ -278,6 +278,7 @@ const INITIAL_SALES = [
     id: "INV-20260810-001",
     timestamp: new Date(_todayStartForDemo + 3600000 * 2 + 1800000).toISOString(),
     customer: "Walk-in Customer",
+    customerPhone: "",
     items: [
       { id: "PROD-2001", variantId: "VAR-2001-RED-S", barcode: "8942001001", name: "Men's Premium Cotton Polo T-Shirt", color: "Navy Red", size: "S", price: 490, cost: 320, quantity: 2, subtotal: 980 },
       { id: "PROD-2007", variantId: "VAR-2007-DEF", barcode: "8901030882194", name: "Pran Potato Crackers 25g", color: "Standard", size: "25g Pack", price: 15, cost: 10, quantity: 4, subtotal: 60 }
@@ -292,7 +293,9 @@ const INITIAL_SALES = [
   {
     id: "INV-20260810-002",
     timestamp: new Date(_todayStartForDemo + 3600000 * 5 + 900000).toISOString(),
+    customerId: "CUST-1001",
     customer: "রহিম আহমেদ (Rahim Ahmed)",
+    customerPhone: "01711000000",
     items: [
       { id: "PROD-2002", variantId: "VAR-2002-BLK-M", barcode: "8942001002", name: "Casual Denim Jacket", color: "Black", size: "M", price: 1850, cost: 1200, quantity: 1, subtotal: 1850 },
       { id: "PROD-2003", variantId: "VAR-2003-WHT-9", barcode: "8942001003", name: "Running Sports Shoes", color: "White", size: "42", price: 3400, cost: 2500, quantity: 1, subtotal: 3400 }
@@ -307,7 +310,9 @@ const INITIAL_SALES = [
   {
     id: "INV-20260809-003",
     timestamp: new Date(_todayStartForDemo - 3600000 * 5).toISOString(),
+    customerId: "CUST-1002",
     customer: "সুমাইয়া আক্তার (Sumaiya Akter)",
+    customerPhone: "01822000000",
     items: [
       { id: "PROD-2004", variantId: "VAR-2004-BRN-DEF", barcode: "8942001004", name: "Leather Travel Backpack", color: "Brown", size: "Standard", price: 750, cost: 450, quantity: 2, subtotal: 1500 },
       { id: "PROD-2007", variantId: "VAR-2007-DEF", barcode: "8901030882194", name: "Pran Potato Crackers 25g", color: "Standard", size: "25g Pack", price: 15, cost: 10, quantity: 10, subtotal: 150 }
@@ -322,7 +327,9 @@ const INITIAL_SALES = [
   {
     id: "INV-20260807-004",
     timestamp: new Date(_todayStartForDemo - 86400000 * 3 + 3600000 * 2).toISOString(),
+    customerId: "CUST-1003",
     customer: "তানভীর হাসান (Tanvir Hasan)",
+    customerPhone: "01933000000",
     items: [
       { id: "PROD-2005", variantId: "VAR-2005-SLV-256", barcode: "8942001005", name: "Smart LED Android TV 43 Inch", color: "Silver", size: "43 Inch", price: 32000, cost: 21000, quantity: 1, subtotal: 32000 },
       { id: "PROD-2001", variantId: "VAR-2001-RED-S", barcode: "8942001001", name: "Men's Premium Cotton Polo T-Shirt", color: "Navy Red", size: "S", price: 490, cost: 320, quantity: 3, subtotal: 1470 }

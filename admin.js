@@ -2,22 +2,24 @@
 
 class AdminPanel {
   constructor() {
-    this.products = JSON.parse(localStorage.getItem('pos_products')) || (typeof INITIAL_PRODUCTS !== 'undefined' ? INITIAL_PRODUCTS : []);
-    this.sales = JSON.parse(localStorage.getItem('pos_sales')) || (typeof INITIAL_SALES !== 'undefined' ? INITIAL_SALES : []);
+    const isRegisteredStore = !!localStorage.getItem('pos_active_store_id');
+    this.products = JSON.parse(localStorage.getItem('pos_products')) || (isRegisteredStore ? [] : (typeof INITIAL_PRODUCTS !== 'undefined' ? INITIAL_PRODUCTS : []));
+    this.sales = JSON.parse(localStorage.getItem('pos_sales')) || (isRegisteredStore ? [] : (typeof INITIAL_SALES !== 'undefined' ? INITIAL_SALES : []));
     this.settings = JSON.parse(localStorage.getItem('pos_settings')) || (typeof DEFAULT_SETTINGS !== 'undefined' ? DEFAULT_SETTINGS : {});
     if (this.settings) {
-      if (!this.settings.storeName || /[\u0980-\u09FF]/.test(this.settings.storeName)) this.settings.storeName = 'Super Shop Dhaka';
-      if (!this.settings.storeAddress || /[\u0980-\u09FF]/.test(this.settings.storeAddress)) this.settings.storeAddress = 'Mirpur 10, Dhaka - 1216';
-      if (!this.settings.receiptFooterNote || /[\u0980-\u09FF]/.test(this.settings.receiptFooterNote)) this.settings.receiptFooterNote = 'Thank you! Come again.';
+      // Only fill in defaults if values are completely missing — do NOT override Bengali store names
+      if (!this.settings.storeName) this.settings.storeName = 'My Shop';
+      if (!this.settings.storeAddress) this.settings.storeAddress = 'Dhaka, Bangladesh';
+      if (!this.settings.receiptFooterNote) this.settings.receiptFooterNote = 'Thank you! Come again.';
       localStorage.setItem('pos_settings', JSON.stringify(this.settings));
     }
-    this.categories = JSON.parse(localStorage.getItem('pos_categories')) || (typeof INITIAL_CATEGORIES !== 'undefined' ? INITIAL_CATEGORIES : []);
-    this.coupons = JSON.parse(localStorage.getItem('pos_coupons')) || (typeof INITIAL_COUPONS !== 'undefined' ? INITIAL_COUPONS : []);
-    this.customers = JSON.parse(localStorage.getItem('pos_customers')) || (typeof INITIAL_CUSTOMERS !== 'undefined' ? INITIAL_CUSTOMERS : []);
-    if (!localStorage.getItem('pos_coupons') && typeof INITIAL_COUPONS !== 'undefined') {
+    this.categories = JSON.parse(localStorage.getItem('pos_categories')) || (isRegisteredStore ? [] : (typeof INITIAL_CATEGORIES !== 'undefined' ? INITIAL_CATEGORIES : []));
+    this.coupons = JSON.parse(localStorage.getItem('pos_coupons')) || (isRegisteredStore ? [] : (typeof INITIAL_COUPONS !== 'undefined' ? INITIAL_COUPONS : []));
+    this.customers = JSON.parse(localStorage.getItem('pos_customers')) || (isRegisteredStore ? [] : (typeof INITIAL_CUSTOMERS !== 'undefined' ? INITIAL_CUSTOMERS : []));
+    if (!isRegisteredStore && !localStorage.getItem('pos_coupons') && typeof INITIAL_COUPONS !== 'undefined') {
       localStorage.setItem('pos_coupons', JSON.stringify(INITIAL_COUPONS));
     }
-    if (!localStorage.getItem('pos_customers') && typeof INITIAL_CUSTOMERS !== 'undefined') {
+    if (!isRegisteredStore && !localStorage.getItem('pos_customers') && typeof INITIAL_CUSTOMERS !== 'undefined') {
       localStorage.setItem('pos_customers', JSON.stringify(INITIAL_CUSTOMERS));
     }
     
@@ -53,6 +55,21 @@ class AdminPanel {
     this.renderSalesLog();
     this.setupMobileSidebar();
 
+    try {
+      this.stateChannel = new BroadcastChannel('pos_state_sync');
+      this.stateChannel.onmessage = (event) => {
+        if (event.data?.type === 'customers_updated') {
+          this.customers = JSON.parse(localStorage.getItem('pos_customers')) || [];
+          this.renderAdminCustomers();
+        } else if (event.data?.type === 'sales_updated' || event.data?.type === 'products_updated') {
+          this.products = JSON.parse(localStorage.getItem('pos_products')) || [];
+          this.sales = JSON.parse(localStorage.getItem('pos_sales')) || [];
+          this.renderAdminCustomers();
+          this.refreshCurrentView();
+        }
+      };
+    } catch (e) {}
+
     // Real-time storage sync across tabs/windows
     window.addEventListener('storage', () => {
       this.products = JSON.parse(localStorage.getItem('pos_products')) || (typeof INITIAL_PRODUCTS !== 'undefined' ? INITIAL_PRODUCTS : []);
@@ -67,6 +84,28 @@ class AdminPanel {
       this.renderAdminCustomers();
       this.refreshCurrentView();
     });
+
+    document.addEventListener('click', (e) => {
+      if (e.target.closest('.close-modal')) {
+        const modal = e.target.closest('.modal');
+        if (modal) modal.classList.remove('active');
+      }
+    });
+  }
+
+  updateSidebarStoreProfile() {
+    const s = this.settings || {};
+    const sub = JSON.parse(localStorage.getItem('pos_subscription')) || {};
+    const storeName = s.storeName || sub.storeName || 'SmartPOS Admin';
+    const ownerName = sub.ownerName || s.ownerName || 'মার্চেন্ট';
+
+    const brandNameEl = document.getElementById('adminSidebarStoreName');
+    const storeTitleEl = document.getElementById('adminSidebarStoreTitle');
+    const ownerNameEl = document.getElementById('adminSidebarOwnerName');
+
+    if (brandNameEl) brandNameEl.textContent = storeName;
+    if (storeTitleEl) storeTitleEl.textContent = storeName;
+    if (ownerNameEl) ownerNameEl.textContent = `মালিক: ${ownerName}`;
   }
 
   initClock() {
@@ -214,6 +253,16 @@ class AdminPanel {
     }, 2800);
   }
 
+  openModal(modalId) {
+    const modal = typeof modalId === 'string' ? document.getElementById(modalId) : modalId;
+    if (modal) modal.classList.add('active');
+  }
+
+  closeModal(modalId) {
+    const modal = typeof modalId === 'string' ? document.getElementById(modalId) : modalId;
+    if (modal) modal.classList.remove('active');
+  }
+
   refreshCurrentView() {
     this.renderDashboard();
     this.renderInventoryTable();
@@ -237,7 +286,7 @@ class AdminPanel {
       'adminVariants': 'adminVariantsView',
       'adminBarcodes': 'adminBarcodesView',
       'adminSales': 'adminSalesView',
-      'adminCustomers': 'adminCustomers',
+      'adminCustomers': 'adminCustomersView',
       'adminSettings': 'adminSettingsView'
     };
 
@@ -2747,31 +2796,343 @@ class AdminPanel {
       return;
     }
 
-    tbody.innerHTML = filtered.map(c => `
-      <tr>
-        <td><strong style="color: var(--accent-blue);">${c.id || 'CUST'}</strong></td>
-        <td><strong style="color: var(--text-main);">${c.name}</strong></td>
-        <td><span class="badge" style="background: rgba(59, 130, 246, 0.15); color: var(--accent-blue);"><i class="fa-solid fa-phone"></i> ${c.phone}</span></td>
-        <td>${c.email || '<span class="text-muted">N/A</span>'}</td>
-        <td>${c.address || '<span class="text-muted">N/A</span>'}</td>
-        <td><span class="badge" style="background: rgba(139, 92, 246, 0.15); color: var(--accent-purple);">${c.totalOrders || 0} টি অর্ডার</span></td>
-        <td><strong style="color: var(--accent-green);">৳${(c.totalSpent || 0).toFixed(2)}</strong></td>
-        <td><small class="text-muted">${c.createdAt || 'N/A'}</small></td>
-        <td style="text-align: right;">
-          <div style="display: inline-flex; gap: 4px;">
-            <button type="button" class="btn btn-sm btn-outline" onclick="adminApp.viewCustomerOrders('${c.phone}')" title="কেনাকাটার ইতিহাস">
-              <i class="fa-solid fa-receipt"></i>
-            </button>
-            <button type="button" class="btn btn-sm btn-primary" onclick="adminApp.openCustomerModal('${c.id}')" title="এডিট">
-              <i class="fa-solid fa-pen-to-square"></i>
-            </button>
-            <button type="button" class="btn btn-sm btn-danger" onclick="adminApp.deleteCustomer('${c.id}')" title="ডিলিট">
-              <i class="fa-solid fa-trash"></i>
-            </button>
+    tbody.innerHTML = filtered.map(c => {
+      const isBlocked = c.status === 'blocked';
+      const statusBadge = isBlocked 
+        ? `<span class="badge" style="background: rgba(239, 68, 68, 0.15); color: #ef4444; margin-left: 6px;"><i class="fa-solid fa-ban"></i> ব্লকড</span>`
+        : `<span class="badge" style="background: rgba(16, 185, 129, 0.15); color: var(--accent-green); margin-left: 6px;"><i class="fa-solid fa-circle-check"></i> সচল</span>`;
+
+      return `
+        <tr onclick="adminApp.viewCustomerOrders('${c.id}')" style="cursor: pointer;" title="কাস্টমার প্রোফাইল ও কেনাকাটার বিবরণ দেখুন">
+          <td><strong style="color: var(--accent-blue);">${c.id || 'CUST'}</strong></td>
+          <td><strong style="color: var(--text-main);">${c.name}</strong> ${statusBadge}</td>
+          <td><span class="badge" style="background: rgba(59, 130, 246, 0.15); color: var(--accent-blue);"><i class="fa-solid fa-phone"></i> ${c.phone}</span></td>
+          <td>${c.email || '<span class="text-muted">N/A</span>'}</td>
+          <td>${c.address || '<span class="text-muted">N/A</span>'}</td>
+          <td><span class="badge" style="background: rgba(139, 92, 246, 0.15); color: var(--accent-purple);">${c.totalOrders || 0} টি অর্ডার</span></td>
+          <td><strong style="color: var(--accent-green);">৳${(c.totalSpent || 0).toFixed(2)}</strong></td>
+          <td><small class="text-muted">${c.createdAt || 'N/A'}</small></td>
+          <td style="text-align: right;" onclick="event.stopPropagation();">
+            <div style="display: inline-flex; gap: 4px;">
+              <button type="button" class="btn btn-sm btn-outline" onclick="adminApp.viewCustomerOrders('${c.id}')" title="কেনাকাটার ইতিহাস ও প্রডাক্ট বিবরণ">
+                <i class="fa-solid fa-id-card"></i>
+              </button>
+              <button type="button" class="btn btn-sm btn-primary" onclick="adminApp.openCustomerModal('${c.id}')" title="এডিট">
+                <i class="fa-solid fa-pen-to-square"></i>
+              </button>
+              ${isBlocked ? `
+                <button type="button" class="btn btn-sm btn-success" onclick="adminApp.toggleBlockCustomer('${c.id}')" title="আনব্লক করুন">
+                  <i class="fa-solid fa-user-check"></i> আনব্লক
+                </button>
+              ` : `
+                <button type="button" class="btn btn-sm btn-warning" onclick="adminApp.toggleBlockCustomer('${c.id}')" title="ব্লক করুন">
+                  <i class="fa-solid fa-user-slash"></i> ব্লক
+                </button>
+              `}
+              <button type="button" class="btn btn-sm btn-danger" onclick="adminApp.deleteCustomer('${c.id}')" title="ডিলিট">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  toggleBlockCustomer(id) {
+    this.customers = JSON.parse(localStorage.getItem('pos_customers')) || (typeof INITIAL_CUSTOMERS !== 'undefined' ? INITIAL_CUSTOMERS : []);
+    const c = this.customers.find(x => x.id === id);
+    if (!c) return;
+
+    if (c.status === 'blocked') {
+      c.status = 'active';
+      this.showToast(`কাস্টমার '${c.name}' সফলভাবে আনব্লক করা হয়েছে!`);
+    } else {
+      if (confirm(`আপনি কি নিশ্চিত যে কাস্টমার '${c.name}' কে ব্লক করতে চান?\nব্লক করার পর ক্যাশিয়ার কাউন্টারে উনার লেনদেন স্থগিত থাকবে।`)) {
+        c.status = 'blocked';
+        this.showToast(`কাস্টমার '${c.name}' কে ব্লক করা হয়েছে!`, 'error');
+      } else {
+        return;
+      }
+    }
+
+    localStorage.setItem('pos_customers', JSON.stringify(this.customers));
+    this.broadcastStateChange('customers');
+    this.renderAdminCustomers();
+  }
+
+  normalizePhone(phone) {
+    if (!phone) return '';
+    let cleaned = String(phone).replace(/\D/g, '').trim();
+    if (cleaned.length < 6) return '';
+    if (cleaned.startsWith('880')) {
+      cleaned = cleaned.slice(2);
+    }
+    return cleaned;
+  }
+
+  matchNames(name1, name2) {
+    if (!name1 || !name2) return false;
+    const clean1 = String(name1).toLowerCase().replace(/[^\w\s\u0980-\u09FF]/g, ' ').trim();
+    const clean2 = String(name2).toLowerCase().replace(/[^\w\s\u0980-\u09FF]/g, ' ').trim();
+    
+    if (clean1 === clean2) return true;
+    if (clean1.includes(clean2) || clean2.includes(clean1)) return true;
+
+    const ignoreWords = new Set(['customer', 'walk-in', 'walkin', 'cust', 'n/a', 'na', 'n', 'a']);
+    const tokens1 = clean1.split(/\s+/).filter(w => w.length >= 3 && !ignoreWords.has(w));
+    const tokens2 = clean2.split(/\s+/).filter(w => w.length >= 3 && !ignoreWords.has(w));
+
+    if (tokens1.length === 0 || tokens2.length === 0) return false;
+
+    return tokens1.some(t1 => tokens2.some(t2 => t1 === t2 || t1.includes(t2) || t2.includes(t1)));
+  }
+
+  switchCustProfileTab(tab) {
+    const memosTab = document.getElementById('adminCustMemosTabContent');
+    const productsTab = document.getElementById('adminCustProductsTabContent');
+    const memosBtn = document.getElementById('adminTabMemosBtn');
+    const productsBtn = document.getElementById('adminTabProductsBtn');
+
+    if (tab === 'memos') {
+      if (memosTab) memosTab.style.display = 'block';
+      if (productsTab) productsTab.style.display = 'none';
+      memosBtn?.classList.add('active');
+      productsBtn?.classList.remove('active');
+    } else {
+      if (memosTab) memosTab.style.display = 'none';
+      if (productsTab) productsTab.style.display = 'block';
+      memosBtn?.classList.remove('active');
+      productsBtn?.classList.add('active');
+    }
+  }
+
+  viewCustomerOrders(phoneOrName) {
+    const modal = document.getElementById('customerOrdersModal');
+    if (!modal) return;
+
+    this.sales = JSON.parse(localStorage.getItem('pos_sales')) || (typeof INITIAL_SALES !== 'undefined' ? INITIAL_SALES : []);
+    this.customers = JSON.parse(localStorage.getItem('pos_customers')) || (typeof INITIAL_CUSTOMERS !== 'undefined' ? INITIAL_CUSTOMERS : []);
+
+    const cleanInputPhone = this.normalizePhone(phoneOrName);
+    let c = null;
+
+    if (phoneOrName) {
+      c = this.customers.find(x => x.id === phoneOrName || x.phone === phoneOrName || x.name === phoneOrName);
+    }
+    if (!c && cleanInputPhone) {
+      c = this.customers.find(x => this.normalizePhone(x.phone) === cleanInputPhone);
+    }
+
+    const custName = c ? c.name : phoneOrName;
+    const custPhone = c ? c.phone : (cleanInputPhone || phoneOrName);
+
+    // Deep multi-criteria sales matching
+    const custSales = this.sales.filter(s => {
+      // 1. Exact Customer ID match
+      if (c && c.id && s.customerId && s.customerId === c.id) return true;
+      if (phoneOrName && s.customerId && s.customerId === phoneOrName) return true;
+
+      // 2. Phone match
+      if (c && c.phone && s.customerPhone) {
+        const cPhoneNorm = this.normalizePhone(c.phone);
+        const sPhoneNorm = this.normalizePhone(s.customerPhone);
+        if (cPhoneNorm && sPhoneNorm && cPhoneNorm === sPhoneNorm) return true;
+      }
+      if (cleanInputPhone && s.customerPhone) {
+        const sPhoneNorm = this.normalizePhone(s.customerPhone);
+        if (sPhoneNorm && sPhoneNorm === cleanInputPhone) return true;
+      }
+
+      // 3. Name match
+      if (s.customer && custName && this.matchNames(s.customer, custName)) return true;
+      if (c && c.name && s.customer && this.matchNames(s.customer, c.name)) return true;
+      if (c && c.firstName && s.customer && this.matchNames(s.customer, c.firstName)) return true;
+      if (c && c.lastName && s.customer && this.matchNames(s.customer, c.lastName)) return true;
+
+      // 4. Fallback: ID mentioned in customer field
+      if (c && c.id && s.customer && s.customer.includes(c.id)) return true;
+      if (phoneOrName && s.customer && s.customer.includes(phoneOrName)) return true;
+
+      return false;
+    });
+
+    // Auto-bind unlinked sales to this customer ID & sync totals
+    if (c && custSales.length > 0) {
+      let salesChanged = false;
+      custSales.forEach(s => {
+        if (!s.customerId || s.customerId !== c.id) {
+          s.customerId = c.id;
+          salesChanged = true;
+        }
+      });
+      if (salesChanged) {
+        localStorage.setItem('pos_sales', JSON.stringify(this.sales));
+      }
+      
+      const newTotalOrders = custSales.length;
+      const newTotalSpent = custSales.reduce((sum, s) => sum + (s.grandTotal || 0), 0);
+      if (c.totalOrders !== newTotalOrders || c.totalSpent !== newTotalSpent) {
+        c.totalOrders = newTotalOrders;
+        c.totalSpent = newTotalSpent;
+        localStorage.setItem('pos_customers', JSON.stringify(this.customers));
+        this.renderAdminCustomers();
+      }
+    }
+
+    // Aggregate Products Purchased ("কী কী অর্ডার করেছে")
+    const productMap = {};
+    let totalItemsCount = 0;
+
+    custSales.forEach(sale => {
+      (sale.items || []).forEach(item => {
+        const key = `${item.name}__${item.color || ''}__${item.size || ''}`;
+        const qty = Number(item.quantity) || 1;
+        const subtotal = Number(item.subtotal || (item.price * qty)) || 0;
+        totalItemsCount += qty;
+
+        if (!productMap[key]) {
+          productMap[key] = {
+            name: item.name,
+            variant: [item.color, item.size].filter(Boolean).join(' / ') || 'Standard',
+            price: item.price,
+            totalQty: 0,
+            totalSpend: 0
+          };
+        }
+        productMap[key].totalQty += qty;
+        productMap[key].totalSpend += subtotal;
+      });
+    });
+
+    const totalSpentSum = custSales.reduce((sum, s) => sum + (s.grandTotal || 0), 0);
+    const isBlocked = c && c.status === 'blocked';
+    const statusHeaderBadge = isBlocked 
+      ? `<span class="badge" style="background: rgba(239, 68, 68, 0.2); color: #ef4444; font-size: 0.8rem; margin-left: 8px;"><i class="fa-solid fa-ban"></i> ব্লকড প্রোফাইল</span>`
+      : `<span class="badge" style="background: rgba(16, 185, 129, 0.2); color: var(--accent-green); font-size: 0.8rem; margin-left: 8px;"><i class="fa-solid fa-circle-check"></i> অ্যাক্টিভ</span>`;
+
+    // Render Header Info Card
+    const headerInfo = document.getElementById('custOrdersModalHeaderInfo');
+    if (headerInfo) {
+      const firstChar = (custName || 'C').charAt(0).toUpperCase();
+      headerInfo.innerHTML = `
+        <div class="cust-profile-header-card">
+          <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+            <div class="cust-avatar-circle" style="${isBlocked ? 'background: linear-gradient(135deg, #ef4444, #dc2626);' : ''}">${firstChar}</div>
+            <div style="flex: 1; min-width: 220px;">
+              <h3 style="margin: 0; font-size: 1.2rem; color: var(--text-main); font-weight: 700;">${custName} ${statusHeaderBadge}</h3>
+              <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 0.35rem; font-size: 0.85rem; color: var(--text-muted);">
+                <span><i class="fa-solid fa-phone" style="color: var(--accent-blue);"></i> ${c?.phone || custPhone || 'ফোন নম্বর নেই'}</span>
+                <span><i class="fa-solid fa-envelope" style="color: var(--accent-purple);"></i> ${c?.email || 'ইমেইল নেই'}</span>
+                <span><i class="fa-solid fa-location-dot" style="color: var(--accent-green);"></i> ${c?.address || 'ঠিকানা নেই'}</span>
+              </div>
+            </div>
+            <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+              <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); padding: 0.5rem 0.85rem; border-radius: 8px; text-align: center;">
+                <small style="color: var(--text-muted); display: block; font-size: 0.75rem;">মোট বিল</small>
+                <strong style="color: var(--accent-green); font-size: 1rem;">৳${totalSpentSum.toFixed(2)}</strong>
+              </div>
+              <div style="background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.3); padding: 0.5rem 0.85rem; border-radius: 8px; text-align: center;">
+                <small style="color: var(--text-muted); display: block; font-size: 0.75rem;">মোট মেমো</small>
+                <strong style="color: var(--accent-blue); font-size: 1rem;">${custSales.length} টি</strong>
+              </div>
+              <div style="background: rgba(139, 92, 246, 0.1); border: 1px solid rgba(139, 92, 246, 0.3); padding: 0.5rem 0.85rem; border-radius: 8px; text-align: center;">
+                <small style="color: var(--text-muted); display: block; font-size: 0.75rem;">মোট পিস প্রডাক্ট</small>
+                <strong style="color: var(--accent-purple); font-size: 1rem;">${totalItemsCount} টি</strong>
+              </div>
+            </div>
           </div>
-        </td>
-      </tr>
-    `).join('');
+        </div>
+      `;
+    }
+
+    // Render Memos List
+    const memosContainer = document.getElementById('adminCustMemosContainer');
+    if (memosContainer) {
+      if (custSales.length === 0) {
+        memosContainer.innerHTML = `<div class="text-center py-4 text-muted"><i class="fa-solid fa-receipt mb-2" style="font-size: 2rem; color: var(--text-muted);"></i><p>এই কাস্টমারের কোনো কেনাকাটার মেমো পাওয়া যায়নি</p></div>`;
+      } else {
+        memosContainer.innerHTML = custSales.map(s => {
+          const formattedDate = s.date || new Date(s.timestamp || Date.now()).toLocaleString('bn-BD');
+          const itemsList = s.items || [];
+          return `
+            <div class="cust-memo-card">
+              <div class="cust-memo-header">
+                <div>
+                  <strong style="color: var(--accent-blue); font-size: 1rem;">${s.id}</strong>
+                  <span style="font-size: 0.8rem; color: var(--text-muted); margin-left: 0.5rem;"><i class="fa-regular fa-clock"></i> ${formattedDate}</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                  <span class="badge" style="background: rgba(59, 130, 246, 0.15); color: var(--accent-blue);">${s.paymentMethod || 'CASH'}</span>
+                  <strong style="color: var(--accent-green); font-size: 1.05rem;">৳${(s.grandTotal || 0).toFixed(2)}</strong>
+                  <button type="button" class="btn btn-sm btn-outline" onclick="adminApp.viewSaleDetails('${s.id}')" title="মেমো দেখুন / প্রিন্ট করুন">
+                    <i class="fa-solid fa-file-invoice"></i> মেমো দেখুন
+                  </button>
+                </div>
+              </div>
+              <div class="cust-memo-body">
+                <table class="nested-item-table">
+                  <thead>
+                    <tr>
+                      <th>পণ্য</th>
+                      <th>ভেরিয়েন্ট</th>
+                      <th class="text-center">পরিমাণ</th>
+                      <th class="text-right">একক মূল্য</th>
+                      <th class="text-right">মোট</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${itemsList.map(item => `
+                      <tr>
+                        <td><strong>${item.name}</strong></td>
+                        <td><small class="text-muted">${[item.color, item.size].filter(Boolean).join(' / ') || 'Standard'}</small></td>
+                        <td class="text-center">${item.quantity} পিস</td>
+                        <td class="text-right">৳${item.price}</td>
+                        <td class="text-right"><strong>৳${item.subtotal || (item.price * item.quantity)}</strong></td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+    }
+
+    // Render Aggregated Products Table Body
+    const productsTbody = document.getElementById('adminCustProductsTableBody');
+    if (productsTbody) {
+      const productList = Object.values(productMap);
+      if (productList.length === 0) {
+        productsTbody.innerHTML = `<tr><td colspan="5" class="text-center py-3 text-muted">কোনো অর্ডারের তথ্য নেই</td></tr>`;
+      } else {
+        productsTbody.innerHTML = productList.map(prod => `
+          <tr>
+            <td><strong style="color: var(--text-main);">${prod.name}</strong></td>
+            <td><span class="badge" style="background: rgba(139, 92, 246, 0.15); color: var(--accent-purple);">${prod.variant}</span></td>
+            <td>৳${prod.price}</td>
+            <td><strong style="color: var(--accent-blue);">${prod.totalQty} পিস</strong></td>
+            <td><strong style="color: var(--accent-green);">৳${prod.totalSpend.toFixed(2)}</strong></td>
+          </tr>
+        `).join('');
+      }
+    }
+
+    this.switchCustProfileTab('memos');
+    this.openModal('customerOrdersModal');
+  }
+
+  viewSaleDetails(saleId) {
+    this.sales = JSON.parse(localStorage.getItem('pos_sales')) || (typeof INITIAL_SALES !== 'undefined' ? INITIAL_SALES : []);
+    const s = this.sales.find(x => x.id === saleId);
+    if (!s) {
+      alert('মেমো রেকর্ড পাওয়া যায়নি!');
+      return;
+    }
+
+    const itemsStr = (s.items || []).map(i => `• ${i.name} (${[i.color, i.size].filter(Boolean).join('/') || 'Standard'}) - ${i.quantity} পিস × ৳${i.price} = ৳${i.subtotal || (i.price * i.quantity)}`).join('\n');
+    alert(`📄 ইনভয়েস মেমো: ${s.id}\n📅 তারিখ: ${s.date || new Date(s.timestamp || Date.now()).toLocaleString('bn-BD')}\n👤 কাস্টমার: ${s.customer || 'Walk-in'}\n📞 ফোন: ${s.customerPhone || 'N/A'}\n💳 পেমেন্ট মেথড: ${s.paymentMethod || 'CASH'}\n💰 মোট বিল: ৳${(s.grandTotal || 0).toFixed(2)}\n\n📦 ক্রয়কৃত পণ্য তালিকা:\n${itemsStr}`);
   }
 
   openCustomerModal(customerId = null) {
@@ -2783,6 +3144,7 @@ class AdminPanel {
     const phoneInput = document.getElementById('custFormPhone');
     const emailInput = document.getElementById('custFormEmail');
     const addressInput = document.getElementById('custFormAddress');
+    const statusInput = document.getElementById('custFormStatus');
 
     if (customerId) {
       const c = this.customers.find(x => x.id === customerId);
@@ -2795,6 +3157,7 @@ class AdminPanel {
         if (phoneInput) phoneInput.value = c.phone || '';
         if (emailInput) emailInput.value = c.email || '';
         if (addressInput) addressInput.value = c.address || '';
+        if (statusInput) statusInput.value = c.status || 'active';
       }
     } else {
       if (titleEl) titleEl.innerHTML = `<i class="fa-solid fa-user-plus"></i> নতুন কাস্টমার প্রোফাইল এন্ট্রি`;
@@ -2804,6 +3167,7 @@ class AdminPanel {
       if (phoneInput) phoneInput.value = '';
       if (emailInput) emailInput.value = '';
       if (addressInput) addressInput.value = '';
+      if (statusInput) statusInput.value = 'active';
     }
 
     if (modal) modal.classList.add('active');
@@ -2817,6 +3181,7 @@ class AdminPanel {
     const phone = document.getElementById('custFormPhone')?.value.trim() || '';
     const email = document.getElementById('custFormEmail')?.value.trim() || '';
     const address = document.getElementById('custFormAddress')?.value.trim() || '';
+    const status = document.getElementById('custFormStatus')?.value || 'active';
 
     if (!firstName && !name) {
       alert('কাস্টমারের ফার্স্ট নেম দেওয়া বাধ্যতামূলক!');
@@ -2848,6 +3213,7 @@ class AdminPanel {
         c.phone = phone;
         c.email = email;
         c.address = address;
+        c.status = status;
       }
     } else {
       const newCust = {
@@ -2858,6 +3224,7 @@ class AdminPanel {
         phone,
         email,
         address,
+        status,
         totalOrders: 0,
         totalSpent: 0,
         createdAt: new Date().toISOString().split('T')[0]
@@ -2866,9 +3233,17 @@ class AdminPanel {
     }
 
     localStorage.setItem('pos_customers', JSON.stringify(this.customers));
+    this.broadcastStateChange('customers');
     document.getElementById('customerModal')?.classList.remove('active');
     this.renderAdminCustomers();
     this.showToast('কাস্টমার প্রোফাইল সফলভাবে সংরক্ষিত হয়েছে!');
+  }
+
+  broadcastStateChange(type) {
+    try {
+      if (!this.stateChannel) this.stateChannel = new BroadcastChannel('pos_state_sync');
+      this.stateChannel.postMessage({ type: `${type}_updated`, timestamp: Date.now() });
+    } catch (e) {}
   }
 
   deleteCustomer(id) {
@@ -2877,62 +3252,10 @@ class AdminPanel {
     if (confirm(`আপনি কি নিশ্চিত যে কাস্টমার '${c.name}' এর প্রোফাইল ডিলিট করতে চান?`)) {
       this.customers = this.customers.filter(x => x.id !== id);
       localStorage.setItem('pos_customers', JSON.stringify(this.customers));
+      this.broadcastStateChange('customers');
       this.renderAdminCustomers();
       this.showToast('কাস্টমার প্রোফাইল রিমুভ করা হয়েছে!', 'error');
     }
-  }
-
-  viewCustomerOrders(phoneOrName) {
-    const modal = document.getElementById('customerOrdersModal');
-    const headerInfo = document.getElementById('custOrdersModalHeaderInfo');
-    const tbody = document.getElementById('custOrdersTableBody');
-    if (!modal) return;
-
-    this.sales = JSON.parse(localStorage.getItem('pos_sales')) || (typeof INITIAL_SALES !== 'undefined' ? INITIAL_SALES : []);
-    const c = this.customers.find(x => x.phone === phoneOrName || x.name === phoneOrName);
-
-    const custSales = this.sales.filter(s => 
-      (s.customerPhone && s.customerPhone === phoneOrName) ||
-      (s.customer && s.customer.toLowerCase().includes((c ? c.name : phoneOrName).toLowerCase()))
-    );
-
-    if (headerInfo) {
-      headerInfo.innerHTML = `
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-          <div>
-            <strong style="color: var(--accent-blue); font-size: 1.05rem;">${c ? c.name : phoneOrName}</strong>
-            <div style="font-size: 0.85rem; color: var(--text-muted);"><i class="fa-solid fa-phone"></i> ${c ? c.phone : 'N/A'} | ${c ? c.address || 'ঠিকানা নেই' : ''}</div>
-          </div>
-          <div style="text-align: right;">
-            <span class="badge" style="background: rgba(16, 185, 129, 0.15); color: var(--accent-green); font-size: 0.85rem;">
-              মোট ${custSales.length} টি কেনাকাটা (৳${custSales.reduce((sum, s) => sum + s.grandTotal, 0).toFixed(2)})
-            </span>
-          </div>
-        </div>
-      `;
-    }
-
-    if (tbody) {
-      if (custSales.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" class="text-center py-3 text-muted">এই কাস্টমারের কোনো কেনাকাটার ইতিহাস পাওয়া যায়নি</td></tr>`;
-      } else {
-        tbody.innerHTML = custSales.map(s => `
-          <tr>
-            <td><strong>${s.id}</strong></td>
-            <td><small>${s.date}</small></td>
-            <td><span class="badge" style="background: rgba(59, 130, 246, 0.15); color: var(--accent-blue);">${s.paymentMethod}</span></td>
-            <td><strong style="color: var(--accent-green);">৳${s.grandTotal.toFixed(2)}</strong></td>
-            <td style="text-align: right;">
-              <button type="button" class="btn btn-sm btn-outline" onclick="adminApp.viewSaleDetails('${s.id}')">
-                <i class="fa-solid fa-file-invoice"></i> মেমো দেখুন
-              </button>
-            </td>
-          </tr>
-        `).join('');
-      }
-    }
-
-    modal.classList.add('active');
   }
 
   // INTERACTIVE DATE RANGE CALENDAR PICKER ENGINE (SHOPIFY / GA DESIGN MATCH)

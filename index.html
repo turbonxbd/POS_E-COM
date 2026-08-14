@@ -3,108 +3,381 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SmartPOS Pro - রিটেইল পয়েন্ট অফ সেল ও ম্যানেজমেন্ট প্যানেল</title>
+  <title>SmartPOS Cloud - সর্বাধুনিক রিটেইল শপ POS ও ই-কমার্স প্ল্যাটফর্ম</title>
   
+  <meta name="description" content="SmartPOS Cloud - যেকোনো স্থান থেকে আপনার দোকানের স্টক, বারকোড স্ক্যানিং, রিয়েল-টাইম ক্লাউড সিঙ্ক ও নিখুঁত লাভ-ক্ষতির হিসেব পরিচালনা করুন।">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Hind+Siliguri:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Hind+Siliguri:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='25' fill='%2310b981'/><path d='M30 25h40v50H30z' fill='%23ffffff'/></svg>">
-  <link rel="stylesheet" href="style.css">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#10b981">
+  <link rel="stylesheet" href="landing.css">
 </head>
 <body>
 
-  <div class="portal-hero">
-    <div class="portal-header">
-      <div class="brand-logo" style="width:64px; height:64px; font-size:2rem; margin: 0 auto 1rem; border-radius:18px;">
+  <!-- Sticky Glassmorphism Navbar -->
+  <nav class="saas-navbar">
+    <a href="index.html" class="saas-brand">
+      <div class="saas-brand-icon">
         <i class="fa-solid fa-barcode"></i>
       </div>
-      <h1>SmartPOS Retail Hub</h1>
-      <p>স্বাগতম! আপনার দোকানের পয়েন্ট অফ সেল (POS) কাউন্টার অথবা মার্চেন্ট এডমিন প্যানেলে প্রবেশ করতে রোল নির্বাচন করুন।</p>
+      <span class="saas-brand-text">SmartPOS Cloud</span>
+    </a>
+
+    <ul class="saas-nav-links" id="mainNavLinks">
+      <li><a href="#hero">হোম</a></li>
+      <li><a href="#howitworks">কীভাবে শুরু করবেন</a></li>
+      <li><a href="#features">ফিচারসমূহ</a></li>
+      <li><a href="#pricing">প্যাকেজ ও প্রাইসিং</a></li>
+      <li><a href="#contact">যোগাযোগ</a></li>
+    </ul>
+
+    <div class="saas-nav-actions">
+      <button class="btn-hero-secondary btn-install-pwa" id="btnInstallApp" style="padding: 0.5rem 1rem; font-size: 0.88rem; border-radius: 10px; background: rgba(16, 185, 129, 0.15); color: #10b981; border-color: rgba(16, 185, 129, 0.3);" title="Windows PC / ফোনে ইনস্টল করুন">
+        <i class="fa-solid fa-download"></i> অ্যাপ ইনস্টল
+      </button>
+      <a href="portal.html" class="btn-hero-secondary" style="padding: 0.5rem 1.1rem; font-size: 0.9rem; border-radius: 10px;">
+        <i class="fa-solid fa-right-to-bracket"></i> প্যানেলে প্রবেশ
+      </a>
+      <button class="trial-badge-btn openCheckoutModal" data-plan="SmartPOS Terminal" data-price="0" data-mode="trial" style="padding: 0.5rem 1.25rem; font-size: 0.9rem; border-radius: 10px;">
+        <i class="fa-solid fa-gift"></i> ৭ দিনের ফ্রি ট্রায়াল
+      </button>
+      <button class="mobile-nav-toggle" id="mobileNavToggle" aria-label="মেনু" style="display:none; background:none; border:none; color:#fff; font-size:1.4rem; cursor:pointer;">
+        <i class="fa-solid fa-bars" id="mobileNavIcon"></i>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Mobile Nav Drawer -->
+  <div class="mobile-nav-drawer" id="mobileNavDrawer">
+    <a href="#hero" class="mobile-nav-link"><i class="fa-solid fa-house"></i> হোম</a>
+    <a href="#howitworks" class="mobile-nav-link"><i class="fa-solid fa-list-check"></i> কীভাবে শুরু করবেন</a>
+    <a href="#features" class="mobile-nav-link"><i class="fa-solid fa-star"></i> ফিচারসমূহ</a>
+    <a href="#pricing" class="mobile-nav-link"><i class="fa-solid fa-tags"></i> প্যাকেজ ও প্রাইসিং</a>
+    <a href="#contact" class="mobile-nav-link"><i class="fa-solid fa-phone"></i> যোগাযোগ</a>
+    <a href="portal.html" class="mobile-nav-link" style="color:#10b981;"><i class="fa-solid fa-right-to-bracket"></i> প্যানেলে প্রবেশ</a>
+  </div>
+
+  <!-- Full-Screen Viewport Hero Section -->
+  <section class="saas-hero" id="hero">
+    <div class="saas-hero-glow"></div>
+
+    <div class="saas-badge-pill" id="heroBadge">
+      <i class="fa-solid fa-sparkles"></i> 🚀 ৩,০০০+ দোকানে বিশ্বস্ত - স্মার্ট ক্লাউড POS সফটওয়্যার
     </div>
 
-    <div class="portal-grid">
-      <!-- CASHIER COUNTER OPTION -->
-      <a href="cashier.html" class="portal-card">
-        <div class="portal-icon bg-blue">
+    <h1 class="saas-hero-title" id="heroTitle">
+      আপনার দোকানের ব্যবসা পরিচালনা করুন <span>যেকোনো স্থান থেকে!</span>
+    </h1>
+
+    <p class="saas-hero-desc" id="heroDesc">
+      স্মার্ট ইনভেন্টরি এন্ট্রি, বারকোড স্ক্যানিং, রিয়েল-টাইম ফায়ারবেস ক্লাউড সিঙ্ক, আল্ট্রা-ফাস্ট ক্যাশিয়ার টার্মিনাল ও নিট প্রফিটের অটোম্যাটেড রিপোর্ট নিন এক ক্লিকে।
+    </p>
+
+    <div class="saas-hero-cta">
+      <button class="trial-badge-btn openCheckoutModal" data-plan="SmartPOS Terminal" data-price="0" data-mode="trial">
+        <i class="fa-solid fa-gift"></i> 🎁 ৭ দিনের ফ্রি ট্রায়াল শুরু করুন
+      </button>
+      <button class="btn-hero-primary btn-install-pwa" id="btnInstallAppHero" style="background: linear-gradient(135deg, #10b981, #059669);">
+        <i class="fa-solid fa-download"></i> 💻 PC/মোবাইলে অ্যাপ ইনস্টল করুন
+      </button>
+      <button class="btn-hero-secondary" id="openDemoVideoBtn">
+        <i class="fa-solid fa-circle-play text-success"></i> লাইভ ভিডিও ডেমো
+      </button>
+    </div>
+
+    <!-- Animated Interactive Hero Video Banner Showcase -->
+    <div class="hero-video-banner">
+      <div class="video-banner-preview" id="videoPreviewBox">
+        <img src="https://images.unsplash.com/photo-1556740738-b6a63e27c4df?auto=format&fit=crop&w=1200&q=80" alt="SmartPOS System Dashboard">
+        <div class="video-play-btn">
+          <i class="fa-solid fa-play"></i>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Dynamic Panel Screenshot & Feature Showcase Section -->
+  <section class="panel-showcase-section" id="showcase">
+    <div class="section-header">
+      <h2>আমাদের প্যানেল কীভাবে কাজ করে?</h2>
+      <p>নিচে স্ক্রোল করে প্রতিটি প্যানেলের বাস্তব ছবি ও কাজ বিস্তারিত দেখে নিন।</p>
+    </div>
+
+    <div id="panelShowcaseContainer">
+      <!-- Loaded dynamically by landing.js -->
+    </div>
+  </section>
+
+  <!-- Features Grid Section -->
+  <section class="saas-section" id="features">
+    <div class="section-header">
+      <h2>সবকিছু এক ছাদের নিচে</h2>
+      <p>আপনার দোকানকে সম্পূর্ণ ডিজিটাল ও দ্রুত রাখতে প্রয়োজনীয় সব আধুনিক ফিচার।</p>
+    </div>
+
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon bg-green-glow"><i class="fa-solid fa-cloud-bolt"></i></div>
+        <h3>রিয়েল-টাইম ক্লাউড সিঙ্ক</h3>
+        <p>ফায়ারবেস ক্লাউডের মাধ্যমে একাধিক কাউন্টার ও এডমিন প্যানেল সাথে সাথে সিঙ্ক হয়ে যাবে।</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon bg-blue-glow"><i class="fa-solid fa-barcode"></i></div>
+        <h3>বারকোড স্ক্যানার ও জেনারেটর</h3>
+        <p>যেকোনো বারকোড স্ক্যানার দিয়ে পেমেন্ট নিন অথবা এক ক্লিকে নিজস্ব বারকোড স্টিকার তৈরি করুন।</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon bg-orange-glow"><i class="fa-solid fa-cash-register"></i></div>
+        <h3>আল্ট্রা-ফাস্ট ক্যাশিয়ার টার্মিনাল</h3>
+        <p>ক্যাশিয়ারদের জন্য দ্রুত বিক্রির সুবিধা। ডিসকাউন্ট, ট্যাক্স ও বিকাশ/নগদ ডিজিটাল পেমেন্ট সাপোর্ট।</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon bg-purple-glow"><i class="fa-solid fa-chart-line"></i></div>
+        <h3>লাভ-ক্ষতি ও সেলস অ্যানালিটিক্স</h3>
+        <p>দৈনিক ও মাসিক বিক্রির গ্রাফিকাল অ্যানালিটিক্স এবং নিট প্রফিটের নিখুঁত অটোমেটিক হিসেব।</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon bg-cyan-glow"><i class="fa-solid fa-receipt"></i></div>
+        <h3>কাস্টম রসিদ ও মেমো প্রিন্ট</h3>
+        <p>আপনার ব্র্যান্ডের নাম, লোগো ও কাস্টম থ্যাঙ্ক ইউ মেসেজ দিয়ে প্রফেশনাল থার্মাল ও পিডিএফ মেমো প্রিন্ট।</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon bg-pink-glow"><i class="fa-solid fa-mobile-screen-button"></i></div>
+        <h3>যেকোনো ডিভাইস সাপোর্ট</h3>
+        <p>কম্পিউটার, ল্যাপটপ, ট্যাবলেট বা অ্যান্ড্রয়েড মোবাইল — যেকোনো ডিভাইস থেকেই ব্যবহার যোগ্য।</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- How It Works Section -->
+  <section class="saas-section" id="howitworks" style="background: linear-gradient(180deg, #070b12, #0c1628, #070b12);">
+    <div class="section-header">
+      <h2>৩ ধাপে শুরু করুন SmartPOS</h2>
+      <p>মাত্র কয়েক মিনিটে আপনার দোকানের সম্পূর্ণ ডিজিটাল POS সিস্টেম প্রস্তুত হয়ে যাবে।</p>
+    </div>
+    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:2rem; max-width:1100px; margin:0 auto; position:relative;">
+      <!-- Step connector line -->
+      <div style="position:absolute; top:40px; left:25%; right:25%; height:2px; background:linear-gradient(90deg, #10b981, #3b82f6, #a855f7); display:none;"></div>
+      <div class="feature-card" style="text-align:center; padding:2.5rem 2rem; position:relative;">
+        <div style="width:72px; height:72px; background:linear-gradient(135deg, rgba(16,185,129,0.2), rgba(16,185,129,0.05)); border:2px solid #10b981; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:1.8rem; margin:0 auto 1.25rem; color:#10b981;">
+          <i class="fa-solid fa-user-plus"></i>
+        </div>
+        <div style="position:absolute; top:-14px; right:20px; background:#10b981; color:#000; font-weight:800; font-size:0.8rem; padding:0.25rem 0.65rem; border-radius:20px;">ধাপ ১</div>
+        <h3>নিবন্ধন করুন</h3>
+        <p style="color:#94a3b8;">ওয়েবসাইটে এসে দোকানের নাম, ঠিকানা ও মোবাইল নম্বর দিন। ৭ দিনের ফ্রি ট্রায়াল বা পেইড প্যাকেজ বেছে নিন।</p>
+      </div>
+      <div class="feature-card" style="text-align:center; padding:2.5rem 2rem; position:relative;">
+        <div style="width:72px; height:72px; background:linear-gradient(135deg, rgba(59,130,246,0.2), rgba(59,130,246,0.05)); border:2px solid #3b82f6; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:1.8rem; margin:0 auto 1.25rem; color:#3b82f6;">
+          <i class="fa-solid fa-boxes-stacked"></i>
+        </div>
+        <div style="position:absolute; top:-14px; right:20px; background:#3b82f6; color:#fff; font-weight:800; font-size:0.8rem; padding:0.25rem 0.65rem; border-radius:20px;">ধাপ ২</div>
+        <h3>পণ্য যোগ করুন</h3>
+        <p style="color:#94a3b8;">মার্চেন্ট প্যানেলে পণ্যের নাম, ক্রয়মূল্য, বিক্রয়মূল্য এবং ছবি দিয়ে স্টক এন্ট্রি করুন। বারকোড অটো জেনারেট হবে।</p>
+      </div>
+      <div class="feature-card" style="text-align:center; padding:2.5rem 2rem; position:relative;">
+        <div style="width:72px; height:72px; background:linear-gradient(135deg, rgba(168,85,247,0.2), rgba(168,85,247,0.05)); border:2px solid #a855f7; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:1.8rem; margin:0 auto 1.25rem; color:#a855f7;">
           <i class="fa-solid fa-cash-register"></i>
         </div>
-        <h3>দোকানের সেলস কাউন্টার</h3>
-        <p>বারকোড স্ক্যান করে দ্রুত পণ্য বিক্রি করুন, কার্ট সাজান, মেমো প্রিন্ট দিন এবং শিফট সেলস চার্ট দেখুন। (ম্যানেজমেন্ট এক্সেস সুরক্ষিত)</p>
-        <span class="portal-badge" style="background: rgba(59,130,246,0.15); color: var(--accent-blue);">
-          <i class="fa-solid fa-bolt"></i> ক্যাশিয়ার সেলস অপশন
-        </span>
-      </a>
-
-      <!-- MERCHANT ADMIN OPTION -->
-      <div class="portal-card admin" id="openAdminPinCard">
-        <div class="portal-icon bg-orange">
-          <i class="fa-solid fa-user-shield"></i>
-        </div>
-        <h3>মার্চেন্ট এডমিন প্যানেল</h3>
-        <p>স্টক পরিমার্জন, নতুন প্রোডাক্ট এন্ট্রি, কস্ট/সেল প্রাইস আপডেট, বারকোড স্টিকার জেনারেট এবং পূর্ণাঙ্গ সেলস ও নিট প্রফিট অ্যানালিটিক্স।</p>
-        <span class="portal-badge" style="background: rgba(245,158,11,0.15); color: var(--accent-orange);">
-          <i class="fa-solid fa-lock"></i> পিন দ্বারা সুরক্ষিত (Merchant Admin)
-        </span>
+        <div style="position:absolute; top:-14px; right:20px; background:#a855f7; color:#fff; font-weight:800; font-size:0.8rem; padding:0.25rem 0.65rem; border-radius:20px;">ধাপ ৩</div>
+        <h3>বিক্রি শুরু করুন!</h3>
+        <p style="color:#94a3b8;">ক্যাশিয়ার কাউন্টার ওপেন করুন, বারকোড স্ক্যান করুন এবং মুহূর্তে পেমেন্ট নিয়ে ডিজিটাল রসিদ প্রিন্ট করুন।</p>
       </div>
     </div>
-  </div>
+  </section>
 
-  <!-- SECURITY PIN MODAL FOR ADMIN ACCESS -->
-  <div class="modal" id="portalPinModal">
-    <div class="modal-content modal-sm">
-      <div class="modal-header">
-        <h3><i class="fa-solid fa-lock"></i> মার্চেন্ট সিকিউরিটি ভেরিফিকেশন</h3>
-        <button class="close-modal"><i class="fa-solid fa-xmark"></i></button>
+  <!-- Pricing & Service Packages Section -->
+  <section class="pricing-wrapper" id="pricing">
+    <div class="section-header">
+      <h2>আমাদের সার্ভিস প্যাকেজসমূহ</h2>
+      <p>সেটআপ ফি এবং সাশ্রয়ী মাসিক ক্লাউড মেইনটেন্যান্স ফি সহ আপনার সুবিধাজনক প্যাকেজ বেছে নিন।</p>
+    </div>
+    <div class="pricing-grid" id="pricingGridContainer">
+      <!-- Rendered dynamically by landing.js -->
+    </div>
+  </section>
+
+  <!-- FAQ Section -->
+  <section class="saas-section" id="faq">
+    <div class="section-header">
+      <h2>সাধারণ কিছু প্রশ্ন (FAQ)</h2>
+      <p>স্মার্ট POS ও ফ্রি ট্রায়াল সম্পর্কে সাধারণ কিছু উত্তর।</p>
+    </div>
+
+    <div style="max-width: 800px; margin: 0 auto;">
+      <div class="feature-card mb-3" style="padding: 1.5rem;">
+        <h4 style="color: #10b981; margin-bottom: 0.5rem;"><i class="fa-solid fa-circle-question"></i> ৭ দিনের ফ্রি ট্রায়াল কীভাবে কাজ করে?</h4>
+        <p>ফ্রি ট্রায়াল বোতামে চাপ দিয়ে দোকানের নাম ও মোবাইল নম্বর দিলে কোনো টাকা দেওয়া ছাড়াই ৭ দিনের জন্য পূর্ণাঙ্গ এক্সেস পেয়ে যাবেন।</p>
       </div>
-      <div class="modal-body">
-        <p class="mb-2 text-muted">এডমিন প্যানেলে প্রবেশের জন্য সিকিউরিটি পিন দিন:</p>
-        <div class="form-group">
-          <input type="password" id="portalPinInput" class="form-control form-control-lg text-center" placeholder="****" maxlength="8" style="font-size:1.6rem; letter-spacing:8px;">
-          <small class="text-muted mt-1 display-block">ডিফল্ট এডমিন পিন: <code>1234</code></small>
+
+      <div class="feature-card mb-3" style="padding: 1.5rem;">
+        <h4 style="color: #10b981; margin-bottom: 0.5rem;"><i class="fa-solid fa-circle-question"></i> এককালীন সেটআপ ফি কেন প্রয়োজন?</h4>
+        <p>এককালীন সেটআপ ফি-এর মাধ্যমে আপনার দোকানের জন্য সম্পূর্ণ সিকিউর ক্লাউড ডাটাবেস এনভায়রনমেন্ট ও কাস্টমাইজড ইনভেন্টরি রেডি করে দেওয়া হয়।</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Checkout Subscription & Free Trial Modal -->
+  <div class="modal-backdrop" id="checkoutModal">
+    <div class="checkout-modal-card">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
+        <h3 style="margin:0; font-size:1.3rem;"><i class="fa-solid fa-shield-check text-success"></i> সার্ভিস রেজিস্ট্রেশন</h3>
+        <button id="closeCheckoutModal" style="background:none; border:none; color:#94a3b8; font-size:1.4rem; cursor:pointer;"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <!-- Mode Selector Tabs -->
+      <div class="order-type-selector">
+        <div class="order-type-card active" id="typeTrial">
+          <i class="fa-solid fa-gift text-warning"></i> 
+          <div><strong>৭ দিনের ফ্রি ট্রায়াল</strong></div>
+          <small class="text-muted">৳০ খরচ (Instant)</small>
+        </div>
+
+        <div class="order-type-card" id="typeFull">
+          <i class="fa-solid fa-box text-success"></i> 
+          <div><strong>ফুল প্যাকেজ ক্রয়</strong></div>
+          <small class="text-muted">সেটআপ ফি + মান্থলি</small>
         </div>
       </div>
-      <div class="modal-footer">
-        <button class="btn btn-secondary close-modal">বাতিল</button>
-        <button class="btn btn-success" id="submitPortalPinBtn">
-          <i class="fa-solid fa-key"></i> প্রবেশ করুন
+
+      <form id="subscriptionForm">
+        <div style="margin-bottom: 1rem;">
+          <label style="display:block; color:#cbd5e1; font-size:0.9rem; margin-bottom:0.4rem;">নির্বাচিত প্যাকেজ</label>
+          <input type="text" id="selectedPlanName" readonly style="width:100%; padding:0.75rem; border-radius:10px; border:1px solid rgba(255,255,255,0.1); background:#1e293b; color:#10b981; font-weight:700;">
+        </div>
+
+        <div style="margin-bottom: 1rem;">
+          <label style="display:block; color:#cbd5e1; font-size:0.9rem; margin-bottom:0.4rem;">দোকানের নাম (Store Name)</label>
+          <input type="text" id="subStoreName" placeholder="যেমন: মা ফার্মেসী বা রহমান ট্রেডার্স" required style="width:100%; padding:0.75rem; border-radius:10px; border:1px solid rgba(255,255,255,0.1); background:#0f172a; color:#fff;">
+        </div>
+
+        <div style="margin-bottom: 1rem;">
+          <label style="display:block; color:#cbd5e1; font-size:0.9rem; margin-bottom:0.4rem;">আপনার নাম (Owner Name)</label>
+          <input type="text" id="subOwnerName" placeholder="আপনার নাম লিখুন" required style="width:100%; padding:0.75rem; border-radius:10px; border:1px solid rgba(255,255,255,0.1); background:#0f172a; color:#fff;">
+        </div>
+
+        <div style="margin-bottom: 1rem;">
+          <label style="display:block; color:#cbd5e1; font-size:0.9rem; margin-bottom:0.4rem;">মোবাইল নম্বর (Phone)</label>
+          <input type="tel" id="subPhone" placeholder="01700000000" maxlength="11" required style="width:100%; padding:0.75rem; border-radius:10px; border:1px solid rgba(255,255,255,0.1); background:#0f172a; color:#fff;">
+        </div>
+
+        <div style="margin-bottom: 1rem;">
+          <label style="display:block; color:#cbd5e1; font-size:0.9rem; margin-bottom:0.4rem;">ইমেইল (Email Address)</label>
+          <input type="email" id="subEmail" placeholder="example@gmail.com" style="width:100%; padding:0.75rem; border-radius:10px; border:1px solid rgba(255,255,255,0.1); background:#0f172a; color:#fff;">
+        </div>
+
+        <div style="margin-bottom: 1rem;">
+          <label style="display:block; color:#cbd5e1; font-size:0.9rem; margin-bottom:0.4rem;">দোকানের পূর্ণাঙ্গ ঠিকানা (Store Address)</label>
+          <input type="text" id="subAddress" placeholder="যেমন: মিরপুর ১০, ঢাকা - ১২১৬" required style="width:100%; padding:0.75rem; border-radius:10px; border:1px solid rgba(255,255,255,0.1); background:#0f172a; color:#fff;">
+        </div>
+
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem; margin-bottom: 1rem;">
+          <div>
+            <label style="display:block; color:#cbd5e1; font-size:0.9rem; margin-bottom:0.4rem;">এডমিন পিন (Admin PIN)</label>
+            <input type="password" id="subAdminPin" placeholder="1234" maxlength="6" value="1234" required style="width:100%; padding:0.75rem; border-radius:10px; border:1px solid rgba(255,255,255,0.1); background:#0f172a; color:#fff; text-align:center;">
+          </div>
+          <div>
+            <label style="display:block; color:#cbd5e1; font-size:0.9rem; margin-bottom:0.4rem;">ব্র্যান্ড লোগো (Logo URL)</label>
+            <input type="url" id="subLogoUrl" placeholder="https://..." style="width:100%; padding:0.75rem; border-radius:10px; border:1px solid rgba(255,255,255,0.1); background:#0f172a; color:#fff;">
+          </div>
+        </div>
+
+        <div style="margin-bottom: 1.5rem; display: none;" id="paymentMethodSection">
+          <label style="display:block; color:#cbd5e1; font-size:0.9rem; margin-bottom:0.4rem;">পেমেন্ট মেথড (সেটআপ ফি পরিশোধের জন্য)</label>
+          <select id="subPaymentMethod" style="width:100%; padding:0.75rem; border-radius:10px; border:1px solid rgba(255,255,255,0.1); background:#0f172a; color:#fff;">
+            <option value="bKash">bKash (বিকাশ)</option>
+            <option value="Nagad">Nagad (নগদ)</option>
+            <option value="Rocket">Rocket (রকেট)</option>
+            <option value="Bank">ব্যাংক ট্রান্সফার</option>
+          </select>
+        </div>
+
+        <button type="submit" class="btn-hero-primary" style="width:100%; justify-content:center; padding:0.85rem;">
+          <i class="fa-solid fa-check-circle"></i> ফ্রেশ একাউন্ট তৈরি ও প্যানেলে প্রবেশ করুন
         </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Video Demo Modal -->
+  <div class="modal-backdrop" id="videoDemoModal">
+    <div style="background:#0f172a; border-radius:20px; width:100%; max-width:900px; padding:1.5rem; border:1px solid rgba(255,255,255,0.15);">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+        <h3 style="margin:0;"><i class="fa-solid fa-circle-play text-success"></i> SmartPOS সিস্টেম ভিডিও ডেমো</h3>
+        <button id="closeVideoDemoModal" style="background:none; border:none; color:#fff; font-size:1.5rem; cursor:pointer;"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div style="position:relative; aspect-ratio:16/9; border-radius:12px; overflow:hidden; background:#000;">
+        <iframe width="100%" height="100%" src="https://www.youtube.com/embed/dQw4w9WgXcQ" title="POS System Demo Video" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
       </div>
     </div>
   </div>
 
-  <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      const card = document.getElementById('openAdminPinCard');
-      const modal = document.getElementById('portalPinModal');
-      const pinInput = document.getElementById('portalPinInput');
-      const submitBtn = document.getElementById('submitPortalPinBtn');
+  <!-- WhatsApp Floating Button -->
+  <a href="https://wa.me/8801XXXXXXXXX?text=SmartPOS সম্পর্কে জানতে চাই" target="_blank" class="whatsapp-float" id="whatsappFloat" title="WhatsApp-এ সাপোর্ট নিন">
+    <i class="fa-brands fa-whatsapp"></i>
+    <span class="whatsapp-tooltip">সাপোর্ট নিন</span>
+  </a>
 
-      card.addEventListener('click', () => {
-        pinInput.value = '';
-        modal.classList.add('active');
-        setTimeout(() => pinInput.focus(), 100);
-      });
+  <!-- Footer -->
+  <footer class="saas-footer">
+    <div class="footer-content" style="grid-template-columns: 2fr 1fr 1fr 1fr;">
+      <div class="footer-brand">
+        <a href="index.html" class="saas-brand" style="margin-bottom:1rem; display:inline-flex;">
+          <div class="saas-brand-icon"><i class="fa-solid fa-barcode"></i></div>
+          <span class="saas-brand-text">SmartPOS Cloud</span>
+        </a>
+        <p style="max-width:280px;">বাংলাদেশের প্রফেশনাল রিটেইল শপ POS ও ক্লাউড ম্যানেজমেন্ট প্ল্যাটফর্ম। ফায়ারবেস ক্লাউড পাওয়ার্ড।</p>
+        <div style="display:flex; gap:0.75rem; margin-top:1.25rem;">
+          <a href="https://facebook.com" target="_blank" style="width:36px; height:36px; background:rgba(255,255,255,0.08); border-radius:10px; display:flex; align-items:center; justify-content:center; color:#94a3b8; text-decoration:none; transition:all 0.2s;" onmouseover="this.style.color='#3b82f6'" onmouseout="this.style.color='#94a3b8'"><i class="fa-brands fa-facebook-f"></i></a>
+          <a href="https://wa.me/8801XXXXXXXXX" target="_blank" style="width:36px; height:36px; background:rgba(255,255,255,0.08); border-radius:10px; display:flex; align-items:center; justify-content:center; color:#94a3b8; text-decoration:none; transition:all 0.2s;" onmouseover="this.style.color='#25d366'" onmouseout="this.style.color='#94a3b8'"><i class="fa-brands fa-whatsapp"></i></a>
+          <a href="mailto:support@smartpos.com.bd" style="width:36px; height:36px; background:rgba(255,255,255,0.08); border-radius:10px; display:flex; align-items:center; justify-content:center; color:#94a3b8; text-decoration:none; transition:all 0.2s;" onmouseover="this.style.color='#a855f7'" onmouseout="this.style.color='#94a3b8'"><i class="fa-solid fa-envelope"></i></a>
+        </div>
+      </div>
+      <div>
+        <h4 style="color:#fff; margin-bottom:1rem; font-size:0.95rem;">সার্ভিস</h4>
+        <ul style="list-style:none; display:flex; flex-direction:column; gap:0.6rem;">
+          <li><a href="#features" style="color:#94a3b8; text-decoration:none; font-size:0.9rem;">ফিচারসমূহ</a></li>
+          <li><a href="#pricing" style="color:#94a3b8; text-decoration:none; font-size:0.9rem;">সার্ভিস প্যাকেজ</a></li>
+          <li><a href="#showcase" style="color:#94a3b8; text-decoration:none; font-size:0.9rem;">প্যানেল ডেমো</a></li>
+          <li><a href="#howitworks" style="color:#94a3b8; text-decoration:none; font-size:0.9rem;">কীভাবে শুরু করবেন</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4 style="color:#fff; margin-bottom:1rem; font-size:0.95rem;">প্যানেল</h4>
+        <ul style="list-style:none; display:flex; flex-direction:column; gap:0.6rem;">
+          <li><a href="portal.html" style="color:#94a3b8; text-decoration:none; font-size:0.9rem;">পোর্টালে প্রবেশ</a></li>
+          <li><a href="cashier.html" style="color:#94a3b8; text-decoration:none; font-size:0.9rem;">ক্যাশিয়ার কাউন্টার</a></li>
+          <li><a href="admin.html" style="color:#94a3b8; text-decoration:none; font-size:0.9rem;">মার্চেন্ট এডমিন</a></li>
+          <li><a href="super-admin.html" style="color:#10b981; text-decoration:none; font-size:0.9rem;">মাস্টার কন্ট্রোল</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4 style="color:#fff; margin-bottom:1rem; font-size:0.95rem;">সাপোর্ট</h4>
+        <ul style="list-style:none; display:flex; flex-direction:column; gap:0.6rem;">
+          <li><a href="#faq" style="color:#94a3b8; text-decoration:none; font-size:0.9rem;">প্রশ্নোত্তর (FAQ)</a></li>
+          <li><a href="#contact" style="color:#94a3b8; text-decoration:none; font-size:0.9rem;">যোগাযোগ করুন</a></li>
+          <li><a href="https://wa.me/8801XXXXXXXXX" target="_blank" style="color:#25d366; text-decoration:none; font-size:0.9rem;"><i class="fa-brands fa-whatsapp"></i> WhatsApp</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom" style="border-top:1px solid rgba(255,255,255,0.07); padding-top:1.5rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+      <p style="color:#94a3b8; font-size:0.85rem;">&copy; 2026 SmartPOS Cloud Platform. সর্বস্বত্ব সংরক্ষিত।</p>
+      <p style="color:#64748b; font-size:0.8rem;">Powered by Firebase Cloud &amp; PWA Technology 🔥</p>
+    </div>
+  </footer>
 
-      submitBtn.addEventListener('click', () => {
-        const savedSettings = JSON.parse(localStorage.getItem('pos_settings')) || {};
-        const expectedPin = savedSettings.adminPin || '1234';
-        if (pinInput.value.trim() === expectedPin) {
-          window.location.href = 'admin.html';
-        } else {
-          alert('ভুল এডমিন সিকিউরিটি পিন! সঠিক পিন ইনপুট দিন।');
-        }
-      });
-
-      pinInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') submitBtn.click();
-      });
-
-      document.querySelectorAll('.close-modal').forEach(btn => {
-        btn.addEventListener('click', () => modal.classList.remove('active'));
-      });
-    });
-  </script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+  <script src="firebase-db.js"></script>
+  <script src="pwa-install.js"></script>
+  <script src="landing.js"></script>
 </body>
 </html>

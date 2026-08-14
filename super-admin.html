@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="bn" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SmartPOS Master Super Admin - সম্পূর্ণ সিস্টেম কন্ট্রোল প্যানেল</title>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Hind+Siliguri:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='25' fill='%23a855f7'/><path d='M30 25h40v50H30z' fill='%23ffffff'/></svg>">
+  <link rel="stylesheet" href="super-admin.css">
+</head>
+<body>
+
+  <!-- Security Verification Modal -->
+  <div class="pin-modal-overlay" id="superPinModal">
+    <div class="pin-card">
+      <div style="width:64px; height:64px; background:rgba(168,85,247,0.15); color:#c084fc; border-radius:20px; display:flex; align-items:center; justify-content:center; font-size:2rem; margin:0 auto 1.25rem;">
+        <i class="fa-solid fa-user-shield"></i>
+      </div>
+      <h2 style="font-size:1.6rem; margin-bottom:0.5rem; font-family:'Outfit';">সুপার এডমিন সিকিউরিটি পিন</h2>
+      <p style="color:#94a3b8; font-size:0.95rem; margin-bottom:1.5rem;">সম্পূর্ণ ওয়েবসাইট ও সাবস্ক্রিপশন কন্ট্রোল প্যানেলে প্রবেশ করতে গোপন পিন ইনপুট দিন:</p>
+
+      <form id="pinAuthForm">
+        <div class="form-group" style="margin-bottom:1.5rem;">
+          <input type="password" id="masterPinInput" class="form-control text-center" placeholder="****" maxlength="6" style="font-size:1.8rem; letter-spacing:10px; font-weight:700;" required>
+          <small style="color:#94a3b8; display:block; margin-top:0.5rem;">ডিফল্ট মাস্টার পিন: <code>9999</code></small>
+        </div>
+        <button type="submit" class="btn-submit" style="width:100%; justify-content:center; padding:0.85rem; font-size:1rem;">
+          <i class="fa-solid fa-key"></i> প্যানেল আনলক করুন
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Master Admin Dashboard Layout -->
+  <div class="admin-layout" id="masterLayout" style="display: none;">
+    <!-- Sidebar -->
+    <aside class="master-sidebar">
+      <div class="master-brand">
+        <div class="master-brand-icon">
+          <i class="fa-solid fa-crown"></i>
+        </div>
+        <div class="master-brand-text">
+          <h2>Master Admin</h2>
+          <span>SYSTEM CONTROLLER</span>
+        </div>
+      </div>
+
+      <ul class="master-menu">
+        <li class="master-menu-item active" data-tab="tabOverview">
+          <i class="fa-solid fa-chart-pie"></i> <span>প্ল্যাটফর্ম ওভারভিউ</span>
+        </li>
+        <li class="master-menu-item" data-tab="tabHeroCMS">
+          <i class="fa-solid fa-pen-to-square"></i> <span>ল্যান্ডিং পেজ কন্টেন্ট</span>
+        </li>
+        <li class="master-menu-item" data-tab="tabShowcaseCMS">
+          <i class="fa-solid fa-images"></i> <span>প্যানেল ছবি ও ফিচার</span>
+        </li>
+        <li class="master-menu-item" data-tab="tabPricingCMS">
+          <i class="fa-solid fa-tags"></i> <span>সাবস্ক্রিপশন প্রাইসিং</span>
+        </li>
+        <li class="master-menu-item" data-tab="tabSubscribers">
+          <i class="fa-solid fa-users-gear"></i> <span>সাবস্ক্রাইবার শপস</span>
+        </li>
+      </ul>
+
+      <div style="margin-top:auto; padding-top:1rem; border-top:1px solid var(--border-color); display:flex; flex-direction:column; gap:0.5rem;">
+        <a href="index.html" class="master-menu-item" style="color:#10b981; text-decoration:none;">
+          <i class="fa-solid fa-globe"></i> <span>লাইভ ওয়েবসাইটে যান</span>
+        </a>
+        <button onclick="sessionStorage.removeItem('pos_master_authenticated'); location.reload();" class="master-menu-item" style="background:none; border:none; cursor:pointer; color:#ef4444; width:100%; text-align:left;">
+          <i class="fa-solid fa-lock"></i> <span>প্যানেল লক করুন</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="master-content">
+      <!-- Top Header Bar -->
+      <div class="content-header">
+        <div>
+          <h1 id="activeTabTitle">প্ল্যাটফর্ম ওভারভিউ ও অ্যানালিটিক্স</h1>
+          <p style="color:#94a3b8; font-size:0.95rem;">ফায়ারবেস ক্লাউড ফায়ারস্টোর লাইভ কানেক্টেড 🔥</p>
+        </div>
+        <div style="display:flex; gap:1rem;">
+          <button id="btnForcePublishCMS" class="btn-submit" style="background:linear-gradient(135deg, #10b981, #059669);">
+            <i class="fa-solid fa-cloud-arrow-up"></i> পরিবর্তনসমূহ সেভ ও লাইভ প্রকাশ করুন
+          </button>
+        </div>
+      </div>
+
+      <!-- Tab 1: Overview Dashboard -->
+      <div id="tabOverview" class="tab-view">
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-icon" style="background:rgba(168,85,247,0.15); color:#a855f7;">
+              <i class="fa-solid fa-store"></i>
+            </div>
+            <div class="stat-info">
+              <h3 id="statTotalStores">0</h3>
+              <p>মোট সাবস্ক্রাইবার দোকান</p>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon" style="background:rgba(16,185,129,0.15); color:#10b981;">
+              <i class="fa-solid fa-circle-check"></i>
+            </div>
+            <div class="stat-info">
+              <h3 id="statActiveStores">0</h3>
+              <p>একটিভ সাবস্ক্রিপশন</p>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon" style="background:rgba(245,158,11,0.15); color:#f59e0b;">
+              <i class="fa-solid fa-clock"></i>
+            </div>
+            <div class="stat-info">
+              <h3 id="statPendingStores">0</h3>
+              <p>পেন্ডিং এপ্রুভাল</p>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon" style="background:rgba(59,130,246,0.15); color:#3b82f6;">
+              <i class="fa-solid fa-bangladeshi-taka-sign"></i>
+            </div>
+            <div class="stat-info">
+              <h3 id="statTotalRevenue">৳0</h3>
+              <p>সর্বমোট সাবস্ক্রিপশন আয়</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent Subscriber Orders Table -->
+        <div class="cms-card">
+          <div class="cms-card-title">
+            <i class="fa-solid fa-receipt text-primary"></i> সাম্প্রতিক সাবস্ক্রিপশন অর্ডারসমূহ
+          </div>
+
+          <div style="overflow-x:auto;">
+            <table class="custom-table">
+              <thead>
+                <tr>
+                  <th>দোকানের নাম</th>
+                  <th>মালিকের নাম</th>
+                  <th>ফোন নম্বর</th>
+                  <th>প্ল্যান</th>
+                  <th>পেমেন্ট মেথড</th>
+                  <th>স্ট্যাটাস</th>
+                  <th>তারিখ</th>
+                </tr>
+              </thead>
+              <tbody id="overviewSubscribersTableBody">
+                <!-- Rendered dynamically -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab 2: Hero CMS Content Editor -->
+      <div id="tabHeroCMS" class="tab-view" style="display: none;">
+        <div class="cms-card">
+          <div class="cms-card-title">
+            <i class="fa-solid fa-wand-magic-sparkles text-purple"></i> ল্যান্ডিং পেজের হিরো সেকশন এডিটর
+          </div>
+
+          <form id="heroCMSForm">
+            <div class="form-group">
+              <label class="form-label">হিরো টপ ব্যাজ টেক্সট (Top Badge Pill Text)</label>
+              <input type="text" id="cmsBadge" class="form-control" placeholder="🚀 ৩,০০০+ দোকানে বিশ্বস্ত - স্মার্ট ক্লাউড POS সফটওয়্যার">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">মূল হিরো টাইটেল (Main Title - HTML Supported)</label>
+              <input type="text" id="cmsTitle" class="form-control" placeholder="আপনার দোকানের ব্যবসা পরিচালনা করুন <span>যেকোনো স্থান থেকে!</span>">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">হিরো বর্ণনা (Description)</label>
+              <textarea id="cmsDesc" class="form-control" rows="3" placeholder="স্মার্ট ইনভেন্টরি এন্ট্রি, বারকোড স্ক্যানিং..."></textarea>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">ইউটিউব সিস্টেম ভিডিও ডেমো লিঙ্ক (Embed URL)</label>
+              <input type="url" id="cmsVideoUrl" class="form-control" placeholder="https://www.youtube.com/embed/your-video-id">
+            </div>
+
+            <button type="submit" class="btn-submit">
+              <i class="fa-solid fa-floppy-disk"></i> হিরো টেক্সট আপডেট করুন
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Tab 3: Panel Screenshot & Feature Showcase Editor -->
+      <div id="tabShowcaseCMS" class="tab-view" style="display: none;">
+        <div class="cms-card">
+          <div class="cms-card-title">
+            <i class="fa-solid fa-images text-success"></i> প্যানেল স্ক্রিনশট ও ফিচার আইটেম এডিটর
+          </div>
+
+          <p style="color:#94a3b8; font-size:0.95rem; margin-bottom:1.5rem;">
+            নিচে স্ক্রোল করলে কাস্টমাররা প্যানেলের যে ছবি ও বিবরণ দেখতে পায়, তা এখান থেকে এডিট বা আপলোড করুন:
+          </p>
+
+          <form id="showcaseCMSForm">
+            <!-- Showcase 1 -->
+            <div style="background:rgba(30,41,59,0.5); border:1px solid var(--border-color); border-radius:14px; padding:1.5rem; margin-bottom:1.5rem;">
+              <h4 style="color:#10b981; margin-bottom:1rem;"><i class="fa-solid fa-cash-register"></i> ১. ক্যাশিয়ার কাউন্টার টার্মিনাল ডেমো</h4>
+              <div class="form-group">
+                <label class="form-label">ছবি / স্ক্রিনশট URL (Photo URL)</label>
+                <input type="text" id="sc1Image" class="form-control">
+              </div>
+              <div class="form-group">
+                <label class="form-label">টাইটেল (Title)</label>
+                <input type="text" id="sc1Title" class="form-control">
+              </div>
+              <div class="form-group">
+                <label class="form-label">বিস্তারিত বিবরণ (Description)</label>
+                <textarea id="sc1Desc" class="form-control" rows="2"></textarea>
+              </div>
+            </div>
+
+            <!-- Showcase 2 -->
+            <div style="background:rgba(30,41,59,0.5); border:1px solid var(--border-color); border-radius:14px; padding:1.5rem; margin-bottom:1.5rem;">
+              <h4 style="color:#f59e0b; margin-bottom:1rem;"><i class="fa-solid fa-boxes-stacked"></i> ২. ইনভেন্টরি ও বারকোড স্টিকার প্যানেল</h4>
+              <div class="form-group">
+                <label class="form-label">ছবি / স্ক্রিনশট URL (Photo URL)</label>
+                <input type="text" id="sc2Image" class="form-control">
+              </div>
+              <div class="form-group">
+                <label class="form-label">টাইটেল (Title)</label>
+                <input type="text" id="sc2Title" class="form-control">
+              </div>
+              <div class="form-group">
+                <label class="form-label">বিস্তারিত বিবরণ (Description)</label>
+                <textarea id="sc2Desc" class="form-control" rows="2"></textarea>
+              </div>
+            </div>
+
+            <button type="submit" class="btn-submit">
+              <i class="fa-solid fa-floppy-disk"></i> প্যানেল ছবি ও ফিচারসমূহ সেভ করুন
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Tab 4: Pricing & Subscription Manager -->
+      <div id="tabPricingCMS" class="tab-view" style="display: none;">
+        <div class="cms-card">
+          <div class="cms-card-title">
+            <i class="fa-solid fa-tags text-warning"></i> সার্ভিস প্যাকেজ সেটআপ ফি ও মাসিক মেইনটেন্যান্স রেইট কন্ট্রোল
+          </div>
+
+          <form id="pricingCMSForm">
+            <!-- Package 1 -->
+            <div style="background:rgba(30,41,59,0.5); border:1px solid var(--border-color); border-radius:14px; padding:1.5rem; margin-bottom:1.5rem;">
+              <h4>১. স্মার্ট POS টার্মিনাল ও ইনভেন্টরি (লাইভ সার্ভিস)</h4>
+              <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem; margin-top:0.75rem;">
+                <div>
+                  <label class="form-label">এককালীন সেটআপ ফি (৳)</label>
+                  <input type="number" id="p1Monthly" class="form-control" placeholder="9999">
+                </div>
+                <div>
+                  <label class="form-label">মাসিক মেইনটেন্যান্স ফি (৳/মাস)</label>
+                  <input type="number" id="p1Yearly" class="form-control" placeholder="499">
+                </div>
+              </div>
+            </div>
+
+            <!-- Package 2 -->
+            <div style="background:rgba(16,185,129,0.1); border:1px solid #10b981; border-radius:14px; padding:1.5rem; margin-bottom:1.5rem;">
+              <h4 style="color:#10b981;">২. POS কাউন্টার + ই-কমার্স ওয়েবসাইট (🔥 বেস্ট সেলিং - ⏳ Coming Soon)</h4>
+              <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem; margin-top:0.75rem;">
+                <div>
+                  <label class="form-label">এককালীন সেটআপ ফি (৳)</label>
+                  <input type="number" id="p2Monthly" class="form-control" placeholder="14999">
+                </div>
+                <div>
+                  <label class="form-label">মাসিক মেইনটেন্যান্স ফি (৳/মাস)</label>
+                  <input type="number" id="p2Yearly" class="form-control" placeholder="999">
+                </div>
+              </div>
+            </div>
+
+            <!-- Package 3 -->
+            <div style="background:rgba(30,41,59,0.5); border:1px solid var(--border-color); border-radius:14px; padding:1.5rem; margin-bottom:1.5rem;">
+              <h4>৩. অনলাইন ই-কমার্স ওয়েবসাইট (⏳ Coming Soon)</h4>
+              <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem; margin-top:0.75rem;">
+                <div>
+                  <label class="form-label">এককালীন সেটআপ ফি (৳)</label>
+                  <input type="number" id="p3Monthly" class="form-control" placeholder="7999">
+                </div>
+                <div>
+                  <label class="form-label">মাসিক মেইনটেন্যান্স ফি (৳/মাস)</label>
+                  <input type="number" id="p3Yearly" class="form-control" placeholder="499">
+                </div>
+              </div>
+            </div>
+
+            <button type="submit" class="btn-submit">
+              <i class="fa-solid fa-floppy-disk"></i> প্যাকেজ সেটআপ ও মেইনটেন্যান্স ফি আপডেট করুন
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Tab 5: Subscribers Management -->
+      <div id="tabSubscribers" class="tab-view" style="display: none;">
+        <div class="cms-card">
+          <div class="cms-card-title">
+            <i class="fa-solid fa-users-gear text-purple"></i> নিবন্ধিত সাবস্ক্রাইবার শপ ও পেমেন্ট এপ্রুভাল
+          </div>
+
+          <div style="overflow-x:auto;">
+            <table class="custom-table">
+              <thead>
+                <tr>
+                  <th>দোকানের নাম</th>
+                  <th>মালিকের নাম</th>
+                  <th>মোবাইল নম্বর</th>
+                  <th>সাবস্ক্রিপশন প্ল্যান</th>
+                  <th>পেমেন্ট মাধ্যম</th>
+                  <th>স্ট্যাটাস</th>
+                  <th>একশন (Action)</th>
+                </tr>
+              </thead>
+              <tbody id="subscribersMasterTableBody">
+                <!-- Rendered dynamically -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+  <script src="firebase-db.js"></script>
+  <script src="super-admin.js"></script>
+</body>
+</html>

@@ -2,18 +2,20 @@
 
 class CashierTerminal {
   constructor() {
-    this.products = JSON.parse(localStorage.getItem('pos_products')) || INITIAL_PRODUCTS;
-    this.sales = JSON.parse(localStorage.getItem('pos_sales')) || INITIAL_SALES;
+    const isRegisteredStore = !!localStorage.getItem('pos_active_store_id');
+    this.products = JSON.parse(localStorage.getItem('pos_products')) || (isRegisteredStore ? [] : (typeof INITIAL_PRODUCTS !== 'undefined' ? INITIAL_PRODUCTS : []));
+    this.sales = JSON.parse(localStorage.getItem('pos_sales')) || (isRegisteredStore ? [] : (typeof INITIAL_SALES !== 'undefined' ? INITIAL_SALES : []));
     this.settings = JSON.parse(localStorage.getItem('pos_settings')) || (typeof DEFAULT_SETTINGS !== 'undefined' ? DEFAULT_SETTINGS : {});
     if (this.settings) {
-      if (!this.settings.storeName || /[\u0980-\u09FF]/.test(this.settings.storeName)) this.settings.storeName = 'Super Shop Dhaka';
-      if (!this.settings.storeAddress || /[\u0980-\u09FF]/.test(this.settings.storeAddress)) this.settings.storeAddress = 'Mirpur 10, Dhaka - 1216';
-      if (!this.settings.receiptFooterNote || /[\u0980-\u09FF]/.test(this.settings.receiptFooterNote)) this.settings.receiptFooterNote = 'Thank you! Come again.';
+      // Only fill in defaults if values are completely missing — do NOT override existing Bengali store names
+      if (!this.settings.storeName) this.settings.storeName = 'My Shop';
+      if (!this.settings.storeAddress) this.settings.storeAddress = 'Dhaka, Bangladesh';
+      if (!this.settings.receiptFooterNote) this.settings.receiptFooterNote = 'Thank you! Come again.';
       localStorage.setItem('pos_settings', JSON.stringify(this.settings));
     }
     this.cart = [];
-    this.coupons = JSON.parse(localStorage.getItem('pos_coupons')) || (typeof INITIAL_COUPONS !== 'undefined' ? INITIAL_COUPONS : []);
-    this.customers = JSON.parse(localStorage.getItem('pos_customers')) || (typeof INITIAL_CUSTOMERS !== 'undefined' ? INITIAL_CUSTOMERS : []);
+    this.coupons = JSON.parse(localStorage.getItem('pos_coupons')) || (isRegisteredStore ? [] : (typeof INITIAL_COUPONS !== 'undefined' ? INITIAL_COUPONS : []));
+    this.customers = JSON.parse(localStorage.getItem('pos_customers')) || (isRegisteredStore ? [] : (typeof INITIAL_CUSTOMERS !== 'undefined' ? INITIAL_CUSTOMERS : []));
     this.appliedCoupon = null;
     this.discountType = this.settings.defaultDiscountMode || 'percent';
     this.discountValue = this.settings.defaultDiscountValue !== undefined ? parseFloat(this.settings.defaultDiscountValue) || 0 : 0;
@@ -51,6 +53,7 @@ class CashierTerminal {
     this.updateDiscountTaxUI();
     this.populateCustomerSelect();
     this.setupCustomerLookupInModals();
+    this.setupCartCustomerEvents();
     this.renderCart();
     this.renderShiftSales();
     this.renderCashierCustomers();
@@ -58,13 +61,15 @@ class CashierTerminal {
     this.setupBarcodePanel();
     this.renderQuickBarcodeChips();
     this.setupMobileSidebar();
+    this.updateSidebarStoreBranding();
 
     // Listen for storage changes from Admin panel in real-time
     window.addEventListener('storage', () => {
-      this.products = JSON.parse(localStorage.getItem('pos_products')) || INITIAL_PRODUCTS;
-      this.sales = JSON.parse(localStorage.getItem('pos_sales')) || INITIAL_SALES;
+      const isRegistered = !!localStorage.getItem('pos_active_store_id');
+      this.products = JSON.parse(localStorage.getItem('pos_products')) || (isRegistered ? [] : (typeof INITIAL_PRODUCTS !== 'undefined' ? INITIAL_PRODUCTS : []));
+      this.sales = JSON.parse(localStorage.getItem('pos_sales')) || (isRegistered ? [] : (typeof INITIAL_SALES !== 'undefined' ? INITIAL_SALES : []));
       this.settings = JSON.parse(localStorage.getItem('pos_settings')) || (typeof DEFAULT_SETTINGS !== 'undefined' ? DEFAULT_SETTINGS : {});
-      this.customers = JSON.parse(localStorage.getItem('pos_customers')) || (typeof INITIAL_CUSTOMERS !== 'undefined' ? INITIAL_CUSTOMERS : []);
+      this.customers = JSON.parse(localStorage.getItem('pos_customers')) || (isRegistered ? [] : (typeof INITIAL_CUSTOMERS !== 'undefined' ? INITIAL_CUSTOMERS : []));
       this.discountType = this.settings.defaultDiscountMode || 'percent';
       this.discountValue = this.settings.defaultDiscountValue !== undefined ? parseFloat(this.settings.defaultDiscountValue) || 0 : 0;
       this.taxType = this.settings.defaultTaxMode || 'percent';
@@ -79,6 +84,40 @@ class CashierTerminal {
       else if (this.activeTab === 'cashierCustomersView') this.renderCashierCustomers();
       this.renderQuickBarcodeChips();
     });
+
+    document.addEventListener('click', (e) => {
+      if (e.target.closest('.close-modal')) {
+        const modal = e.target.closest('.modal');
+        if (modal) modal.classList.remove('active');
+      }
+    });
+  }
+
+  openModal(modalId) {
+    const modal = typeof modalId === 'string' ? document.getElementById(modalId) : modalId;
+    if (modal) modal.classList.add('active');
+  }
+
+  closeModal(modalId) {
+    const modal = typeof modalId === 'string' ? document.getElementById(modalId) : modalId;
+    if (modal) {
+      modal.classList.remove('active');
+      if (modalId === 'scannerModal') this.stopCameraScanner();
+    }
+  }
+
+  updateSidebarStoreBranding() {
+    const s = this.settings || {};
+    const storeNameEl = document.getElementById('cashierSidebarStoreName');
+    const cashierNameEl = document.getElementById('cashierNameDisplay');
+    const shiftEl = document.getElementById('cashierShiftDisplay');
+    if (storeNameEl && s.storeName) storeNameEl.textContent = s.storeName;
+    if (cashierNameEl) cashierNameEl.textContent = s.cashierName || 'ক্যাশিয়ার টার্মিনাল';
+    if (shiftEl) {
+      const now = new Date();
+      const shiftId = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
+      shiftEl.textContent = `শিফট: ${shiftId}`;
+    }
   }
 
   playAudioBeep(type = 'scan') {
@@ -657,6 +696,16 @@ class CashierTerminal {
     if (discInput) discInput.value = 0;
     if (taxInput) taxInput.value = this.taxValue;
 
+    const custSelect = document.getElementById('customerSelect');
+    const cartPhone = document.getElementById('cartCustPhone');
+    const cartName = document.getElementById('cartCustName');
+    const cartBadge = document.getElementById('posCartCustBadge');
+
+    if (custSelect) custSelect.value = 'Walk-in Customer';
+    if (cartPhone) cartPhone.value = '';
+    if (cartName) cartName.value = '';
+    if (cartBadge) cartBadge.style.display = 'none';
+
     this.updateCouponUI();
     this.updateDiscountTaxUI();
     this.renderCart();
@@ -892,8 +941,11 @@ class CashierTerminal {
 
     const custFirstName = document.getElementById('cashCustFirstName')?.value.trim() || '';
     const custLastName = document.getElementById('cashCustLastName')?.value.trim() || '';
-    const custName = `${custFirstName} ${custLastName}`.trim() || document.getElementById('customerSelect')?.value || 'Walk-in Customer';
-    const custPhone = document.getElementById('cashCustPhone')?.value.trim() || '';
+    const cartName = document.getElementById('cartCustName')?.value.trim() || '';
+    const modalName = `${custFirstName} ${custLastName}`.trim();
+    const selectVal = document.getElementById('customerSelect')?.value || '';
+    const custName = modalName || cartName || (selectVal !== 'Walk-in Customer' ? selectVal : 'Walk-in Customer');
+    const custPhone = document.getElementById('cashCustPhone')?.value.trim() || document.getElementById('cartCustPhone')?.value.trim() || '';
     const custEmail = document.getElementById('cashCustEmail')?.value.trim() || '';
     const custAddress = document.getElementById('cashCustAddress')?.value.trim() || '';
 
@@ -904,9 +956,15 @@ class CashierTerminal {
 
     const custInfo = this.updateOrCreateCustomerOnSale(custPhone, custFirstName, custLastName, custName, custEmail, custAddress, totals.grandTotal);
 
+    if (custInfo && custInfo.status === 'blocked') {
+      alert(`⚠️ কাস্টমার '${custInfo.name}' কে ব্লকলিস্টভুক্ত করা হয়েছে!\nএই অ্যাকাউন্ট থেকে কেনাকাটা বা পেমেন্ট সম্পন্ন করা যাবে না।`);
+      return;
+    }
+
     const saleRecord = {
       id: `INV-${new Date().getFullYear()}${String(new Date().getMonth()+1).padStart(2,'0')}${String(new Date().getDate()).padStart(2,'0')}-${Math.floor(1000 + Math.random() * 9000)}`,
       timestamp: new Date().toISOString(),
+      customerId: custInfo.id,
       customer: custInfo.name,
       customerPhone: custInfo.phone,
       customerEmail: custInfo.email,
@@ -985,8 +1043,11 @@ class CashierTerminal {
 
     const custFirstName = document.getElementById('epayCustFirstName')?.value.trim() || '';
     const custLastName = document.getElementById('epayCustLastName')?.value.trim() || '';
-    const custName = `${custFirstName} ${custLastName}`.trim() || document.getElementById('customerSelect')?.value || 'Walk-in Customer';
-    const custPhone = document.getElementById('epayCustPhone')?.value.trim() || '';
+    const cartName = document.getElementById('cartCustName')?.value.trim() || '';
+    const modalName = `${custFirstName} ${custLastName}`.trim();
+    const selectVal = document.getElementById('customerSelect')?.value || '';
+    const custName = modalName || cartName || (selectVal !== 'Walk-in Customer' ? selectVal : 'Walk-in Customer');
+    const custPhone = document.getElementById('epayCustPhone')?.value.trim() || document.getElementById('cartCustPhone')?.value.trim() || '';
     const custEmail = document.getElementById('epayCustEmail')?.value.trim() || '';
     const custAddress = document.getElementById('epayCustAddress')?.value.trim() || '';
 
@@ -997,9 +1058,15 @@ class CashierTerminal {
 
     const custInfo = this.updateOrCreateCustomerOnSale(custPhone, custFirstName, custLastName, custName, custEmail, custAddress, totals.grandTotal);
 
+    if (custInfo && custInfo.status === 'blocked') {
+      alert(`⚠️ কাস্টমার '${custInfo.name}' কে ব্লকলিস্টভুক্ত করা হয়েছে!\nএই অ্যাকাউন্ট থেকে কেনাকাটা বা পেমেন্ট সম্পন্ন করা যাবে না।`);
+      return;
+    }
+
     const saleRecord = {
       id: `INV-${new Date().getFullYear()}${String(new Date().getMonth()+1).padStart(2,'0')}${String(new Date().getDate()).padStart(2,'0')}-${Math.floor(1000 + Math.random() * 9000)}`,
       timestamp: new Date().toISOString(),
+      customerId: custInfo.id,
       customer: custInfo.name,
       customerPhone: custInfo.phone,
       customerEmail: custInfo.email,
@@ -1298,14 +1365,16 @@ class CashierTerminal {
       'cashierDashboardView': 'btnNavDashboard',
       'cashierTerminalView': 'btnNavTerminal',
       'cashierAnalyticsView': 'btnNavAnalytics',
-      'cashierShiftView': 'btnNavShiftSales'
+      'cashierShiftView': 'btnNavShiftSales',
+      'cashierCustomersView': 'btnNavCustomers'
     };
 
     const pageTitles = {
       'cashierDashboardView': 'ক্যাশিয়ার ড্যাশবোর্ড ও ওভারভিউ',
       'cashierTerminalView': 'ক্যাশিয়ার সেলস কাউন্টার (POS Terminal)',
       'cashierAnalyticsView': 'কাউন্টার সেলস অ্যানালিটিক্স ও পারফরম্যান্স',
-      'cashierShiftView': 'আজকের শিফট রিপোর্ট (Shift Summary)'
+      'cashierShiftView': 'আজকের শিফট রিপোর্ট (Shift Summary)',
+      'cashierCustomersView': 'কাস্টমার প্রোফাইল ও সেলস ইতিহাস (Customers Hub)'
     };
 
     const titleEl = document.getElementById('cashierPageTitle');
@@ -1327,6 +1396,8 @@ class CashierTerminal {
       this.renderAnalyticsView();
     } else if (tabId === 'cashierShiftView') {
       this.renderShiftSales();
+    } else if (tabId === 'cashierCustomersView') {
+      this.renderCashierCustomers();
     }
   }
 
@@ -1642,18 +1713,7 @@ class CashierTerminal {
     }
   }
 
-  openModal(id) {
-    const modal = document.getElementById(id);
-    if (modal) modal.classList.add('active');
-  }
 
-  closeModal(id) {
-    const modal = document.getElementById(id);
-    if (modal) {
-      modal.classList.remove('active');
-      if (id === 'scannerModal') this.stopCameraScanner();
-    }
-  }
 
   initEventListeners() {
     const btnDash = document.getElementById('btnNavDashboard');
@@ -2276,7 +2336,25 @@ class CashierTerminal {
     }
   }
 
-  // CUSTOMER MANAGEMENT METHODS IN CASHIER
+  // CUSTOMER MANAGEMENT & PHONE NORMALIZATION METHODS
+  normalizePhone(phone) {
+    if (!phone) return '';
+    let cleaned = String(phone).replace(/\D/g, '').trim();
+    if (cleaned.startsWith('880')) {
+      cleaned = cleaned.slice(2);
+    }
+    return cleaned;
+  }
+
+  broadcastStateChange(type) {
+    try {
+      if (!this.stateChannel) this.stateChannel = new BroadcastChannel('pos_state_sync');
+      this.stateChannel.postMessage({ type: `${type}_updated`, timestamp: Date.now() });
+    } catch (e) {
+      // BroadcastChannel fallback
+    }
+  }
+
   populateCustomerSelect() {
     this.customers = JSON.parse(localStorage.getItem('pos_customers')) || (typeof INITIAL_CUSTOMERS !== 'undefined' ? INITIAL_CUSTOMERS : []);
     const select = document.getElementById('customerSelect');
@@ -2285,10 +2363,58 @@ class CashierTerminal {
     const currentVal = select.value;
     select.innerHTML = `
       <option value="Walk-in Customer">ওয়াক-ইন কাস্টমার (Walk-in)</option>
-      ${this.customers.map(c => `<option value="${c.name}">${c.name} (${c.phone})</option>`).join('')}
+      ${this.customers.map(c => `<option value="${c.name}">${c.name} (${c.phone || 'N/A'})</option>`).join('')}
     `;
     if (currentVal && Array.from(select.options).some(opt => opt.value === currentVal)) {
       select.value = currentVal;
+    }
+  }
+
+  setupCartCustomerEvents() {
+    const select = document.getElementById('customerSelect');
+    const phoneInput = document.getElementById('cartCustPhone');
+    const nameInput = document.getElementById('cartCustName');
+    const badge = document.getElementById('posCartCustBadge');
+
+    if (select) {
+      select.addEventListener('change', () => {
+        const val = select.value;
+        if (val === 'Walk-in Customer') {
+          if (phoneInput) phoneInput.value = '';
+          if (nameInput) nameInput.value = '';
+          if (badge) badge.style.display = 'none';
+        } else {
+          const match = this.customers.find(c => c.name === val || c.phone === val);
+          if (match) {
+            if (phoneInput) phoneInput.value = match.phone || '';
+            if (nameInput) nameInput.value = match.name || '';
+            if (badge) badge.style.display = 'inline-flex';
+          }
+        }
+      });
+    }
+
+    if (phoneInput) {
+      phoneInput.addEventListener('input', (e) => {
+        let phone = e.target.value.replace(/\D/g, '').slice(0, 11);
+        e.target.value = phone;
+        const clean = this.normalizePhone(phone);
+
+        if (clean.length >= 6) {
+          const match = this.customers.find(c => this.normalizePhone(c.phone) === clean);
+          if (match) {
+            if (nameInput) nameInput.value = match.name;
+            if (select && Array.from(select.options).some(o => o.value === match.name)) {
+              select.value = match.name;
+            }
+            if (badge) badge.style.display = 'inline-flex';
+          } else {
+            if (badge) badge.style.display = 'none';
+          }
+        } else {
+          if (badge) badge.style.display = 'none';
+        }
+      });
     }
   }
 
@@ -2306,9 +2432,10 @@ class CashierTerminal {
       phoneInput.addEventListener('input', (e) => {
         let phone = e.target.value.replace(/\D/g, '').slice(0, 11);
         e.target.value = phone;
+        const clean = this.normalizePhone(phone);
 
-        if (phone.length >= 6) {
-          const match = this.customers.find(c => c.phone === phone);
+        if (clean.length >= 6) {
+          const match = this.customers.find(c => this.normalizePhone(c.phone) === clean);
           if (match) {
             const parts = (match.name || '').split(' ');
             if (firstNameInput) firstNameInput.value = match.firstName || parts[0] || '';
@@ -2330,7 +2457,10 @@ class CashierTerminal {
   }
 
   prefillCustomerInModal(prefix) {
-    const selectedVal = document.getElementById('customerSelect')?.value || '';
+    const selectVal = document.getElementById('customerSelect')?.value || '';
+    const cartPhone = document.getElementById('cartCustPhone')?.value.trim() || '';
+    const cartName = document.getElementById('cartCustName')?.value.trim() || '';
+
     const phoneEl = document.getElementById(`${prefix}CustPhone`);
     const firstNameEl = document.getElementById(`${prefix}CustFirstName`);
     const lastNameEl = document.getElementById(`${prefix}CustLastName`);
@@ -2338,32 +2468,49 @@ class CashierTerminal {
     const addressEl = document.getElementById(`${prefix}CustAddress`);
     const badgeEl = document.getElementById(`${prefix}CustStatusBadge`);
 
-    if (selectedVal && selectedVal !== 'Walk-in Customer') {
-      const match = this.customers.find(c => c.name === selectedVal || c.phone === selectedVal);
-      if (match) {
-        const parts = (match.name || '').split(' ');
-        if (phoneEl) phoneEl.value = match.phone;
-        if (firstNameEl) firstNameEl.value = match.firstName || parts[0] || '';
-        if (lastNameEl) lastNameEl.value = match.lastName || parts.slice(1).join(' ') || '';
-        if (emailEl) emailEl.value = match.email || '';
-        if (addressEl) addressEl.value = match.address || '';
-        if (badgeEl) badgeEl.style.display = 'inline-flex';
-        return;
-      }
+    const cleanCartPhone = this.normalizePhone(cartPhone);
+    let match = null;
+
+    if (cleanCartPhone) {
+      match = this.customers.find(c => this.normalizePhone(c.phone) === cleanCartPhone);
     }
-    if (phoneEl) phoneEl.value = '';
-    if (firstNameEl) firstNameEl.value = selectedVal !== 'Walk-in Customer' ? selectedVal.split(' ')[0] : '';
-    if (lastNameEl) lastNameEl.value = selectedVal !== 'Walk-in Customer' ? selectedVal.split(' ').slice(1).join(' ') : '';
+    if (!match && selectVal && selectVal !== 'Walk-in Customer') {
+      match = this.customers.find(c => c.name === selectVal);
+    }
+
+    if (match) {
+      const parts = (match.name || '').split(' ');
+      if (phoneEl) phoneEl.value = match.phone || '';
+      if (firstNameEl) firstNameEl.value = match.firstName || parts[0] || '';
+      if (lastNameEl) lastNameEl.value = match.lastName || parts.slice(1).join(' ') || '';
+      if (emailEl) emailEl.value = match.email || '';
+      if (addressEl) addressEl.value = match.address || '';
+      if (badgeEl) badgeEl.style.display = 'inline-flex';
+      return;
+    }
+
+    if (phoneEl) phoneEl.value = cartPhone;
+    const nameParts = cartName.split(' ');
+    if (firstNameEl) firstNameEl.value = cartName ? nameParts[0] : '';
+    if (lastNameEl) lastNameEl.value = cartName ? nameParts.slice(1).join(' ') : '';
     if (emailEl) emailEl.value = '';
     if (addressEl) addressEl.value = '';
     if (badgeEl) badgeEl.style.display = 'none';
   }
 
   updateOrCreateCustomerOnSale(phone, firstName, lastName, name, email, address, grandTotal) {
-    const cleanPhone = (phone || '').trim();
+    const rawPhone = (phone || document.getElementById('cartCustPhone')?.value || '').trim();
+    const cleanPhone = this.normalizePhone(rawPhone);
     const cleanFirstName = (firstName || '').trim();
     const cleanLastName = (lastName || '').trim();
-    const cleanName = (name || `${cleanFirstName} ${cleanLastName}`.trim() || 'Walk-in Customer').trim();
+    
+    let combinedName = `${cleanFirstName} ${cleanLastName}`.trim();
+    const cartName = (document.getElementById('cartCustName')?.value || '').trim();
+    let cleanName = (name && name !== 'Walk-in Customer' ? name : (combinedName || cartName)).trim();
+    if (!cleanName || cleanName === 'Walk-in Customer') {
+      cleanName = cleanPhone ? `Customer (${cleanPhone})` : 'Walk-in Customer';
+    }
+    
     const cleanEmail = (email || '').trim();
     const cleanAddress = (address || '').trim();
 
@@ -2371,24 +2518,42 @@ class CashierTerminal {
 
     let existing = null;
     if (cleanPhone) {
-      existing = this.customers.find(c => c.phone === cleanPhone);
+      existing = this.customers.find(c => this.normalizePhone(c.phone) === cleanPhone);
     }
 
     if (existing) {
-      existing.firstName = cleanFirstName || existing.firstName;
-      existing.lastName = cleanLastName || existing.lastName;
-      existing.name = cleanName || existing.name;
+      if (cleanFirstName) existing.firstName = cleanFirstName;
+      if (cleanLastName) existing.lastName = cleanLastName;
+      if (cleanName && cleanName !== 'Walk-in Customer' && !cleanName.startsWith('Customer (')) {
+        existing.name = cleanName;
+      }
       if (cleanEmail) existing.email = cleanEmail;
       if (cleanAddress) existing.address = cleanAddress;
       existing.totalOrders = (existing.totalOrders || 0) + 1;
       existing.totalSpent = (existing.totalSpent || 0) + grandTotal;
-    } else if (cleanPhone || (cleanName && cleanName !== 'Walk-in Customer')) {
+    } else if (cleanPhone) {
+      const parts = cleanName.split(' ');
       const newCust = {
         id: `CUST-${Date.now().toString().slice(-4)}`,
-        firstName: cleanFirstName,
-        lastName: cleanLastName,
+        firstName: cleanFirstName || parts[0] || '',
+        lastName: cleanLastName || parts.slice(1).join(' ') || '',
         name: cleanName,
-        phone: cleanPhone || `017${Math.floor(10000000 + Math.random() * 90000000)}`,
+        phone: rawPhone || cleanPhone,
+        email: cleanEmail,
+        address: cleanAddress,
+        totalOrders: 1,
+        totalSpent: grandTotal,
+        createdAt: new Date().toISOString().split('T')[0]
+      };
+      this.customers.unshift(newCust);
+    } else if (cleanName && cleanName !== 'Walk-in Customer') {
+      const parts = cleanName.split(' ');
+      const newCust = {
+        id: `CUST-${Date.now().toString().slice(-4)}`,
+        firstName: cleanFirstName || parts[0] || '',
+        lastName: cleanLastName || parts.slice(1).join(' ') || '',
+        name: cleanName,
+        phone: rawPhone,
         email: cleanEmail,
         address: cleanAddress,
         totalOrders: 1,
@@ -2399,13 +2564,19 @@ class CashierTerminal {
     }
 
     localStorage.setItem('pos_customers', JSON.stringify(this.customers));
+    this.broadcastStateChange('customers');
     this.populateCustomerSelect();
+    this.renderCashierCustomers();
+
+    const custObj = existing || this.customers.find(c => this.normalizePhone(c.phone) === cleanPhone) || this.customers[0];
 
     return {
+      id: custObj ? custObj.id : `CUST-${Date.now().toString().slice(-4)}`,
       name: cleanName,
-      phone: cleanPhone,
+      phone: rawPhone || cleanPhone,
       email: cleanEmail,
-      address: cleanAddress
+      address: cleanAddress,
+      status: custObj ? (custObj.status || 'active') : 'active'
     };
   }
 
@@ -2447,22 +2618,29 @@ class CashierTerminal {
       return;
     }
 
-    tbody.innerHTML = filtered.map(c => `
-      <tr>
-        <td><strong style="color: var(--accent-blue);">${c.id || 'CUST'}</strong></td>
-        <td><strong style="color: var(--text-main);">${c.name}</strong></td>
-        <td><span class="badge" style="background: rgba(59, 130, 246, 0.15); color: var(--accent-blue);"><i class="fa-solid fa-phone"></i> ${c.phone}</span></td>
-        <td>${c.email || '<span class="text-muted">N/A</span>'}</td>
-        <td>${c.address || '<span class="text-muted">N/A</span>'}</td>
-        <td><span class="badge" style="background: rgba(139, 92, 246, 0.15); color: var(--accent-purple);">${c.totalOrders || 0} টি অর্ডার</span></td>
-        <td><strong style="color: var(--accent-green);">৳${(c.totalSpent || 0).toFixed(2)}</strong></td>
-        <td style="text-align: right;">
-          <button type="button" class="btn btn-sm btn-outline" onclick="cashier.viewCustomerOrders('${c.phone}')" title="ইতিহাস">
-            <i class="fa-solid fa-receipt"></i>
-          </button>
-        </td>
-      </tr>
-    `).join('');
+    tbody.innerHTML = filtered.map(c => {
+      const isBlocked = c.status === 'blocked';
+      const statusBadge = isBlocked 
+        ? `<span class="badge" style="background: rgba(239, 68, 68, 0.15); color: #ef4444; margin-left: 6px;"><i class="fa-solid fa-ban"></i> ব্লকড</span>`
+        : `<span class="badge" style="background: rgba(16, 185, 129, 0.15); color: var(--accent-green); margin-left: 6px;"><i class="fa-solid fa-circle-check"></i> সচল</span>`;
+
+      return `
+        <tr onclick="cashier.viewCustomerOrders('${c.id}')" style="cursor: pointer;" title="কাস্টমার প্রোফাইল ও কেনাকাটার বিস্তারিত দেখুন">
+          <td><strong style="color: var(--accent-blue);">${c.id || 'CUST'}</strong></td>
+          <td><strong style="color: var(--text-main);">${c.name}</strong> ${statusBadge}</td>
+          <td><span class="badge" style="background: rgba(59, 130, 246, 0.15); color: var(--accent-blue);"><i class="fa-solid fa-phone"></i> ${c.phone}</span></td>
+          <td>${c.email || '<span class="text-muted">N/A</span>'}</td>
+          <td>${c.address || '<span class="text-muted">N/A</span>'}</td>
+          <td><span class="badge" style="background: rgba(139, 92, 246, 0.15); color: var(--accent-purple);">${c.totalOrders || 0} টি অর্ডার</span></td>
+          <td><strong style="color: var(--accent-green);">৳${(c.totalSpent || 0).toFixed(2)}</strong></td>
+          <td style="text-align: right;" onclick="event.stopPropagation();">
+            <button type="button" class="btn btn-sm btn-outline" onclick="cashier.viewCustomerOrders('${c.id}')" title="প্রোফাইল ও মেমো ইতিহাস">
+              <i class="fa-solid fa-id-card"></i> বিস্তারিত
+            </button>
+          </td>
+        </tr>
+      `;
+    }).join('');
   }
 
   getCashierFilteredSales() {
@@ -2920,35 +3098,316 @@ class CashierTerminal {
     this.renderCalendarGrid();
   }
 
-  openModal(modalId) {
-    const modal = document.getElementById(modalId);
-    if (modal) modal.classList.add('active');
+
+
+  normalizePhone(phone) {
+    if (!phone) return '';
+    let cleaned = String(phone).replace(/\D/g, '').trim();
+    if (cleaned.length < 6) return '';
+    if (cleaned.startsWith('880')) {
+      cleaned = cleaned.slice(2);
+    }
+    return cleaned;
   }
 
-  closeModal(modalId) {
-    const modal = document.getElementById(modalId);
-    if (modal) modal.classList.remove('active');
+  matchNames(name1, name2) {
+    if (!name1 || !name2) return false;
+    const clean1 = String(name1).toLowerCase().replace(/[^\w\s\u0980-\u09FF]/g, ' ').trim();
+    const clean2 = String(name2).toLowerCase().replace(/[^\w\s\u0980-\u09FF]/g, ' ').trim();
+    
+    if (clean1 === clean2) return true;
+    if (clean1.includes(clean2) || clean2.includes(clean1)) return true;
+
+    const ignoreWords = new Set(['customer', 'walk-in', 'walkin', 'cust', 'n/a', 'na', 'n', 'a']);
+    const tokens1 = clean1.split(/\s+/).filter(w => w.length >= 3 && !ignoreWords.has(w));
+    const tokens2 = clean2.split(/\s+/).filter(w => w.length >= 3 && !ignoreWords.has(w));
+
+    if (tokens1.length === 0 || tokens2.length === 0) return false;
+
+    return tokens1.some(t1 => tokens2.some(t2 => t1 === t2 || t1.includes(t2) || t2.includes(t1)));
+  }
+
+  switchCustProfileTab(tab) {
+    const memosTab = document.getElementById('cashierCustMemosTabContent');
+    const productsTab = document.getElementById('cashierCustProductsTabContent');
+    const memosBtn = document.getElementById('cashierTabMemosBtn');
+    const productsBtn = document.getElementById('cashierTabProductsBtn');
+
+    if (tab === 'memos') {
+      if (memosTab) memosTab.style.display = 'block';
+      if (productsTab) productsTab.style.display = 'none';
+      memosBtn?.classList.add('active');
+      productsBtn?.classList.remove('active');
+    } else {
+      if (memosTab) memosTab.style.display = 'none';
+      if (productsTab) productsTab.style.display = 'block';
+      memosBtn?.classList.remove('active');
+      productsBtn?.classList.add('active');
+    }
   }
 
   viewCustomerOrders(phoneOrName) {
     this.sales = JSON.parse(localStorage.getItem('pos_sales')) || (typeof INITIAL_SALES !== 'undefined' ? INITIAL_SALES : []);
-    const c = this.customers.find(x => x.phone === phoneOrName || x.name === phoneOrName);
+    this.customers = JSON.parse(localStorage.getItem('pos_customers')) || (typeof INITIAL_CUSTOMERS !== 'undefined' ? INITIAL_CUSTOMERS : []);
 
-    const custSales = this.sales.filter(s => 
-      (s.customerPhone && s.customerPhone === phoneOrName) ||
-      (s.customer && s.customer.toLowerCase().includes((c ? c.name : phoneOrName).toLowerCase()))
-    );
+    const cleanInputPhone = this.normalizePhone(phoneOrName);
+    let c = null;
 
-    if (custSales.length === 0) {
-      alert(`কাস্টমার '${c ? c.name : phoneOrName}' এর কোনো কেনাকাটার ইতিহাস পাওয়া যায়নি।`);
+    if (phoneOrName) {
+      c = this.customers.find(x => x.id === phoneOrName || x.phone === phoneOrName || x.name === phoneOrName);
+    }
+    if (!c && cleanInputPhone) {
+      c = this.customers.find(x => this.normalizePhone(x.phone) === cleanInputPhone);
+    }
+
+    const custName = c ? c.name : phoneOrName;
+    const custPhone = c ? c.phone : (cleanInputPhone || phoneOrName);
+
+    // Deep multi-criteria sales matching across ID, phone, and name
+    const custSales = this.sales.filter(s => {
+      // 1. Exact Customer ID match
+      if (c && c.id && s.customerId && s.customerId === c.id) return true;
+      if (phoneOrName && s.customerId && s.customerId === phoneOrName) return true;
+
+      // 2. Phone match
+      if (c && c.phone && s.customerPhone) {
+        const cPhoneNorm = this.normalizePhone(c.phone);
+        const sPhoneNorm = this.normalizePhone(s.customerPhone);
+        if (cPhoneNorm && sPhoneNorm && cPhoneNorm === sPhoneNorm) return true;
+      }
+      if (cleanInputPhone && s.customerPhone) {
+        const sPhoneNorm = this.normalizePhone(s.customerPhone);
+        if (sPhoneNorm && sPhoneNorm === cleanInputPhone) return true;
+      }
+
+      // 3. Name match
+      if (s.customer && custName && this.matchNames(s.customer, custName)) return true;
+      if (c && c.name && s.customer && this.matchNames(s.customer, c.name)) return true;
+      if (c && c.firstName && s.customer && this.matchNames(s.customer, c.firstName)) return true;
+      if (c && c.lastName && s.customer && this.matchNames(s.customer, c.lastName)) return true;
+
+      // 4. Fallback: ID mentioned in customer field
+      if (c && c.id && s.customer && s.customer.includes(c.id)) return true;
+      if (phoneOrName && s.customer && s.customer.includes(phoneOrName)) return true;
+
+      return false;
+    });
+
+    // Auto-bind unlinked sales to this customer ID & sync totals
+    if (c && custSales.length > 0) {
+      let salesChanged = false;
+      custSales.forEach(s => {
+        if (!s.customerId || s.customerId !== c.id) {
+          s.customerId = c.id;
+          salesChanged = true;
+        }
+      });
+      if (salesChanged) {
+        localStorage.setItem('pos_sales', JSON.stringify(this.sales));
+      }
+      
+      const newTotalOrders = custSales.length;
+      const newTotalSpent = custSales.reduce((sum, s) => sum + (s.grandTotal || 0), 0);
+      if (c.totalOrders !== newTotalOrders || c.totalSpent !== newTotalSpent) {
+        c.totalOrders = newTotalOrders;
+        c.totalSpent = newTotalSpent;
+        localStorage.setItem('pos_customers', JSON.stringify(this.customers));
+        this.renderCashierCustomers();
+      }
+    }
+
+    // Aggregate Product Statistics ("কী কী অর্ডার করেছে")
+    const productMap = {};
+    let totalItemsCount = 0;
+
+    custSales.forEach(sale => {
+      (sale.items || []).forEach(item => {
+        const key = `${item.name}__${item.color || ''}__${item.size || ''}`;
+        const qty = Number(item.quantity) || 1;
+        const subtotal = Number(item.subtotal || (item.price * qty)) || 0;
+        totalItemsCount += qty;
+
+        if (!productMap[key]) {
+          productMap[key] = {
+            name: item.name,
+            variant: [item.color, item.size].filter(Boolean).join(' / ') || 'Standard',
+            price: item.price,
+            totalQty: 0,
+            totalSpend: 0
+          };
+        }
+        productMap[key].totalQty += qty;
+        productMap[key].totalSpend += subtotal;
+      });
+    });
+
+    const totalSpentSum = custSales.reduce((sum, s) => sum + (s.grandTotal || 0), 0);
+    const isBlocked = c && c.status === 'blocked';
+    const statusHeaderBadge = isBlocked 
+      ? `<span class="badge" style="background: rgba(239, 68, 68, 0.2); color: #ef4444; font-size: 0.8rem; margin-left: 8px;"><i class="fa-solid fa-ban"></i> ব্লকড প্রোফাইল</span>`
+      : `<span class="badge" style="background: rgba(16, 185, 129, 0.2); color: var(--accent-green); font-size: 0.8rem; margin-left: 8px;"><i class="fa-solid fa-circle-check"></i> অ্যাক্টিভ</span>`;
+
+    // Render Header Info Card
+    const headerEl = document.getElementById('cashierCustProfileHeaderInfo');
+    if (headerEl) {
+      const firstChar = (custName || 'C').charAt(0).toUpperCase();
+      headerEl.innerHTML = `
+        <div class="cust-profile-header-card">
+          <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+            <div class="cust-avatar-circle" style="${isBlocked ? 'background: linear-gradient(135deg, #ef4444, #dc2626);' : ''}">${firstChar}</div>
+            <div style="flex: 1; min-width: 220px;">
+              <h3 style="margin: 0; font-size: 1.2rem; color: var(--text-main); font-weight: 700;">${custName} ${statusHeaderBadge}</h3>
+              <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 0.35rem; font-size: 0.85rem; color: var(--text-muted);">
+                <span><i class="fa-solid fa-phone" style="color: var(--accent-blue);"></i> ${c?.phone || custPhone || 'ফোন নম্বর নেই'}</span>
+                <span><i class="fa-solid fa-envelope" style="color: var(--accent-purple);"></i> ${c?.email || 'ইমেইল নেই'}</span>
+                <span><i class="fa-solid fa-location-dot" style="color: var(--accent-green);"></i> ${c?.address || 'ঠিকানা নেই'}</span>
+              </div>
+            </div>
+            <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+              <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); padding: 0.5rem 0.85rem; border-radius: 8px; text-align: center;">
+                <small style="color: var(--text-muted); display: block; font-size: 0.75rem;">মোট বিল</small>
+                <strong style="color: var(--accent-green); font-size: 1rem;">৳${totalSpentSum.toFixed(2)}</strong>
+              </div>
+              <div style="background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.3); padding: 0.5rem 0.85rem; border-radius: 8px; text-align: center;">
+                <small style="color: var(--text-muted); display: block; font-size: 0.75rem;">মোট মেমো</small>
+                <strong style="color: var(--accent-blue); font-size: 1rem;">${custSales.length} টি</strong>
+              </div>
+              <div style="background: rgba(139, 92, 246, 0.1); border: 1px solid rgba(139, 92, 246, 0.3); padding: 0.5rem 0.85rem; border-radius: 8px; text-align: center;">
+                <small style="color: var(--text-muted); display: block; font-size: 0.75rem;">মোট পিস প্রডাক্ট</small>
+                <strong style="color: var(--accent-purple); font-size: 1rem;">${totalItemsCount} টি</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // Render Memos Tab Content
+    const memosContainer = document.getElementById('cashierCustMemosContainer');
+    if (memosContainer) {
+      if (custSales.length === 0) {
+        memosContainer.innerHTML = `<div class="text-center py-4 text-muted"><i class="fa-solid fa-receipt mb-2" style="font-size: 2rem;"></i><p>এই কাস্টমারের কোনো কেনাকাটার মেমো পাওয়া যায়নি</p></div>`;
+      } else {
+        memosContainer.innerHTML = custSales.map(s => {
+          const formattedDate = s.date || new Date(s.timestamp || Date.now()).toLocaleString('bn-BD');
+          const itemsList = s.items || [];
+          return `
+            <div class="cust-memo-card">
+              <div class="cust-memo-header">
+                <div>
+                  <strong style="color: var(--accent-blue); font-size: 1rem;">${s.id}</strong>
+                  <span style="font-size: 0.8rem; color: var(--text-muted); margin-left: 0.5rem;"><i class="fa-regular fa-clock"></i> ${formattedDate}</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                  <span class="badge" style="background: rgba(59, 130, 246, 0.15); color: var(--accent-blue);">${s.paymentMethod || 'CASH'}</span>
+                  <strong style="color: var(--accent-green); font-size: 1.05rem;">৳${(s.grandTotal || 0).toFixed(2)}</strong>
+                  <button type="button" class="btn btn-sm btn-outline" onclick="cashier.viewSaleMemoDirect('${s.id}')" title="মেমো দেখুন / প্রিন্ট করুন">
+                    <i class="fa-solid fa-print"></i> মেমো
+                  </button>
+                </div>
+              </div>
+              <div class="cust-memo-body">
+                <table class="nested-item-table">
+                  <thead>
+                    <tr>
+                      <th>পণ্য</th>
+                      <th>ভেরিয়েন্ট</th>
+                      <th class="text-center">পরিমাণ</th>
+                      <th class="text-right">একক মূল্য</th>
+                      <th class="text-right">মোট</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${itemsList.map(item => `
+                      <tr>
+                        <td><strong>${item.name}</strong></td>
+                        <td><small class="text-muted">${[item.color, item.size].filter(Boolean).join(' / ') || 'Standard'}</small></td>
+                        <td class="text-center">${item.quantity} পিস</td>
+                        <td class="text-right">৳${item.price}</td>
+                        <td class="text-right"><strong>৳${item.subtotal || (item.price * item.quantity)}</strong></td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+    }
+
+    // Render Aggregated Products Table Body
+    const productsTbody = document.getElementById('cashierCustProductsTableBody');
+    if (productsTbody) {
+      const productList = Object.values(productMap);
+      if (productList.length === 0) {
+        productsTbody.innerHTML = `<tr><td colspan="5" class="text-center py-3 text-muted">কোনো অর্ডারের তথ্য নেই</td></tr>`;
+      } else {
+        productsTbody.innerHTML = productList.map(prod => `
+          <tr>
+            <td><strong style="color: var(--text-main);">${prod.name}</strong></td>
+            <td><span class="badge" style="background: rgba(139, 92, 246, 0.15); color: var(--accent-purple);">${prod.variant}</span></td>
+            <td>৳${prod.price}</td>
+            <td><strong style="color: var(--accent-blue);">${prod.totalQty} পিস</strong></td>
+            <td><strong style="color: var(--accent-green);">৳${prod.totalSpend.toFixed(2)}</strong></td>
+          </tr>
+        `).join('');
+      }
+    }
+
+    // Default to Memos Tab
+    this.switchCustProfileTab('memos');
+    this.openModal('cashierCustomerProfileModal');
+  }
+
+  viewSaleMemoDirect(saleId) {
+    this.sales = JSON.parse(localStorage.getItem('pos_sales')) || (typeof INITIAL_SALES !== 'undefined' ? INITIAL_SALES : []);
+    const sale = this.sales.find(s => s.id === saleId);
+    if (sale) {
+      this.showReceiptModal(sale);
+    } else {
+      alert('মেমো রেকর্ড পাওয়া যায়নি!');
+    }
+  }
+
+  openAddNewCustomerModal() {
+    const phoneInput = document.getElementById('cashierFormPhone');
+    const nameInput = document.getElementById('cashierFormName');
+    const emailInput = document.getElementById('cashierFormEmail');
+    const addressInput = document.getElementById('cashierFormAddress');
+
+    if (phoneInput) phoneInput.value = '';
+    if (nameInput) nameInput.value = '';
+    if (emailInput) emailInput.value = '';
+    if (addressInput) addressInput.value = '';
+
+    this.openModal('cashierCustomerFormModal');
+  }
+
+  saveCustomerFromModal() {
+    const rawPhone = document.getElementById('cashierFormPhone')?.value.trim() || '';
+    const name = document.getElementById('cashierFormName')?.value.trim() || '';
+    const email = document.getElementById('cashierFormEmail')?.value.trim() || '';
+    const address = document.getElementById('cashierFormAddress')?.value.trim() || '';
+
+    if (!rawPhone || rawPhone.length !== 11) {
+      alert('ফোন নম্বর অবশ্যই ১১ ডিজিটের হতে হবে (যেমন: 01700000000)!');
       return;
     }
 
-    let msg = `কাস্টমার '${c ? c.name : phoneOrName}' এর কেনাকাটার তালিকা:\n\n`;
-    custSales.forEach(s => {
-      msg += `• ইনভয়েস ${s.id} | ${s.date || new Date(s.timestamp).toLocaleDateString()} | ${s.paymentMethod} | মোট: ৳${s.grandTotal.toFixed(2)}\n`;
-    });
-    alert(msg);
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      alert('অনুগ্রহ করে একটি সঠিক ইমেইল ঠিকানা দিন (যেমন: customer@gmail.com)!');
+      return;
+    }
+
+    const nameParts = (name || `Customer (${rawPhone})`).split(' ');
+    const firstName = nameParts[0] || '';
+    const lastName = nameParts.slice(1).join(' ') || '';
+
+    this.updateOrCreateCustomerOnSale(rawPhone, firstName, lastName, name, email, address, 0);
+    this.closeModal('cashierCustomerFormModal');
+    this.renderCashierCustomers();
+    alert('কাস্টমার প্রোফাইল সফলভাবে তৈরি হয়েছে!');
   }
 }
 
@@ -2958,13 +3417,6 @@ document.addEventListener('DOMContentLoaded', () => {
   window.cashier = cashier;
 
   document.getElementById('btnNavCustomers')?.addEventListener('click', () => cashier.switchTab('cashierCustomersView'));
-  document.getElementById('cashierAddNewCustBtn')?.addEventListener('click', () => {
-    const phone = prompt('নতুন কাস্টমারের ফোন নম্বর দিন:');
-    if (phone) {
-      const name = prompt('নতুন কাস্টমারের নাম দিন:') || 'Customer';
-      cashier.updateOrCreateCustomerOnSale(phone, name, '', '', 0);
-      cashier.renderCashierCustomers();
-    }
-  });
+  document.getElementById('cashierAddNewCustBtn')?.addEventListener('click', () => cashier.openAddNewCustomerModal());
   document.getElementById('cashierCustSearchInput')?.addEventListener('input', () => cashier.renderCashierCustomers());
 });

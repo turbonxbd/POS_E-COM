@@ -1,0 +1,49 @@
+{
+  "name": "SmartPOS Cloud - Retail Hub",
+  "short_name": "SmartPOS",
+  "description": "স্মার্ট রিটেইল POS সফটওয়্যার - ক্যাশিয়ার কাউন্টার ও মার্চেন্ট ড্যাশবোর্ড",
+  "start_url": "./portal.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#070b12",
+  "theme_color": "#10b981",
+  "lang": "bn",
+  "categories": ["business", "productivity"],
+  "icons": [
+    {
+      "src": "./icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/icon.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    },
+    {
+      "src": "./icons/icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "ক্যাশিয়ার কাউন্টার",
+      "short_name": "Cashier",
+      "description": "দ্রুত ক্যাশিয়ার কাউন্টার খুলুন",
+      "url": "./cashier.html",
+      "icons": [{ "src": "./icons/icon.svg", "sizes": "any" }]
+    },
+    {
+      "name": "মার্চেন্ট এডমিন",
+      "short_name": "Admin",
+      "description": "মার্চেন্ট ইনভেন্টরি প্যানেল খুলুন",
+      "url": "./portal.html",
+      "icons": [{ "src": "./icons/icon.svg", "sizes": "any" }]
+    }
+  ]
+}
