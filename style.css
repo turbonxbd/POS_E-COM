@@ -1127,14 +1127,88 @@ body {
   flex-direction: column;
 }
 .modal-sm {
- max-width: 380px;
- }
+  max-width: 380px;
+}
 .modal-md {
- max-width: 520px;
- }
+  max-width: 580px;
+}
 .modal-lg {
- max-width: 750px;
- }
+  max-width: 1060px;
+  width: 95%;
+}
+.modal-xl {
+  max-width: 1180px;
+  width: 96%;
+}
+
+/* Enhanced Responsive Modal Stat Cards Engine */
+.modal-body .stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+  width: 100%;
+}
+
+.modal-body .stats-grid .stat-card {
+  min-height: 94px;
+  padding: 1.1rem 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: var(--bg-sidebar, #1e293b);
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+  border-radius: 14px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+  box-sizing: border-box;
+  overflow: hidden;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.modal-body .stats-grid .stat-card:hover {
+  border-color: var(--accent-blue, #3b82f6);
+  transform: translateY(-2px);
+}
+
+.modal-body .stats-grid .stat-icon {
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.35rem;
+  flex-shrink: 0;
+}
+
+.modal-body .stats-grid .stat-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.modal-body .stats-grid .stat-info small {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted, #94a3b8);
+  margin-bottom: 4px;
+  line-height: 1.3;
+  display: block;
+  word-break: break-word;
+  white-space: normal;
+}
+
+.modal-body .stats-grid .stat-info h3 {
+  font-size: 1.35rem;
+  font-weight: 800;
+  margin: 0;
+  line-height: 1.25;
+  word-break: break-word;
+  white-space: normal;
+}
 .modal-header {
   padding: 1.25rem 1.5rem;
   border-bottom: 1px solid var(--border-color);
@@ -1299,12 +1373,11 @@ body {
   position: relative;
   background: #ffffff !important;
   background-color: #ffffff !important;
-  padding: 1.25rem 1rem 2.5rem;
+  padding: 1.25rem 1rem 4rem 1rem;
   min-height: 400px;
-  max-height: min(580px, 75vh);
+  max-height: min(600px, 80vh);
   overflow-y: auto;
-  display: flex;
-  justify-content: center;
+  display: block;
   box-sizing: border-box;
 }
 .receipt-feed-viewport::-webkit-scrollbar {
@@ -1332,16 +1405,17 @@ body {
   color: #000000 !important;
   font-family: 'Courier New', 'Consolas', monospace;
   font-variant-numeric: tabular-nums;
-  padding: 1.5rem 1.25rem 2.5rem;
+  padding: 1.5rem 1.25rem 1.75rem 1.25rem;
   width: 100%;
   max-width: 420px;
-  margin: 0 auto;
+  margin: 0 auto 2.5rem auto;
   font-size: 0.84rem;
   line-height: 1.4;
   box-sizing: border-box;
-  box-shadow: none !important;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08) !important;
+  border: 1.5px solid #111111 !important;
+  border-radius: 12px !important;
+  overflow: visible !important;
   transform-origin: top center;
   transition: transform 0.1s linear, opacity 0.1s linear;
 }
@@ -1355,6 +1429,15 @@ body {
   text-align: center;
   margin-bottom: 0.5rem;
   background-color: transparent !important;
+}
+.receipt-header img,
+#rcptStoreLogoImg,
+.thermal-receipt-logo {
+  background-color: #ffffff !important;
+  mix-blend-mode: multiply !important;
+  object-fit: contain !important;
+  filter: contrast(1.05) !important;
+  border-radius: 4px;
 }
 .receipt-header h2 {
   font-size: 1.25rem;
@@ -2520,6 +2603,13 @@ body {
   margin: 0 auto;
   max-width: 100%;
 }
+.printed-paper-sheet.sticker-mode {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+  padding: 0 !important;
+  min-height: auto !important;
+}
 .printed-paper-sheet.paper-format-80mm {
   width: 320px;
   max-width: 100%;
@@ -2666,11 +2756,26 @@ body {
 }
 /* ROBUST PRINT ISOLATION RULES FOR @media print */
 @media print {
-  body > *:not(#smartPrintHubModal):not(#printableReceipt) {
+  body * {
+    visibility: hidden !important;
+  }
+  #printableReceipt, #printableReceipt *, .receipt-paper, .receipt-paper *, #smartPrintHubModal, #smartPrintHubModal * {
+    visibility: visible !important;
+  }
+  .cashier-app, .admin-app, .sidebar, .top-header, .modal-backdrop {
     display: none !important;
   }
-  .modal:not(#smartPrintHubModal) {
-    display: none !important;
+  #printableReceipt, .receipt-paper {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    background: #ffffff !important;
+    color: #000000 !important;
   }
   #smartPrintHubModal {
     position: absolute !important;
@@ -3566,8 +3671,29 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
     max-height: 91vh !important;
   }
   .modal-sm, .modal-md, .modal-lg {
- max-width: 100% !important;
- }
+    max-width: 100% !important;
+  }
+  .modal-stats-grid,
+  .modal-body .stats-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 0.75rem !important;
+  }
+  .modal-stats-grid .stat-card,
+  .modal-body .stats-grid .stat-card {
+    padding: 0.85rem 1rem !important;
+    min-height: 82px !important;
+  }
+  .modal-stats-grid .stat-icon,
+  .modal-body .stats-grid .stat-icon {
+    width: 42px !important;
+    height: 42px !important;
+    min-width: 42px !important;
+    font-size: 1.15rem !important;
+  }
+  .modal-stats-grid .stat-info h3,
+  .modal-body .stats-grid .stat-info h3 {
+    font-size: 1.15rem !important;
+  }
   /* Panel cards */
   .panel-card {
  padding: 1rem;

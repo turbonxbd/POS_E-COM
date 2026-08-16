@@ -1,6 +1,15 @@
 <!DOCTYPE html>
 <html lang="bn" data-theme="dark">
 <head>
+  <script>
+    (function() {
+      try {
+        const s = JSON.parse(localStorage.getItem('pos_settings')) || {};
+        const theme = localStorage.getItem('pos_theme') || s.defaultTheme || 'dark';
+        document.documentElement.setAttribute('data-theme', theme);
+      } catch(e) {}
+    })();
+  </script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SmartPOS Cloud - সর্বাধুনিক রিটেইল শপ POS ও ই-কমার্স প্ল্যাটফর্ম</title>
@@ -42,8 +51,8 @@
       <a href="portal.html" class="btn-hero-secondary" style="padding: 0.5rem 1.1rem; font-size: 0.9rem; border-radius: 10px;">
         <i class="fa-solid fa-right-to-bracket"></i> প্যানেলে প্রবেশ
       </a>
-      <button class="trial-badge-btn openCheckoutModal" data-plan="SmartPOS Terminal" data-price="0" data-mode="trial" style="padding: 0.5rem 1.25rem; font-size: 0.9rem; border-radius: 10px;">
-        <i class="fa-solid fa-gift"></i> ৭ দিনের ফ্রি ট্রায়াল
+      <button class="btn-hero-primary openCheckoutModal" data-plan="SmartPOS Counter + E-Commerce Combo" data-price="14999" data-mode="full" style="padding: 0.5rem 1.25rem; font-size: 0.9rem; border-radius: 10px; background: linear-gradient(135deg, #a855f7, #7c3aed); border:none; color:#fff; cursor:pointer;">
+        <i class="fa-solid fa-cart-shopping"></i> প্যাকেজ রেজিস্ট্রেশন
       </button>
       <button class="mobile-nav-toggle" id="mobileNavToggle" aria-label="মেনু" style="display:none; background:none; border:none; color:#fff; font-size:1.4rem; cursor:pointer;">
         <i class="fa-solid fa-bars" id="mobileNavIcon"></i>
@@ -77,9 +86,8 @@
       স্মার্ট ইনভেন্টরি এন্ট্রি, বারকোড স্ক্যানিং, রিয়েল-টাইম ফায়ারবেস ক্লাউড সিঙ্ক, আল্ট্রা-ফাস্ট ক্যাশিয়ার টার্মিনাল ও নিট প্রফিটের অটোম্যাটেড রিপোর্ট নিন এক ক্লিকে।
     </p>
 
-    <div class="saas-hero-cta">
-      <button class="trial-badge-btn openCheckoutModal" data-plan="SmartPOS Terminal" data-price="0" data-mode="trial">
-        <i class="fa-solid fa-gift"></i> 🎁 ৭ দিনের ফ্রি ট্রায়াল শুরু করুন
+      <button class="btn-hero-primary openCheckoutModal" data-plan="SmartPOS Counter + E-Commerce Combo" data-price="14999" data-mode="full" style="background: linear-gradient(135deg, #8b5cf6, #d946ef);">
+        <i class="fa-solid fa-cart-shopping"></i> 🚀 সার্ভিস প্যাকেজ রেজিস্ট্রেশন করুন
       </button>
       <button class="btn-hero-primary btn-install-pwa" id="btnInstallAppHero" style="background: linear-gradient(135deg, #10b981, #059669);">
         <i class="fa-solid fa-download"></i> 💻 PC/মোবাইলে অ্যাপ ইনস্টল করুন
@@ -225,84 +233,150 @@
     </div>
   </section>
 
-  <!-- Checkout Subscription & Free Trial Modal -->
-  <div class="modal-backdrop" id="checkoutModal">
-    <div class="checkout-modal-card">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
-        <h3 style="margin:0; font-size:1.3rem;"><i class="fa-solid fa-shield-check text-success"></i> সার্ভিস রেজিস্ট্রেশন</h3>
+  <!-- Checkout Subscription & Onboarding Payment Modal -->
+  <div class="modal-backdrop notranslate" id="checkoutModal" translate="no">
+    <div class="checkout-modal-card" style="max-width: 600px; max-height: 94vh; overflow-y: auto;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.25rem; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.85rem;">
+        <h3 style="margin:0; font-size:1.25rem; color:#a855f7; display:flex; align-items:center; gap:8px;">
+          <i class="fa-solid fa-shield-check"></i> সার্ভিস রেজিস্ট্রেশন ও অনবোর্ডিং
+        </h3>
         <button id="closeCheckoutModal" style="background:none; border:none; color:#94a3b8; font-size:1.4rem; cursor:pointer;"><i class="fa-solid fa-xmark"></i></button>
       </div>
 
-      <!-- Mode Selector Tabs -->
-      <div class="order-type-selector">
-        <div class="order-type-card active" id="typeTrial">
-          <i class="fa-solid fa-gift text-warning"></i> 
-          <div><strong>৭ দিনের ফ্রি ট্রায়াল</strong></div>
-          <small class="text-muted">৳০ খরচ (Instant)</small>
-        </div>
 
-        <div class="order-type-card" id="typeFull">
-          <i class="fa-solid fa-box text-success"></i> 
-          <div><strong>ফুল প্যাকেজ ক্রয়</strong></div>
-          <small class="text-muted">সেটআপ ফি + মান্থলি</small>
-        </div>
-      </div>
 
       <form id="subscriptionForm">
-        <div style="margin-bottom: 1rem;">
-          <label style="display:block; color:#cbd5e1; font-size:0.9rem; margin-bottom:0.4rem;">নির্বাচিত প্যাকেজ</label>
-          <input type="text" id="selectedPlanName" readonly style="width:100%; padding:0.75rem; border-radius:10px; border:1px solid rgba(255,255,255,0.1); background:#1e293b; color:#10b981; font-weight:700;">
+        <!-- Selected Package Banner -->
+        <div style="margin-bottom: 1rem; background: rgba(168, 85, 247, 0.15); border: 1px solid rgba(168, 85, 247, 0.3); padding: 0.75rem 1rem; border-radius: 14px;">
+          <label style="display:block; color:#a855f7; font-size:0.82rem; font-weight:700; margin-bottom:0.2rem;">নির্বাচিত প্যাকেজ ও ফি (Selected Plan)</label>
+          <input type="text" id="selectedPlanName" readonly style="width:100%; border:none; background:transparent; color:#fff; font-weight:700; font-size:1.05rem; outline:none;">
         </div>
 
-        <div style="margin-bottom: 1rem;">
-          <label style="display:block; color:#cbd5e1; font-size:0.9rem; margin-bottom:0.4rem;">দোকানের নাম (Store Name)</label>
-          <input type="text" id="subStoreName" placeholder="যেমন: মা ফার্মেসী বা রহমান ট্রেডার্স" required style="width:100%; padding:0.75rem; border-radius:10px; border:1px solid rgba(255,255,255,0.1); background:#0f172a; color:#fff;">
-        </div>
-
-        <div style="margin-bottom: 1rem;">
-          <label style="display:block; color:#cbd5e1; font-size:0.9rem; margin-bottom:0.4rem;">আপনার নাম (Owner Name)</label>
-          <input type="text" id="subOwnerName" placeholder="আপনার নাম লিখুন" required style="width:100%; padding:0.75rem; border-radius:10px; border:1px solid rgba(255,255,255,0.1); background:#0f172a; color:#fff;">
-        </div>
-
-        <div style="margin-bottom: 1rem;">
-          <label style="display:block; color:#cbd5e1; font-size:0.9rem; margin-bottom:0.4rem;">মোবাইল নম্বর (Phone)</label>
-          <input type="tel" id="subPhone" placeholder="01700000000" maxlength="11" required style="width:100%; padding:0.75rem; border-radius:10px; border:1px solid rgba(255,255,255,0.1); background:#0f172a; color:#fff;">
-        </div>
-
-        <div style="margin-bottom: 1rem;">
-          <label style="display:block; color:#cbd5e1; font-size:0.9rem; margin-bottom:0.4rem;">ইমেইল (Email Address)</label>
-          <input type="email" id="subEmail" placeholder="example@gmail.com" style="width:100%; padding:0.75rem; border-radius:10px; border:1px solid rgba(255,255,255,0.1); background:#0f172a; color:#fff;">
-        </div>
-
-        <div style="margin-bottom: 1rem;">
-          <label style="display:block; color:#cbd5e1; font-size:0.9rem; margin-bottom:0.4rem;">দোকানের পূর্ণাঙ্গ ঠিকানা (Store Address)</label>
-          <input type="text" id="subAddress" placeholder="যেমন: মিরপুর ১০, ঢাকা - ১২১৬" required style="width:100%; padding:0.75rem; border-radius:10px; border:1px solid rgba(255,255,255,0.1); background:#0f172a; color:#fff;">
-        </div>
-
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem; margin-bottom: 1rem;">
-          <div>
-            <label style="display:block; color:#cbd5e1; font-size:0.9rem; margin-bottom:0.4rem;">এডমিন পিন (Admin PIN)</label>
-            <input type="password" id="subAdminPin" placeholder="1234" maxlength="6" value="1234" required style="width:100%; padding:0.75rem; border-radius:10px; border:1px solid rgba(255,255,255,0.1); background:#0f172a; color:#fff; text-align:center;">
+        <!-- STEP 1: PERSONAL & BUSINESS INFORMATION -->
+        <div id="onboardingStep1">
+          <div style="margin-bottom: 1rem;">
+            <label style="display:block; color:#cbd5e1; font-size:0.88rem; margin-bottom:0.4rem;">দোকানের নাম (Store Name)</label>
+            <input type="text" id="subStoreName" placeholder="যেমন: মা ফার্মেসী বা রহমান ট্রেডার্স" required style="width:100%; padding:0.75rem; border-radius:10px; border:1px solid rgba(255,255,255,0.1); background:#0f172a; color:#fff;">
           </div>
-          <div>
-            <label style="display:block; color:#cbd5e1; font-size:0.9rem; margin-bottom:0.4rem;">ব্র্যান্ড লোগো (Logo URL)</label>
-            <input type="url" id="subLogoUrl" placeholder="https://..." style="width:100%; padding:0.75rem; border-radius:10px; border:1px solid rgba(255,255,255,0.1); background:#0f172a; color:#fff;">
+
+          <div style="margin-bottom: 1rem;">
+            <label style="display:block; color:#cbd5e1; font-size:0.88rem; margin-bottom:0.4rem;">আপনার নাম (Owner Name)</label>
+            <input type="text" id="subOwnerName" placeholder="আপনার নাম লিখুন" required style="width:100%; padding:0.75rem; border-radius:10px; border:1px solid rgba(255,255,255,0.1); background:#0f172a; color:#fff;">
+          </div>
+
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem; margin-bottom: 1rem;">
+            <div>
+              <label style="display:block; color:#cbd5e1; font-size:0.88rem; margin-bottom:0.4rem;">মোবাইল নম্বর (Phone)</label>
+              <input type="tel" id="subPhone" placeholder="01700000000" maxlength="11" required style="width:100%; padding:0.75rem; border-radius:10px; border:1px solid rgba(255,255,255,0.1); background:#0f172a; color:#fff;">
+            </div>
+            <div>
+              <label style="display:block; color:#cbd5e1; font-size:0.88rem; margin-bottom:0.4rem;">ইমেইল (Email)</label>
+              <input type="email" id="subEmail" placeholder="example@gmail.com" style="width:100%; padding:0.75rem; border-radius:10px; border:1px solid rgba(255,255,255,0.1); background:#0f172a; color:#fff;">
+            </div>
+          </div>
+
+          <div style="margin-bottom: 1rem;">
+            <label style="display:block; color:#cbd5e1; font-size:0.88rem; margin-bottom:0.4rem;">দোকানের পূর্ণাঙ্গ ঠিকানা (Store Address)</label>
+            <input type="text" id="subAddress" placeholder="যেমন: মিরপুর ১০, ঢাকা - ১২১৬" required style="width:100%; padding:0.75rem; border-radius:10px; border:1px solid rgba(255,255,255,0.1); background:#0f172a; color:#fff;">
+          </div>
+
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem; margin-bottom: 1.25rem;">
+            <div>
+              <label style="display:block; color:#cbd5e1; font-size:0.88rem; margin-bottom:0.4rem;">এডমিন পিন (Admin PIN)</label>
+              <input type="password" id="subAdminPin" placeholder="1234" maxlength="6" value="1234" required style="width:100%; padding:0.75rem; border-radius:10px; border:1px solid rgba(255,255,255,0.1); background:#0f172a; color:#fff; text-align:center;">
+            </div>
+            <div>
+              <label style="display:block; color:#cbd5e1; font-size:0.88rem; margin-bottom:0.4rem;"><i class="fa-solid fa-image"></i> ব্র্যান্ড লোগো (গ্যালারি থেকে)</label>
+              <input type="file" id="subLogoFileInput" accept="image/*" style="display:none;">
+              <input type="hidden" id="subLogoUrl">
+              <button type="button" id="subLogoUploadBtn" style="width:100%; padding:0.65rem; border-radius:10px; border:1px dashed #10b981; background:rgba(16,185,129,0.1); color:#10b981; font-weight:600; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:0.5rem; transition:all 0.2s;">
+                <i class="fa-solid fa-cloud-arrow-up"></i> লোগো আপলোড করুন
+              </button>
+              <div id="subLogoPreviewWrap" style="display:none; align-items:center; gap:0.5rem; margin-top:0.4rem;">
+                <img id="subLogoPreview" style="width:36px; height:36px; border-radius:8px; object-fit:cover; border:1px solid #10b981;">
+                <small style="color:#10b981; font-size:0.75rem;" id="subLogoFileName">লোগো যুক্ত হয়েছে</small>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div style="margin-bottom: 1.5rem; display: none;" id="paymentMethodSection">
-          <label style="display:block; color:#cbd5e1; font-size:0.9rem; margin-bottom:0.4rem;">পেমেন্ট মেথড (সেটআপ ফি পরিশোধের জন্য)</label>
-          <select id="subPaymentMethod" style="width:100%; padding:0.75rem; border-radius:10px; border:1px solid rgba(255,255,255,0.1); background:#0f172a; color:#fff;">
-            <option value="bKash">bKash (বিকাশ)</option>
-            <option value="Nagad">Nagad (নগদ)</option>
-            <option value="Rocket">Rocket (রকেট)</option>
-            <option value="Bank">ব্যাংক ট্রান্সফার</option>
-          </select>
+        <!-- STEP 2: BKASH & NAGAD PAYMENT GATEWAY CHECKOUT -->
+        <div id="onboardingStep2" style="display: none;">
+          <!-- bKash & Nagad Buttons (Exact match to screenshot) -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.25rem;">
+            <div id="portalBkashBtn" class="gateway-pill active" style="border: 2px solid #e2136e; background: #ffffff; border-radius: 16px; padding: 0.75rem; text-align: center; cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 80px;">
+              <div style="width: 32px; height: 32px; border-radius: 8px; background: #e2136e; display: flex; align-items: center; justify-content: center; margin-bottom: 4px;">
+                <svg width="20" height="20" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M22 46L64 16L48 48L84 48L32 86L48 54L22 46Z" fill="#ffffff"/>
+                </svg>
+              </div>
+              <span style="font-weight: 800; font-style: italic; color: #e2136e; font-size: 1.05rem; font-family: 'Segoe UI', sans-serif;">bKash</span>
+            </div>
+
+            <div id="portalNagadBtn" class="gateway-pill" style="border: 1px solid #cbd5e1; background: #ffffff; border-radius: 16px; padding: 0.75rem; text-align: center; cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 80px;">
+              <div style="width: 32px; height: 32px; border-radius: 8px; background: #f97316; display: flex; align-items: center; justify-content: center; margin-bottom: 4px;">
+                <svg width="20" height="20" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="50" cy="50" r="42" fill="none" stroke="#ffffff" stroke-width="9"/>
+                  <path d="M50 25C40 40 65 45 50 75C35 60 40 40 50 25Z" fill="#ffffff"/>
+                </svg>
+              </div>
+              <span style="font-weight: 800; font-style: italic; color: #64748b; font-size: 1.05rem; font-family: 'Segoe UI', sans-serif;">Nagad</span>
+            </div>
+          </div>
+
+          <!-- Strict Non-Translatable Bengali Payment Guidelines -->
+          <div id="portalPaymentInstructionsCard" translate="no" class="notranslate" style="background: #fff0f5; border: 1px solid #fbcfe8; border-radius: 18px; padding: 1.1rem; margin-bottom: 1.25rem; color: #1e293b;">
+            <h4 id="portalInstructionTitle" style="color: #e2136e; font-weight: 700; font-size: 1.05rem; margin-bottom: 0.3rem;">
+               বিকাশে পেমেন্ট করার নিয়ম.
+            </h4>
+            <p id="portalInstructionSub" style="color: #475569; font-size: 0.85rem; margin-bottom: 0.85rem;">
+              বিকাশ পার্সোনাল নাম্বার অবশ্যই সেন্ড মানি করবেন
+            </p>
+
+            <ol id="portalInstructionList" translate="no" class="notranslate" style="padding-left: 1.2rem; font-size: 0.88rem; color: #334155; margin-bottom: 1rem; line-height: 1.8;">
+              <li>১. <strong>bKash অ্যাপ</strong> খুলুন।</li>
+              <li>২. <strong>'Send Money'</strong> অপশনে ট্যাপ করুন।</li>
+              <li>
+                ৩. নিচের নম্বরটি কপি করে পেস্ট করুন:
+                <div style="display: flex; align-items: center; gap: 8px; margin: 4px 0;">
+                  <div style="background: #ffffff; border: 1px solid #f472b6; border-radius: 10px; padding: 4px 12px; font-weight: 700; font-family: monospace; font-size: 1.1rem; color: #e2136e;" id="portalInstructionPhoneNum">
+                    01700000000
+                  </div>
+                  <button type="button" id="portalBtnCopyPhone" style="background: none; border: none; cursor: pointer; color: #e2136e; font-size: 1.1rem;" title="কপি করুন">
+                    <i class="fa-regular fa-copy"></i>
+                  </button>
+                </div>
+              </li>
+              <li>৪. টাকার পরিমাণ লিখুন: <strong id="portalInstructionAmountText" style="font-weight: 700; color: #0f172a;">৳১৪,৯৯৯ ৳</strong></li>
+              <li>৫. Reference বক্সে আপনার <strong>দোকানের নাম</strong> লিখুন।</li>
+              <li>৬. <strong>bKash PIN</strong> দিয়ে সেন্ড মানি সম্পন্ন করুন।</li>
+              <li>৭. সম্পন্ন হওয়ার পরে, <strong>ট্রানজ্যাকশন আইডি (TrxID)</strong> কপি করে নিচের বক্সে পেস্ট করুন।</li>
+            </ol>
+
+            <div style="margin-bottom: 0.85rem;">
+              <label style="font-weight: 700; color: #0f172a; font-size: 0.88rem; display: block; margin-bottom: 0.4rem;">
+                ট্রানজ্যাকশন আইডি (TrxID):
+              </label>
+              <input type="text" id="portalSubTrxId" class="form-control" placeholder="ENTER TRANSACTION ID" style="border-radius: 12px; border: 1px solid #f472b6; padding: 0.75rem 1rem; font-weight: 700; font-size: 0.95rem; text-transform: uppercase; letter-spacing: 2px; width: 100%; background: #ffffff; color: #0f172a;">
+            </div>
+
+            <div>
+              <label style="font-weight: 700; color: #0f172a; font-size: 0.88rem; display: block; margin-bottom: 0.4rem;">
+                প্রেরক মোবাইল নম্বর (Sender Phone):
+              </label>
+              <input type="text" id="portalSubSenderPhone" class="form-control" placeholder="যেমন: 017XXXXXXXX" style="border-radius: 12px; border: 1px solid #cbd5e1; padding: 0.7rem 1rem; font-weight: 700; font-size: 0.95rem; width: 100%; background: #ffffff; color: #0f172a;">
+            </div>
+          </div>
         </div>
 
-        <button type="submit" class="btn-hero-primary" style="width:100%; justify-content:center; padding:0.85rem;">
-          <i class="fa-solid fa-check-circle"></i> ফ্রেশ একাউন্ট তৈরি ও প্যানেলে প্রবেশ করুন
-        </button>
+        <div style="display: flex; gap: 10px;">
+          <button type="button" id="btnBackToStep1" style="display: none; background: #334155; color: #fff; border: none; padding: 0.85rem 1.25rem; border-radius: 14px; font-weight: 700; cursor: pointer;">
+            <i class="fa-solid fa-arrow-left"></i> পেছনে
+          </button>
+          <button type="submit" id="btnSubmitOnboarding" class="btn-hero-primary" style="flex: 1; justify-content:center; padding:0.85rem;">
+            <i class="fa-solid fa-check-circle"></i> ফ্রেশ একাউন্ট তৈরি ও প্যানেলে প্রবেশ করুন
+          </button>
+        </div>
       </form>
     </div>
   </div>

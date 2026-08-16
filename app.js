@@ -40,6 +40,23 @@ class POSApp {
     this.initCharts();
     this.updateDashboardStats();
     this.setupHardwareScanner();
+
+    // Listen for storage & cloud updates
+    const reloadAppState = () => {
+      let savedProd = localStorage.getItem('pos_products');
+      if (!savedProd || savedProd === '[]') savedProd = localStorage.getItem('pos_products_raw_backup');
+      this.products = savedProd && savedProd !== '[]' ? JSON.parse(savedProd) : INITIAL_PRODUCTS;
+
+      let savedSales = localStorage.getItem('pos_sales');
+      this.sales = savedSales ? JSON.parse(savedSales) : INITIAL_SALES;
+
+      this.renderProducts();
+      this.updateDashboardStats();
+    };
+
+    window.addEventListener('storage', reloadAppState);
+    window.addEventListener('pos_cloud_update', reloadAppState);
+    window.addEventListener('pos_tenant_changed', reloadAppState);
   }
 
   // Audio Beep Generator using Web Audio API
@@ -460,39 +477,99 @@ class POSApp {
   // CASH PAYMENT FLOW
   openCashModal() {
     const totals = this.getCartTotals();
-    document.getElementById('cashModalTotal').innerText = `৳${totals.grandTotal.toFixed(2)}`;
+    const grandTotal = totals.grandTotal;
+    document.getElementById('cashModalTotal').innerText = `৳${grandTotal.toFixed(2)}`;
+
     const tenderedInput = document.getElementById('cashTenderedInput');
-    tenderedInput.value = '';
-    document.getElementById('cashChangeAmount').innerText = '৳0.00';
-    document.getElementById('confirmCashPayBtn').disabled = true;
+    if (tenderedInput) {
+      tenderedInput.value = '';
+      tenderedInput.placeholder = `${grandTotal.toFixed(2)} (গ্রাহকের জমা টাকা টাইপ করুন)`;
+    }
 
     this.openModal('cashPaymentModal');
-    setTimeout(() => tenderedInput.focus(), 100);
+    this.calculateCashChange();
+    setTimeout(() => tenderedInput && tenderedInput.focus(), 100);
   }
 
   calculateCashChange() {
     const totals = this.getCartTotals();
-    const tendered = parseFloat(document.getElementById('cashTenderedInput').value) || 0;
-    const change = tendered - totals.grandTotal;
-
+    const grandTotal = totals.grandTotal;
+    const tenderedInput = document.getElementById('cashTenderedInput');
+    const rawVal = tenderedInput ? tenderedInput.value.trim() : '';
+    const changeLabel = document.getElementById('cashChangeLabel');
     const changeEl = document.getElementById('cashChangeAmount');
+    const statusBox = document.getElementById('cashStatusBox');
     const confirmBtn = document.getElementById('confirmCashPayBtn');
 
-    if (change >= 0) {
-      changeEl.innerText = `৳${change.toFixed(2)}`;
-      changeEl.style.color = 'var(--accent-green)';
-      confirmBtn.disabled = false;
+    if (rawVal === '') {
+      // 1. Initial state: Empty input, customer will pay exact grandTotal
+      if (changeLabel) changeLabel.innerHTML = '<i class="fa-solid fa-circle-info"></i> কাস্টমার থেকে পাবেন (প্রদেয় বিল):';
+      if (changeEl) {
+        changeEl.innerText = `৳${grandTotal.toFixed(2)}`;
+        changeEl.style.color = 'var(--accent-blue)';
+      }
+      if (statusBox) {
+        statusBox.style.background = 'rgba(56, 189, 248, 0.1)';
+        statusBox.style.borderColor = 'rgba(56, 189, 248, 0.3)';
+      }
+      if (confirmBtn) confirmBtn.disabled = true;
+      return;
+    }
+
+    const tendered = parseFloat(rawVal) || 0;
+    const diff = tendered - grandTotal;
+
+    if (diff > 0.001) {
+      // 2. Tendered > Total Bill: Customer receives change / refund
+      if (changeLabel) changeLabel.innerHTML = '<i class="fa-solid fa-hand-holding-dollar"></i> কাস্টমারকে ক্যাশ ব্যাক / রিফান্ড দিন (Change Return):';
+      if (changeEl) {
+        changeEl.innerText = `৳${diff.toFixed(2)}`;
+        changeEl.style.color = '#10b981';
+      }
+      if (statusBox) {
+        statusBox.style.background = 'rgba(16, 185, 129, 0.14)';
+        statusBox.style.borderColor = 'rgba(16, 185, 129, 0.4)';
+      }
+      if (confirmBtn) confirmBtn.disabled = false;
+    } else if (Math.abs(diff) <= 0.001) {
+      // 3. Exact Payment
+      if (changeLabel) changeLabel.innerHTML = '<i class="fa-solid fa-circle-check"></i> সম্পূর্ণ পরিশোধিত (Exact Payment):';
+      if (changeEl) {
+        changeEl.innerText = `৳0.00 (কোনো ক্যাশ ব্যাক দেওয়া লাগবে না)`;
+        changeEl.style.color = '#10b981';
+      }
+      if (statusBox) {
+        statusBox.style.background = 'rgba(16, 185, 129, 0.14)';
+        statusBox.style.borderColor = 'rgba(16, 185, 129, 0.4)';
+      }
+      if (confirmBtn) confirmBtn.disabled = false;
     } else {
-      changeEl.innerText = `কম দেওয়া হয়েছে: ৳${Math.abs(change).toFixed(2)}`;
-      changeEl.style.color = 'var(--accent-red)';
-      confirmBtn.disabled = true;
+      // 4. Shortage: Tendered < Total Bill
+      const shortage = Math.abs(diff);
+      if (changeLabel) changeLabel.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> অপর্যাপ্ত ক্যাশ জমা (Shortage Amount):';
+      if (changeEl) {
+        changeEl.innerText = `কম দেওয়া হয়েছে: ৳${shortage.toFixed(2)} (প্রদেয় বিল: ৳${grandTotal.toFixed(2)})`;
+        changeEl.style.color = '#ef4444';
+      }
+      if (statusBox) {
+        statusBox.style.background = 'rgba(239, 68, 68, 0.14)';
+        statusBox.style.borderColor = 'rgba(239, 68, 68, 0.4)';
+      }
+      if (confirmBtn) confirmBtn.disabled = true;
     }
   }
 
   processCashPayment() {
     const totals = this.getCartTotals();
-    const tendered = parseFloat(document.getElementById('cashTenderedInput').value) || totals.grandTotal;
-    const change = tendered - totals.grandTotal;
+    const grandTotal = totals.grandTotal;
+    const rawVal = (document.getElementById('cashTenderedInput')?.value || '').trim();
+    const tendered = parseFloat(rawVal);
+
+    if (isNaN(tendered) || tendered < grandTotal - 0.001) {
+      alert(`প্রদেয় বিল ৳${grandTotal.toFixed(2)} এর চেয়ে কম টাকা গ্রহণ করা যাবে না! অনুগ্রহ করে ৳${grandTotal.toFixed(2)} বা তার বেশি টাকা জমা লিখুন।`);
+      return;
+    }
+    const change = tendered - grandTotal;
 
     const saleRecord = {
       id: `INV-${new Date().getFullYear()}${String(new Date().getMonth()+1).padStart(2,'0')}${String(new Date().getDate()).padStart(2,'0')}-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -635,10 +712,15 @@ class POSApp {
     // Render Barcode
     JsBarcode("#rcptBarcodeSvg", saleRecord.id, {
       format: "CODE128",
-      width: 1.5,
-      height: 40,
-      displayValue: false,
-      margin: 0
+      width: 1.8,
+      height: 48,
+      displayValue: true,
+      fontSize: 13,
+      fontOptions: "bold",
+      font: "monospace",
+      margin: 8,
+      background: "#ffffff",
+      lineColor: "#000000"
     });
 
     this.openModal('receiptModal');
@@ -861,17 +943,47 @@ class POSApp {
         datasets: [{
           label: 'মোট বিক্রি (BDT ৳)',
           data: [1200, 2400, 1800, 950, 600, 1400],
-          backgroundColor: '#10b981',
-          borderRadius: 8
+          backgroundColor: 'rgba(16, 185, 129, 0.8)',
+          borderColor: '#10b981',
+          borderWidth: 1,
+          borderRadius: 6,
+          maxBarThickness: 36,
+          categoryPercentage: 0.5,
+          barPercentage: 0.7
         }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
+        layout: {
+          padding: { top: 10, bottom: 5, left: 5, right: 10 }
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#1e293b',
+            titleColor: '#f8fafc',
+            bodyColor: '#cbd5e1',
+            borderColor: 'rgba(255, 255, 255, 0.1)',
+            borderWidth: 1,
+            callbacks: {
+              label: (ctx) => ` বিক্রি: ৳${(ctx.parsed.y || 0).toFixed(2)}`
+            }
+          }
+        },
         scales: {
-          x: { grid: { display: false }, ticks: { color: '#9ca3af' } },
-          y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#9ca3af' } }
+          x: {
+            grid: { display: false },
+            ticks: { color: '#cbd5e1', font: { family: "'Inter', sans-serif", size: 11, weight: '500' } }
+          },
+          y: {
+            grid: { color: 'rgba(255,255,255,0.05)' },
+            ticks: {
+              color: '#9ca3af',
+              font: { family: "'Inter', sans-serif", size: 11 },
+              callback: (v) => '৳' + v
+            }
+          }
         }
       }
     });
@@ -885,13 +997,44 @@ class POSApp {
         datasets: [{
           data: [65, 35],
           backgroundColor: ['#10b981', '#3b82f6'],
+          hoverBackgroundColor: ['#059669', '#2563eb'],
           borderWidth: 0
         }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { legend: { position: 'bottom', labels: { color: '#9ca3af' } } }
+        cutout: '68%',
+        layout: {
+          padding: { top: 10, bottom: 15, left: 10, right: 10 }
+        },
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: {
+              color: '#cbd5e1',
+              font: { family: "'Inter', sans-serif", size: 12, weight: '500' },
+              padding: 14,
+              usePointStyle: true,
+              pointStyle: 'circle'
+            }
+          },
+          tooltip: {
+            backgroundColor: '#1e293b',
+            titleColor: '#f8fafc',
+            bodyColor: '#cbd5e1',
+            borderColor: 'rgba(255, 255, 255, 0.1)',
+            borderWidth: 1,
+            callbacks: {
+              label: function(ctx) {
+                const val = ctx.parsed || 0;
+                const total = (ctx.dataset.data || []).reduce((a, b) => a + b, 0);
+                const pct = total > 0 ? ((val / total) * 100).toFixed(1) : '0.0';
+                return ` ${ctx.label}: ৳${val.toFixed(2)} (${pct}%)`;
+              }
+            }
+          }
+        }
       }
     });
   }
@@ -956,6 +1099,12 @@ class POSApp {
       const next = cur === 'dark' ? 'light' : 'dark';
       html.setAttribute('data-theme', next);
       document.getElementById('themeToggleBtn').innerHTML = next === 'dark' ? '<i class="fa-solid fa-moon"></i>' : '<i class="fa-solid fa-sun"></i>';
+      localStorage.setItem('pos_theme', next);
+      try {
+        const s = JSON.parse(localStorage.getItem('pos_settings')) || {};
+        s.defaultTheme = next;
+        localStorage.setItem('pos_settings', JSON.stringify(s));
+      } catch(e) {}
     });
 
     // Sound Toggle
@@ -1120,10 +1269,7 @@ class POSApp {
 
   playInModalReceiptPrint(receiptPaperId, autoTriggerSystemPrint = false) {
     const paperEl = document.getElementById(receiptPaperId);
-    if (!paperEl) {
-      if (autoTriggerSystemPrint) window.print();
-      return;
-    }
+    if (!paperEl) return;
 
     const container = paperEl.closest('.receipt-feed-container');
     const viewport = paperEl.closest('.receipt-feed-viewport');
@@ -1132,14 +1278,14 @@ class POSApp {
     const statusText = container ? container.querySelector('.slot-status-text') : null;
 
     if (statusIndicator) statusIndicator.classList.add('printing');
-    if (statusText) statusText.innerText = 'প্রিন্ট হচ্ছে...';
+    if (statusText) statusText.innerText = '🖨️ প্রিন্ট হচ্ছে...';
     if (scanline) scanline.style.display = 'block';
 
+    const duration = 2200;
     if (window.printHub && window.printHub.playPrinterAudio) {
-      window.printHub.playPrinterAudio(1600);
+      window.printHub.playPrinterAudio(duration);
     }
 
-    const duration = 1600;
     const startTime = performance.now();
 
     if (viewport) viewport.scrollTop = 0;
@@ -1148,7 +1294,7 @@ class POSApp {
     paperEl.style.transform = 'translateY(60px)';
     paperEl.style.opacity = '0.3';
 
-    function step(now) {
+    const step = (now) => {
       const elapsed = now - startTime;
       const progress = Math.min(1, elapsed / duration);
 
@@ -1175,7 +1321,7 @@ class POSApp {
         if (scanline) scanline.style.display = 'none';
 
         if (statusIndicator) statusIndicator.classList.remove('printing');
-        if (statusText) statusText.innerText = 'প্রিন্ট সম্পূর্ণ!';
+        if (statusText) statusText.innerText = '✅ প্রিন্ট সম্পন্ন!';
 
         if (viewport) {
           viewport.scrollTop = viewport.scrollHeight;
@@ -1184,16 +1330,14 @@ class POSApp {
         if (window.printHub && window.printHub.playSuccessBeep) {
           window.printHub.playSuccessBeep();
         }
+
+        if (window.confetti) {
+          confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } });
+        }
       }
-    }
+    };
 
     requestAnimationFrame(step);
-
-    if (autoTriggerSystemPrint) {
-      setTimeout(() => {
-        window.print();
-      }, 300);
-    }
   }
 
   downloadReceiptPDF(receiptPaperId) {
@@ -1204,7 +1348,7 @@ class POSApp {
 
     if (typeof JsBarcode !== 'undefined') {
       try {
-        JsBarcode("#rcptBarcodeSvg", invId, { format: "CODE128", width: 1.8, height: 45, displayValue: false, margin: 0, background: "#ffffff", lineColor: "#000000" });
+        JsBarcode("#rcptBarcodeSvg", invId, { format: "CODE128", width: 1.8, height: 48, displayValue: true, fontSize: 13, fontOptions: "bold", font: "monospace", margin: 8, background: "#ffffff", lineColor: "#000000" });
       } catch(e) {}
     }
 

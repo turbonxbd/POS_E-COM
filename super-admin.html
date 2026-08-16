@@ -1,76 +1,396 @@
 <!DOCTYPE html>
-<html lang="bn" data-theme="dark">
+<html lang="bn" translate="no" class="notranslate">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SmartPOS Master Super Admin - সম্পূর্ণ সিস্টেম কন্ট্রোল প্যানেল</title>
-  
+  <meta name="google" content="notranslate">
+  <title>সুপার এডমিন মাস্টার কন্ট্রোল প্যানেল | SmartPOS & E-Commerce Console</title>
+
+  <!-- Google Fonts: Hind Siliguri & Outfit -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Hind+Siliguri:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='25' fill='%23a855f7'/><path d='M30 25h40v50H30z' fill='%23ffffff'/></svg>">
-  <link rel="stylesheet" href="super-admin.css">
+  <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;600;700&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <style>
+    :root {
+      --bg-dark: #0b0f19;
+      --bg-sidebar: #111827;
+      --bg-card: #1f2937;
+      --border-color: #374151;
+      --primary-purple: #a855f7;
+      --primary-purple-dark: #7c3aed;
+      --accent-green: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-red: #ef4444;
+      --accent-blue: #3b82f6;
+      --text-main: #f9fafb;
+      --text-muted: #9ca3af;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Hind Siliguri', 'Outfit', sans-serif;
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* Auth Gate Modal overlay */
+    #masterAuthOverlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(11, 15, 25, 0.96);
+      backdrop-filter: blur(12px);
+      z-index: 99999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+
+    .auth-card {
+      background: var(--bg-card);
+      border: 1px solid rgba(168, 85, 247, 0.4);
+      border-radius: 24px;
+      padding: 2.5rem 2rem;
+      width: 100%;
+      max-width: 440px;
+      text-align: center;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.6);
+    }
+
+    .auth-card h2 {
+      color: var(--primary-purple);
+      margin-bottom: 0.5rem;
+      font-size: 1.6rem;
+    }
+
+    /* Master Layout */
+    .master-wrapper {
+      display: flex;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Sidebar */
+    .master-sidebar {
+      width: 290px;
+      background: var(--bg-sidebar);
+      border-right: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      padding: 1.25rem 1rem;
+      flex-shrink: 0;
+    }
+
+    .brand-box {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding-bottom: 1.25rem;
+      border-bottom: 1px solid var(--border-color);
+      margin-bottom: 1.25rem;
+    }
+
+    .brand-icon {
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, var(--primary-purple), var(--primary-purple-dark));
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.4rem;
+    }
+
+    .master-menu {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .master-menu-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0.75rem 1rem;
+      border-radius: 14px;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-size: 0.95rem;
+      font-weight: 600;
+    }
+
+    .master-menu-item:hover, .master-menu-item.active {
+      background: rgba(168, 85, 247, 0.15);
+      color: #fff;
+      border-left: 4px solid var(--primary-purple);
+    }
+
+    .master-menu-item i {
+      font-size: 1.15rem;
+      width: 22px;
+      text-align: center;
+    }
+
+    /* Main Content */
+    .master-content {
+      flex: 1;
+      padding: 1.5rem 2rem;
+      overflow-y: auto;
+      background: var(--bg-dark);
+    }
+
+    .content-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .content-header h1 {
+      font-size: 1.6rem;
+      color: #fff;
+      font-weight: 700;
+    }
+
+    /* Stat Cards Grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1.25rem;
+      margin-bottom: 1.75rem;
+    }
+
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 18px;
+      padding: 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    }
+
+    .stat-icon {
+      width: 52px;
+      height: 52px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+    }
+
+    .stat-info h3 {
+      font-size: 1.5rem;
+      color: #fff;
+      font-weight: 800;
+    }
+
+    .stat-info p {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    /* Tables */
+    .custom-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 0.75rem;
+    }
+
+    .custom-table th, .custom-table td {
+      padding: 0.85rem 1rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border-color);
+      font-size: 0.9rem;
+    }
+
+    .custom-table th {
+      background: rgba(17, 24, 39, 0.8);
+      color: var(--text-muted);
+      font-weight: 700;
+    }
+
+    .custom-table tbody tr {
+      transition: background 0.2s;
+    }
+
+    .custom-table tbody tr:hover {
+      background: rgba(55, 65, 81, 0.4);
+    }
+
+    /* Badges */
+    .badge-status {
+      padding: 0.25rem 0.75rem;
+      border-radius: 20px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      display: inline-block;
+    }
+
+    .badge-active { background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid #10b981; }
+    .badge-pending { background: rgba(245, 158, 11, 0.2); color: #f59e0b; border: 1px solid #f59e0b; }
+    .badge-suspended { background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid #ef4444; }
+
+    /* Form Controls */
+    .form-control {
+      width: 100%;
+      background: #111827;
+      border: 1px solid var(--border-color);
+      color: #fff;
+      padding: 0.75rem 1rem;
+      border-radius: 12px;
+      font-size: 0.92rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .form-control:focus {
+      border-color: var(--primary-purple);
+    }
+
+    .btn-submit {
+      background: linear-gradient(135deg, var(--primary-purple), var(--primary-purple-dark));
+      color: #fff;
+      border: none;
+      padding: 0.75rem 1.5rem;
+      border-radius: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    .btn-submit:hover {
+      opacity: 0.9;
+    }
+
+    .cms-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 20px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .cms-card-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* Modal Overlay */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.8);
+      backdrop-filter: blur(8px);
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+
+    .modal-content-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 24px;
+      width: 100%;
+      max-width: 650px;
+      max-height: 90vh;
+      overflow-y: auto;
+      padding: 1.75rem;
+      box-shadow: 0 25px 60px rgba(0,0,0,0.5);
+    }
+  </style>
 </head>
 <body>
 
-  <!-- Security Verification Modal -->
-  <div class="pin-modal-overlay" id="superPinModal">
-    <div class="pin-card">
-      <div style="width:64px; height:64px; background:rgba(168,85,247,0.15); color:#c084fc; border-radius:20px; display:flex; align-items:center; justify-content:center; font-size:2rem; margin:0 auto 1.25rem;">
+  <!-- MASTER AUTH SECURITY PIN OVERLAY -->
+  <div id="masterAuthOverlay">
+    <div class="auth-card">
+      <div class="brand-icon" style="margin:0 auto 1rem;">
         <i class="fa-solid fa-user-shield"></i>
       </div>
-      <h2 style="font-size:1.6rem; margin-bottom:0.5rem; font-family:'Outfit';">সুপার এডমিন সিকিউরিটি পিন</h2>
-      <p style="color:#94a3b8; font-size:0.95rem; margin-bottom:1.5rem;">সম্পূর্ণ ওয়েবসাইট ও সাবস্ক্রিপশন কন্ট্রোল প্যানেলে প্রবেশ করতে গোপন পিন ইনপুট দিন:</p>
-
-      <form id="pinAuthForm">
-        <div class="form-group" style="margin-bottom:1.5rem;">
-          <input type="password" id="masterPinInput" class="form-control text-center" placeholder="****" maxlength="6" style="font-size:1.8rem; letter-spacing:10px; font-weight:700;" required>
-          <small style="color:#94a3b8; display:block; margin-top:0.5rem;">ডিফল্ট মাস্টার পিন: <code>9999</code></small>
+      <h2>সুপার এডমিন অথেন্টিকেশন</h2>
+      <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:1.5rem;">
+        স্মার্ট POS প্যানেল সিকিউরিটি সিস্টেম। প্রবেশ করতে মাস্টার পাসওয়ার্ড দিন।
+      </p>
+      <form id="masterLoginForm">
+        <div style="margin-bottom: 1rem;">
+          <input type="password" id="masterPinInput" class="form-control text-center" placeholder="মাস্টার পাসওয়ার্ড দিন (ডিফল্ট: admin123)" style="font-size:1.1rem; letter-spacing:2px;" required>
         </div>
-        <button type="submit" class="btn-submit" style="width:100%; justify-content:center; padding:0.85rem; font-size:1rem;">
-          <i class="fa-solid fa-key"></i> প্যানেল আনলক করুন
+        <button type="submit" class="btn-submit" style="width:100%; padding:0.85rem;">
+          <i class="fa-solid fa-key"></i> সিকিউর লগইন করুন
         </button>
       </form>
     </div>
   </div>
 
-  <!-- Master Admin Dashboard Layout -->
-  <div class="admin-layout" id="masterLayout" style="display: none;">
-    <!-- Sidebar -->
+  <!-- MAIN MASTER CONSOLE WRAPPER -->
+  <div class="master-wrapper">
+
+    <!-- SIDEBAR NAVIGATION (WITH SEPARATED ACCESS FEE & MONTHLY SUBSCRIPTION TABS) -->
     <aside class="master-sidebar">
-      <div class="master-brand">
-        <div class="master-brand-icon">
+      <div class="brand-box">
+        <div class="brand-icon">
           <i class="fa-solid fa-crown"></i>
         </div>
-        <div class="master-brand-text">
-          <h2>Master Admin</h2>
-          <span>SYSTEM CONTROLLER</span>
+        <div>
+          <strong style="color:#fff; font-size:1.05rem; display:block;">Super Admin</strong>
+          <small style="color:var(--primary-purple); font-size:0.8rem; font-weight:700;">Console v4.8</small>
         </div>
       </div>
 
       <ul class="master-menu">
         <li class="master-menu-item active" data-tab="tabOverview">
-          <i class="fa-solid fa-chart-pie"></i> <span>প্ল্যাটফর্ম ওভারভিউ</span>
+          <i class="fa-solid fa-chart-pie"></i> <span>১. ড্যাশবোর্ড (Analytics)</span>
         </li>
-        <li class="master-menu-item" data-tab="tabHeroCMS">
-          <i class="fa-solid fa-pen-to-square"></i> <span>ল্যান্ডিং পেজ কন্টেন্ট</span>
+        <li class="master-menu-item" data-tab="tabMerchants">
+          <i class="fa-solid fa-users-gear"></i> <span>২. মার্চেন্ট অ্যাকাউন্টস</span>
         </li>
-        <li class="master-menu-item" data-tab="tabShowcaseCMS">
-          <i class="fa-solid fa-images"></i> <span>প্যানেল ছবি ও ফিচার</span>
+        <li class="master-menu-item" data-tab="tabAccessFees">
+          <i class="fa-solid fa-key" style="color:#3b82f6;"></i> <span>৩. এক্সেস ফি (Setup Fees)</span>
         </li>
-        <li class="master-menu-item" data-tab="tabPricingCMS">
-          <i class="fa-solid fa-tags"></i> <span>সাবস্ক্রিপশন প্রাইসিং</span>
+        <li class="master-menu-item" data-tab="tabMonthlySubscriptions">
+          <i class="fa-solid fa-credit-card" style="color:#e11d48;"></i> <span>৪. মাসিক সাবস্ক্রিপশন (Monthly)</span>
         </li>
-        <li class="master-menu-item" data-tab="tabSubscribers">
-          <i class="fa-solid fa-users-gear"></i> <span>সাবস্ক্রাইবার শপস</span>
+        <li class="master-menu-item" data-tab="tabConsoleCMS">
+          <i class="fa-solid fa-laptop-code"></i> <span>৫. কনসোল CMS (Landing)</span>
+        </li>
+        <li class="master-menu-item" data-tab="tabPaymentGateways">
+          <i class="fa-solid fa-wallet"></i> <span>৬. পেমেন্ট গেটওয়ে সেটিংস</span>
+        </li>
+        <li class="master-menu-item" data-tab="tabSecurityLogs">
+          <i class="fa-solid fa-shield-halved"></i> <span>৭. সিকিউরিটি ও ব্যাকআপ</span>
         </li>
       </ul>
 
       <div style="margin-top:auto; padding-top:1rem; border-top:1px solid var(--border-color); display:flex; flex-direction:column; gap:0.5rem;">
-        <a href="index.html" class="master-menu-item" style="color:#10b981; text-decoration:none;">
-          <i class="fa-solid fa-globe"></i> <span>লাইভ ওয়েবসাইটে যান</span>
+        <a href="portal.html" class="master-menu-item" style="color:#10b981; text-decoration:none;">
+          <i class="fa-solid fa-shop"></i> <span>পোর্টাল পেজে যান</span>
         </a>
         <button onclick="sessionStorage.removeItem('pos_master_authenticated'); location.reload();" class="master-menu-item" style="background:none; border:none; cursor:pointer; color:#ef4444; width:100%; text-align:left;">
           <i class="fa-solid fa-lock"></i> <span>প্যানেল লক করুন</span>
@@ -78,22 +398,23 @@
       </div>
     </aside>
 
-    <!-- Main Content -->
+    <!-- MAIN CONTENT VIEW AREA -->
     <main class="master-content">
-      <!-- Top Header Bar -->
+      
+      <!-- TOP HEADER BAR -->
       <div class="content-header">
         <div>
-          <h1 id="activeTabTitle">প্ল্যাটফর্ম ওভারভিউ ও অ্যানালিটিক্স</h1>
-          <p style="color:#94a3b8; font-size:0.95rem;">ফায়ারবেস ক্লাউড ফায়ারস্টোর লাইভ কানেক্টেড 🔥</p>
+          <h1 id="activeTabTitle">১. প্ল্যাটফর্ম ড্যাশবোর্ড ও অ্যানালিটিক্স</h1>
+          <p style="color:var(--text-muted); font-size:0.92rem;">ফায়ারবেস ক্লাউড ফায়ারস্টোর লাইভ কানেক্টেড 🔥</p>
         </div>
         <div style="display:flex; gap:1rem;">
           <button id="btnForcePublishCMS" class="btn-submit" style="background:linear-gradient(135deg, #10b981, #059669);">
-            <i class="fa-solid fa-cloud-arrow-up"></i> পরিবর্তনসমূহ সেভ ও লাইভ প্রকাশ করুন
+            <i class="fa-solid fa-cloud-arrow-up"></i> সেভ ও লাইভ প্রকাশ করুন
           </button>
         </div>
       </div>
 
-      <!-- Tab 1: Overview Dashboard -->
+      <!-- MODULE 1: DASHBOARD ANALYTICS OVERVIEW -->
       <div id="tabOverview" class="tab-view">
         <div class="stats-grid">
           <div class="stat-card">
@@ -102,61 +423,58 @@
             </div>
             <div class="stat-info">
               <h3 id="statTotalStores">0</h3>
-              <p>মোট সাবস্ক্রাইবার দোকান</p>
-            </div>
-          </div>
-
-          <div class="stat-card">
-            <div class="stat-icon" style="background:rgba(16,185,129,0.15); color:#10b981;">
-              <i class="fa-solid fa-circle-check"></i>
-            </div>
-            <div class="stat-info">
-              <h3 id="statActiveStores">0</h3>
-              <p>একটিভ সাবস্ক্রিপশন</p>
-            </div>
-          </div>
-
-          <div class="stat-card">
-            <div class="stat-icon" style="background:rgba(245,158,11,0.15); color:#f59e0b;">
-              <i class="fa-solid fa-clock"></i>
-            </div>
-            <div class="stat-info">
-              <h3 id="statPendingStores">0</h3>
-              <p>পেন্ডিং এপ্রুভাল</p>
+              <p>মোট রেজিস্টার্ড মার্চেন্ট</p>
             </div>
           </div>
 
           <div class="stat-card">
             <div class="stat-icon" style="background:rgba(59,130,246,0.15); color:#3b82f6;">
-              <i class="fa-solid fa-bangladeshi-taka-sign"></i>
+              <i class="fa-solid fa-key"></i>
+            </div>
+            <div class="stat-info">
+              <h3 id="statAccessFeeTotal">৳0</h3>
+              <p>মোট এক্সেস ফি আয় (Setup)</p>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon" style="background:rgba(225,29,72,0.15); color:#e11d48;">
+              <i class="fa-solid fa-credit-card"></i>
+            </div>
+            <div class="stat-info">
+              <h3 id="statMonthlySubTotal">৳0</h3>
+              <p>মোট মাসিক সাবস্ক্রিপশন আয়</p>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon" style="background:rgba(16,185,129,0.15); color:#10b981;">
+              <i class="fa-solid fa-sack-dollar"></i>
             </div>
             <div class="stat-info">
               <h3 id="statTotalRevenue">৳0</h3>
-              <p>সর্বমোট সাবস্ক্রিপশন আয়</p>
+              <p>সর্বমোট প্ল্যাটফর্ম ইনকাম</p>
             </div>
           </div>
         </div>
 
-        <!-- Recent Subscriber Orders Table -->
         <div class="cms-card">
           <div class="cms-card-title">
-            <i class="fa-solid fa-receipt text-primary"></i> সাম্প্রতিক সাবস্ক্রিপশন অর্ডারসমূহ
+            <i class="fa-solid fa-list-check text-purple"></i> সাম্প্রতিক মার্চেন্ট পারচেজ ও রিনিউ সামারি
           </div>
-
           <div style="overflow-x:auto;">
             <table class="custom-table">
               <thead>
                 <tr>
                   <th>দোকানের নাম</th>
-                  <th>মালিকের নাম</th>
-                  <th>ফোন নম্বর</th>
-                  <th>প্ল্যান</th>
-                  <th>পেমেন্ট মেথড</th>
+                  <th>মালিকের নাম ও ফোন</th>
+                  <th>এক্সেস সেটআপ ফি</th>
+                  <th>মাসিক সাবস্ক্রিপশন</th>
                   <th>স্ট্যাটাস</th>
                   <th>তারিখ</th>
                 </tr>
               </thead>
-              <tbody id="overviewSubscribersTableBody">
+              <tbody id="overviewSubscribersBody">
                 <!-- Rendered dynamically -->
               </tbody>
             </table>
@@ -164,172 +482,41 @@
         </div>
       </div>
 
-      <!-- Tab 2: Hero CMS Content Editor -->
-      <div id="tabHeroCMS" class="tab-view" style="display: none;">
+      <!-- MODULE 2: MERCHANT ACCOUNTS & PROFILE DEEP-DIVE -->
+      <div id="tabMerchants" class="tab-view" style="display: none;">
         <div class="cms-card">
-          <div class="cms-card-title">
-            <i class="fa-solid fa-wand-magic-sparkles text-purple"></i> ল্যান্ডিং পেজের হিরো সেকশন এডিটর
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.25rem;">
+            <div class="cms-card-title" style="margin-bottom: 0;">
+              <i class="fa-solid fa-users-gear" style="color:var(--primary-purple);"></i> নিবন্ধিত মার্চেন্ট অ্যাকাউন্ট ডিরেক্টরি
+            </div>
+            <button type="button" class="btn-submit" onclick="addNewSubscriberPrompt()" style="background: linear-gradient(135deg, #8b5cf6, #a855f7); font-size: 0.85rem; padding: 0.55rem 1.1rem; width: auto;">
+              <i class="fa-solid fa-plus-circle"></i> নতুন মার্চেন্ট যুক্ত করুন
+            </button>
           </div>
 
-          <form id="heroCMSForm">
-            <div class="form-group">
-              <label class="form-label">হিরো টপ ব্যাজ টেক্সট (Top Badge Pill Text)</label>
-              <input type="text" id="cmsBadge" class="form-control" placeholder="🚀 ৩,০০০+ দোকানে বিশ্বস্ত - স্মার্ট ক্লাউড POS সফটওয়্যার">
+          <!-- Filter & Search Toolbar -->
+          <div style="display: flex; gap: 1rem; margin-bottom: 1.25rem; flex-wrap: wrap; align-items: center; justify-content: space-between; background: rgba(30,41,59,0.5); padding: 0.85rem; border-radius: 12px; border: 1px solid var(--border-color);">
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;" id="subFilterTabs">
+              <button type="button" class="btn-submit sub-filter-pill active" data-subfilter="all" onclick="filterSubscribers('all')" style="width: auto; padding: 0.4rem 0.85rem; font-size: 0.82rem; background: rgba(168,85,247,0.2); border: 1px solid #a855f7; color: #fff;">সবাই (All)</button>
+              <button type="button" class="btn-submit sub-filter-pill" data-subfilter="active" onclick="filterSubscribers('active')" style="width: auto; padding: 0.4rem 0.85rem; font-size: 0.82rem; background: rgba(16,185,129,0.15); border: 1px solid #10b981; color: #10b981;">🟢 পেড একটিভ</button>
+              <button type="button" class="btn-submit sub-filter-pill" data-subfilter="trial" onclick="filterSubscribers('trial')" style="width: auto; padding: 0.4rem 0.85rem; font-size: 0.82rem; background: rgba(245,158,11,0.15); border: 1px solid #f59e0b; color: #f59e0b;">🟡 ফ্রি ট্রায়াল</button>
+              <button type="button" class="btn-submit sub-filter-pill" data-subfilter="suspended" onclick="filterSubscribers('suspended')" style="width: auto; padding: 0.4rem 0.85rem; font-size: 0.82rem; background: rgba(239,68,68,0.15); border: 1px solid #ef4444; color: #ef4444;">🔴 সাসপেন্ডেড</button>
             </div>
-
-            <div class="form-group">
-              <label class="form-label">মূল হিরো টাইটেল (Main Title - HTML Supported)</label>
-              <input type="text" id="cmsTitle" class="form-control" placeholder="আপনার দোকানের ব্যবসা পরিচালনা করুন <span>যেকোনো স্থান থেকে!</span>">
+            <div style="flex: 1; max-width: 320px;">
+              <input type="text" id="subSearchInput" class="form-control" placeholder="দোকান, মালিক বা ফোন দিয়ে খুঁজুন..." style="padding-left: 1rem; font-size: 0.88rem;" oninput="filterSubscribers()">
             </div>
-
-            <div class="form-group">
-              <label class="form-label">হিরো বর্ণনা (Description)</label>
-              <textarea id="cmsDesc" class="form-control" rows="3" placeholder="স্মার্ট ইনভেন্টরি এন্ট্রি, বারকোড স্ক্যানিং..."></textarea>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">ইউটিউব সিস্টেম ভিডিও ডেমো লিঙ্ক (Embed URL)</label>
-              <input type="url" id="cmsVideoUrl" class="form-control" placeholder="https://www.youtube.com/embed/your-video-id">
-            </div>
-
-            <button type="submit" class="btn-submit">
-              <i class="fa-solid fa-floppy-disk"></i> হিরো টেক্সট আপডেট করুন
-            </button>
-          </form>
-        </div>
-      </div>
-
-      <!-- Tab 3: Panel Screenshot & Feature Showcase Editor -->
-      <div id="tabShowcaseCMS" class="tab-view" style="display: none;">
-        <div class="cms-card">
-          <div class="cms-card-title">
-            <i class="fa-solid fa-images text-success"></i> প্যানেল স্ক্রিনশট ও ফিচার আইটেম এডিটর
-          </div>
-
-          <p style="color:#94a3b8; font-size:0.95rem; margin-bottom:1.5rem;">
-            নিচে স্ক্রোল করলে কাস্টমাররা প্যানেলের যে ছবি ও বিবরণ দেখতে পায়, তা এখান থেকে এডিট বা আপলোড করুন:
-          </p>
-
-          <form id="showcaseCMSForm">
-            <!-- Showcase 1 -->
-            <div style="background:rgba(30,41,59,0.5); border:1px solid var(--border-color); border-radius:14px; padding:1.5rem; margin-bottom:1.5rem;">
-              <h4 style="color:#10b981; margin-bottom:1rem;"><i class="fa-solid fa-cash-register"></i> ১. ক্যাশিয়ার কাউন্টার টার্মিনাল ডেমো</h4>
-              <div class="form-group">
-                <label class="form-label">ছবি / স্ক্রিনশট URL (Photo URL)</label>
-                <input type="text" id="sc1Image" class="form-control">
-              </div>
-              <div class="form-group">
-                <label class="form-label">টাইটেল (Title)</label>
-                <input type="text" id="sc1Title" class="form-control">
-              </div>
-              <div class="form-group">
-                <label class="form-label">বিস্তারিত বিবরণ (Description)</label>
-                <textarea id="sc1Desc" class="form-control" rows="2"></textarea>
-              </div>
-            </div>
-
-            <!-- Showcase 2 -->
-            <div style="background:rgba(30,41,59,0.5); border:1px solid var(--border-color); border-radius:14px; padding:1.5rem; margin-bottom:1.5rem;">
-              <h4 style="color:#f59e0b; margin-bottom:1rem;"><i class="fa-solid fa-boxes-stacked"></i> ২. ইনভেন্টরি ও বারকোড স্টিকার প্যানেল</h4>
-              <div class="form-group">
-                <label class="form-label">ছবি / স্ক্রিনশট URL (Photo URL)</label>
-                <input type="text" id="sc2Image" class="form-control">
-              </div>
-              <div class="form-group">
-                <label class="form-label">টাইটেল (Title)</label>
-                <input type="text" id="sc2Title" class="form-control">
-              </div>
-              <div class="form-group">
-                <label class="form-label">বিস্তারিত বিবরণ (Description)</label>
-                <textarea id="sc2Desc" class="form-control" rows="2"></textarea>
-              </div>
-            </div>
-
-            <button type="submit" class="btn-submit">
-              <i class="fa-solid fa-floppy-disk"></i> প্যানেল ছবি ও ফিচারসমূহ সেভ করুন
-            </button>
-          </form>
-        </div>
-      </div>
-
-      <!-- Tab 4: Pricing & Subscription Manager -->
-      <div id="tabPricingCMS" class="tab-view" style="display: none;">
-        <div class="cms-card">
-          <div class="cms-card-title">
-            <i class="fa-solid fa-tags text-warning"></i> সার্ভিস প্যাকেজ সেটআপ ফি ও মাসিক মেইনটেন্যান্স রেইট কন্ট্রোল
-          </div>
-
-          <form id="pricingCMSForm">
-            <!-- Package 1 -->
-            <div style="background:rgba(30,41,59,0.5); border:1px solid var(--border-color); border-radius:14px; padding:1.5rem; margin-bottom:1.5rem;">
-              <h4>১. স্মার্ট POS টার্মিনাল ও ইনভেন্টরি (লাইভ সার্ভিস)</h4>
-              <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem; margin-top:0.75rem;">
-                <div>
-                  <label class="form-label">এককালীন সেটআপ ফি (৳)</label>
-                  <input type="number" id="p1Monthly" class="form-control" placeholder="9999">
-                </div>
-                <div>
-                  <label class="form-label">মাসিক মেইনটেন্যান্স ফি (৳/মাস)</label>
-                  <input type="number" id="p1Yearly" class="form-control" placeholder="499">
-                </div>
-              </div>
-            </div>
-
-            <!-- Package 2 -->
-            <div style="background:rgba(16,185,129,0.1); border:1px solid #10b981; border-radius:14px; padding:1.5rem; margin-bottom:1.5rem;">
-              <h4 style="color:#10b981;">২. POS কাউন্টার + ই-কমার্স ওয়েবসাইট (🔥 বেস্ট সেলিং - ⏳ Coming Soon)</h4>
-              <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem; margin-top:0.75rem;">
-                <div>
-                  <label class="form-label">এককালীন সেটআপ ফি (৳)</label>
-                  <input type="number" id="p2Monthly" class="form-control" placeholder="14999">
-                </div>
-                <div>
-                  <label class="form-label">মাসিক মেইনটেন্যান্স ফি (৳/মাস)</label>
-                  <input type="number" id="p2Yearly" class="form-control" placeholder="999">
-                </div>
-              </div>
-            </div>
-
-            <!-- Package 3 -->
-            <div style="background:rgba(30,41,59,0.5); border:1px solid var(--border-color); border-radius:14px; padding:1.5rem; margin-bottom:1.5rem;">
-              <h4>৩. অনলাইন ই-কমার্স ওয়েবসাইট (⏳ Coming Soon)</h4>
-              <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem; margin-top:0.75rem;">
-                <div>
-                  <label class="form-label">এককালীন সেটআপ ফি (৳)</label>
-                  <input type="number" id="p3Monthly" class="form-control" placeholder="7999">
-                </div>
-                <div>
-                  <label class="form-label">মাসিক মেইনটেন্যান্স ফি (৳/মাস)</label>
-                  <input type="number" id="p3Yearly" class="form-control" placeholder="499">
-                </div>
-              </div>
-            </div>
-
-            <button type="submit" class="btn-submit">
-              <i class="fa-solid fa-floppy-disk"></i> প্যাকেজ সেটআপ ও মেইনটেন্যান্স ফি আপডেট করুন
-            </button>
-          </form>
-        </div>
-      </div>
-
-      <!-- Tab 5: Subscribers Management -->
-      <div id="tabSubscribers" class="tab-view" style="display: none;">
-        <div class="cms-card">
-          <div class="cms-card-title">
-            <i class="fa-solid fa-users-gear text-purple"></i> নিবন্ধিত সাবস্ক্রাইবার শপ ও পেমেন্ট এপ্রুভাল
           </div>
 
           <div style="overflow-x:auto;">
             <table class="custom-table">
               <thead>
                 <tr>
-                  <th>দোকানের নাম</th>
-                  <th>মালিকের নাম</th>
-                  <th>মোবাইল নম্বর</th>
-                  <th>সাবস্ক্রিপশন প্ল্যান</th>
-                  <th>পেমেন্ট মাধ্যম</th>
+                  <th>দোকান ও ব্র্যান্ড</th>
+                  <th>মালিকের নাম ও ফোন</th>
+                  <th>এক্সেস প্যাকেজ (Setup)</th>
+                  <th>মাসিক ফি (Monthly)</th>
                   <th>স্ট্যাটাস</th>
-                  <th>একশন (Action)</th>
+                  <th style="text-align: center;">মাস্টার কন্ট্রোল (Actions)</th>
                 </tr>
               </thead>
               <tbody id="subscribersMasterTableBody">
@@ -340,7 +527,291 @@
         </div>
       </div>
 
+      <!-- MODULE 3: DEDICATED ONE-TIME ACCESS SETUP FEES TAB -->
+      <div id="tabAccessFees" class="tab-view" style="display: none;">
+        <div class="cms-card">
+          <div class="cms-card-title">
+            <i class="fa-solid fa-key" style="color:#3b82f6;"></i> এক্সেস ফি ও এককালীন সেটআপ পারচেজ কন্ট্রোল
+          </div>
+          <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:1.25rem;">
+            মার্চেন্টদের কেনা এককালীন এক্সেস সেটআপ ফি (যেমন: ৳১৪,৯৯৯ POS + ই-কমার্স বা ৳৯,৯৯৯ POS কাউন্টার) ম্যানেজ করুন।
+          </p>
+
+          <div style="overflow-x:auto;">
+            <table class="custom-table">
+              <thead>
+                <tr>
+                  <th>মার্চেন্ট শপ</th>
+                  <th>মালিক ও ফোন</th>
+                  <th>এক্সেস প্যাকেজ (Package Tier)</th>
+                  <th>এককালীন সেটআপ ফি (One-Time Fee)</th>
+                  <th>এক্সেস স্ট্যাটাস</th>
+                  <th style="text-align: center;">এক্সেস কন্ট্রোল (Action)</th>
+                </tr>
+              </thead>
+              <tbody id="accessFeesTableBody">
+                <!-- Rendered dynamically -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- MODULE 4: DEDICATED MONTHLY RECURRING SUBSCRIPTIONS TAB -->
+      <div id="tabMonthlySubscriptions" class="tab-view" style="display: none;">
+        <div class="cms-card">
+          <div class="cms-card-title">
+            <i class="fa-solid fa-credit-card" style="color:#e11d48;"></i> মাসিক সাবস্ক্রিপশন ফি ও রিনিউাল হাব
+          </div>
+          <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:1.25rem;">
+            প্রতি মাসের মেইনটেন্যান্স ফি (৳১৫০/মাস base rate, ৫ মাস ৳৬৭৫, ১২ মাস ৳১,৪৪০) ও বিকাশ/নগদ TrxID পেন্ডিং আবেদন ভেরিফাই করুন।
+          </p>
+
+          <div style="overflow-x:auto;">
+            <table class="custom-table">
+              <thead>
+                <tr>
+                  <th>মার্চেন্ট শপ</th>
+                  <th>মালিক ও ফোন</th>
+                  <th>অনুরোধকৃত মেয়াদের সময়</th>
+                  <th>প্রেরক ফোন ও TrxID</th>
+                  <th>জমা দেওয়ার সময়</th>
+                  <th style="text-align: center;">ভেরিফিকেশন অ্যাকশন</th>
+                </tr>
+              </thead>
+              <tbody id="pendingSubscriptionsTableBody">
+                <!-- Rendered dynamically -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- MODULE 5: SMART POS CONSOLE CMS MANAGER -->
+      <div id="tabConsoleCMS" class="tab-view" style="display: none;">
+        <!-- Hero Section CMS -->
+        <div class="cms-card">
+          <div class="cms-card-title">
+            <i class="fa-solid fa-pen-to-square text-purple"></i> ল্যান্ডিং পেজ হিরো সেকশন কন্টেন্ট
+          </div>
+          <form id="heroCMSForm">
+            <div class="form-group mb-3">
+              <label class="form-label">টপ ব্যাজ টেক্সট</label>
+              <input type="text" id="cmsBadge" class="form-control" placeholder="🔥 বাংলাদেশের সবচেয়ে দ্রুতগতির POS ও ইনভেন্টরি ম্যানেজমেন্ট">
+            </div>
+            <div class="form-group mb-3">
+              <label class="form-label">প্রধান শিরোনাম (Title)</label>
+              <textarea id="cmsTitle" class="form-control" rows="2" placeholder="আপনার সুপারশপ ও শোরুম সামলান এক ক্লিকে!"></textarea>
+            </div>
+            <div class="form-group mb-3">
+              <label class="form-label">উপ-শিরোনাম (Description)</label>
+              <textarea id="cmsDesc" class="form-control" rows="3" placeholder="সম্পূর্ণ নিরাপদ অটো-বারকোড স্ক্যানিং, মেমো প্রিন্টিং, বাকি খাতা ও কাস্টমার রিপোর্ট ম্যানেজমেন্ট সিস্টেম।"></textarea>
+            </div>
+            <div class="form-group mb-3">
+              <label class="form-label">ইউটিউব ডেমো ভিডিও URL</label>
+              <input type="url" id="cmsVideoUrl" class="form-control" placeholder="https://www.youtube.com/embed/5qap5aO4i9A">
+            </div>
+            <button type="submit" class="btn-submit">
+              <i class="fa-solid fa-floppy-disk"></i> হিরো কন্টেন্ট সেভ করুন
+            </button>
+          </form>
+        </div>
+
+        <!-- Plan Pricing & Discount Offer CMS -->
+        <div class="cms-card">
+          <div class="cms-card-title">
+            <i class="fa-solid fa-tags text-success"></i> সার্ভিস প্যাকেজ রেট ও ডিসকাউন্ট অফার সেটিংস
+          </div>
+          <form id="planRatesCMSForm">
+
+            <!-- Card 1 Pricing Inputs -->
+            <div style="background: rgba(30,41,59,0.5); border: 1px solid var(--border-color); padding: 1rem; border-radius: 14px; margin-bottom: 1rem;">
+              <h5 style="color: #60a5fa; margin-bottom: 0.75rem;"><i class="fa-solid fa-cash-register"></i> ১. Smart POS Terminal & Inventory (প্যাকেজ ১)</h5>
+              <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
+                <div>
+                  <label class="form-label">এককালীন সেটআপ ফি (One-time setup fee: ৳)</label>
+                  <input type="number" id="cmsCard1Setup" class="form-control" placeholder="9999" value="9999">
+                </div>
+                <div>
+                  <label class="form-label">মাসিক ফি (Monthly maintenance: ৳)</label>
+                  <input type="number" id="cmsCard1Monthly" class="form-control" placeholder="150" value="150">
+                </div>
+              </div>
+            </div>
+
+            <!-- Card 2 Pricing Inputs -->
+            <div style="background: rgba(30,41,59,0.5); border: 1px solid var(--border-color); padding: 1rem; border-radius: 14px; margin-bottom: 1rem;">
+              <h5 style="color: #a855f7; margin-bottom: 0.75rem;"><i class="fa-solid fa-cart-shopping"></i> ২. POS Counter + E-Commerce Website (প্যাকেজ ২)</h5>
+              <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
+                <div>
+                  <label class="form-label">এককালীন সেটআপ ফি (One-time setup fee: ৳)</label>
+                  <input type="number" id="cmsCard2Setup" class="form-control" placeholder="14999" value="14999">
+                </div>
+                <div>
+                  <label class="form-label">মাসিক ফি (Monthly maintenance: ৳)</label>
+                  <input type="number" id="cmsCard2Monthly" class="form-control" placeholder="999" value="999">
+                </div>
+              </div>
+            </div>
+
+            <!-- Card 3 Pricing Inputs -->
+            <div style="background: rgba(30,41,59,0.5); border: 1px solid var(--border-color); padding: 1rem; border-radius: 14px; margin-bottom: 1rem;">
+              <h5 style="color: #10b981; margin-bottom: 0.75rem;"><i class="fa-solid fa-globe"></i> ৩. Online e-commerce website (প্যাকেজ ৩)</h5>
+              <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
+                <div>
+                  <label class="form-label">এককালীন সেটআপ ফি (One-time setup fee: ৳)</label>
+                  <input type="number" id="cmsCard3Setup" class="form-control" placeholder="7999" value="7999">
+                </div>
+                <div>
+                  <label class="form-label">মাসিক ফি (Monthly maintenance: ৳)</label>
+                  <input type="number" id="cmsCard3Monthly" class="form-control" placeholder="499" value="499">
+                </div>
+              </div>
+            </div>
+
+            <!-- Global Subscription & Renewal Rates -->
+            <div style="background: rgba(30,41,59,0.3); border: 1px solid var(--border-color); padding: 1rem; border-radius: 14px; margin-bottom: 1rem;">
+              <h5 style="color: #f59e0b; margin-bottom: 0.75rem;"><i class="fa-solid fa-calendar-days"></i> সাবস্ক্রিপশন রিনিউ ফি সেটিংস</h5>
+              <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:1rem;">
+                <div>
+                  <label class="form-label">১ মাস রিনিউ ফি (৳)</label>
+                  <input type="number" id="cmsRate1m" class="form-control" placeholder="150" value="150">
+                </div>
+                <div>
+                  <label class="form-label">৬ মাস রিনিউ ফি (৳)</label>
+                  <input type="number" id="cmsRate6m" class="form-control" placeholder="810" value="810">
+                </div>
+                <div>
+                  <label class="form-label">১২ মাস রিনিউ ফি (৳)</label>
+                  <input type="number" id="cmsRate12m" class="form-control" placeholder="1440" value="1440">
+                </div>
+              </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem; margin-bottom:1.25rem;">
+              <div>
+                <label class="form-label">অফার ডিসকাউন্ট ব্যাজ (Promo Badge)</label>
+                <input type="text" id="cmsDiscountBadge" class="form-control" placeholder="🎉 ২০% স্পেশাল ডিসকাউন্ট অফার!">
+              </div>
+              <div>
+                <label class="form-label">প্রমোশনাল ব্যানার/মেসেজ (Promo Banner Text)</label>
+                <input type="text" id="cmsPromoBanner" class="form-control" placeholder="সীমিত সময়ের জন্য এক্সেস ফি-তে পাচ্ছেন বিশাল ছাড়!">
+              </div>
+            </div>
+            <button type="submit" class="btn-submit" style="background:linear-gradient(135deg, #10b981, #059669);">
+              <i class="fa-solid fa-floppy-disk"></i> সকল প্যাকেজ রেট ও ডিসকাউন্ট সেভ করুন
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <!-- MODULE 6: PAYMENT GATEWAYS SETTINGS & GLOBAL PUSH ALERTS -->
+      <div id="tabPaymentGateways" class="tab-view" style="display: none;">
+        <div class="cms-card">
+          <div class="cms-card-title">
+            <i class="fa-solid fa-wallet" style="color:#10b981;"></i> বিকাশ, নগদ, রকেট ও ব্যাংক পেমেন্ট ডিটেইলস সেটিংস
+          </div>
+          
+          <form id="pricingCMSForm">
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1.25rem; margin-bottom:1.5rem;">
+              <!-- bKash Gateway -->
+              <div style="background: rgba(30,41,59,0.5); border: 1px solid var(--border-color); padding: 1rem; border-radius: 14px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+                  <label class="form-label" style="margin-bottom:0; color:#e2136e; font-weight:700;"><i class="fa-solid fa-wallet"></i> বিকাশ পার্সোনাল নম্বর (bKash)</label>
+                  <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:0.85rem; color:#fff;">
+                    <input type="checkbox" id="cmsBkashEnable" checked style="width:18px; height:18px; accent-color:#10b981;"> সক্রিয় (ON)
+                  </label>
+                </div>
+                <input type="text" id="cmsBkashNumber" class="form-control" placeholder="01700000000">
+              </div>
+
+              <!-- Nagad Gateway -->
+              <div style="background: rgba(30,41,59,0.5); border: 1px solid var(--border-color); padding: 1rem; border-radius: 14px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+                  <label class="form-label" style="margin-bottom:0; color:#f97316; font-weight:700;"><i class="fa-solid fa-wallet"></i> নগদ পার্সোনাল নম্বর (Nagad)</label>
+                  <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:0.85rem; color:#fff;">
+                    <input type="checkbox" id="cmsNagadEnable" checked style="width:18px; height:18px; accent-color:#10b981;"> সক্রিয় (ON)
+                  </label>
+                </div>
+                <input type="text" id="cmsNagadNumber" class="form-control" placeholder="01800000000">
+              </div>
+
+              <!-- Rocket Gateway -->
+              <div style="background: rgba(30,41,59,0.5); border: 1px solid var(--border-color); padding: 1rem; border-radius: 14px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+                  <label class="form-label" style="margin-bottom:0; color:#8b5cf6; font-weight:700;"><i class="fa-solid fa-wallet"></i> রকেট পার্সোনাল নম্বর (Rocket)</label>
+                  <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:0.85rem; color:#fff;">
+                    <input type="checkbox" id="cmsRocketEnable" style="width:18px; height:18px; accent-color:#10b981;"> সক্রিয় (ON)
+                  </label>
+                </div>
+                <input type="text" id="cmsRocketNumber" class="form-control" placeholder="01900000000-7">
+              </div>
+
+              <!-- Bank Gateway -->
+              <div style="background: rgba(30,41,59,0.5); border: 1px solid var(--border-color); padding: 1rem; border-radius: 14px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+                  <label class="form-label" style="margin-bottom:0; color:#10b981; font-weight:700;"><i class="fa-solid fa-building-columns"></i> ব্যাংক একাউন্ট ডিটেইলস (Bank Transfer)</label>
+                  <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:0.85rem; color:#fff;">
+                    <input type="checkbox" id="cmsBankEnable" style="width:18px; height:18px; accent-color:#10b981;"> সক্রিয় (ON)
+                  </label>
+                </div>
+                <input type="text" id="cmsBankDetails" class="form-control" placeholder="Dutch Bangla Bank - A/C: 123456789 - Branch: Gulshan">
+              </div>
+            </div>
+
+            <div style="margin-bottom:1.5rem;">
+              <label class="form-label">মেয়াদ শেষ হওয়ার পুশ নোটিফিকেশন মেসেজ (Push Notification Text)</label>
+              <textarea id="cmsPushNotificationMsg" class="form-control" rows="2" placeholder="আপনার স্টোরের সাবস্ক্রিপশনের মেয়াদের সময় প্রায় শেষ! নিরবচ্ছিন্ন সেবা পেতে এখনই রিনিউ করুন।"></textarea>
+            </div>
+
+            <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+              <button type="submit" class="btn-submit">
+                <i class="fa-solid fa-floppy-disk"></i> পেমেন্ট সেটিংস সেভ করুন
+              </button>
+              <button type="button" id="btnSendGlobalPushAlert" class="btn-submit" style="background: linear-gradient(135deg, #e11d48, #be123c); width: auto;">
+                📢 সকল মার্চেন্টকে লাইভ পুশ নোটিফিকেশন এলার্ট পাঠান
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- MODULE 7: SECURITY AUDIT LOGS & CLOUD BACKUPS -->
+      <div id="tabSecurityLogs" class="tab-view" style="display: none;">
+        <div class="cms-card">
+          <div class="cms-card-title">
+            <i class="fa-solid fa-shield-halved" style="color:#3b82f6;"></i> সিস্টেম সিকিউরিটি ও ক্লাউড ডাটাবেজ আইসোলেশন
+          </div>
+          <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:1.25rem;">
+            মাল্টি-টেন্যান্ট ফায়ারস্টোর সিকিউরিটি রুলস (`/stores/{storeId}/pos_data`) একটিভ রয়েছে।
+          </p>
+
+          <div style="background: rgba(30,41,59,0.5); border: 1px solid var(--border-color); border-radius: 14px; padding: 1.25rem;">
+            <h4 style="color:#10b981; margin-bottom: 0.5rem;"><i class="fa-solid fa-database"></i> মলিটি-টেন্যান্ট ডাটা আইসোলেশন হেলথ: 🟢 ১০০% ওকে</h4>
+            <p style="color: #cbd5e1; font-size: 0.88rem; line-height: 1.6;">
+              প্রত্যেক মার্চেন্টের ডাটা নিজস্ব ডকুমেন্টে এনক্রিপ্টেড এবং সম্পূর্ণ বিচ্ছিন্ন রয়েছে। কোনো মার্চেন্টের বারকোড বা তথ্য অন্য মার্চেন্টের সাথে কনফ্লিক্ট হবে না।
+            </p>
+          </div>
+        </div>
+      </div>
+
     </main>
+  </div>
+
+  <!-- MERCHANT PROFILE DEEP-DIVE MODAL -->
+  <div id="merchantProfileModal" class="modal-overlay" style="display: none;">
+    <div class="modal-content-card">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 0.85rem; margin-bottom: 1.25rem;">
+        <h3 style="color: var(--primary-purple); font-size: 1.25rem; display: flex; align-items: center; gap: 8px;">
+          <i class="fa-solid fa-id-card"></i> মার্চেন্ট প্রোফাইল ডিটেইলস
+        </h3>
+        <button type="button" onclick="closeMerchantProfileModal()" style="background: none; border: none; color: #94a3b8; font-size: 1.4rem; cursor: pointer;"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div id="merchantProfileContent">
+        <!-- Rendered dynamically -->
+      </div>
+    </div>
   </div>
 
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>

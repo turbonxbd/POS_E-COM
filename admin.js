@@ -2,26 +2,37 @@
 
 class AdminPanel {
   constructor() {
-    const isRegisteredStore = !!localStorage.getItem('pos_active_store_id');
-    this.products = JSON.parse(localStorage.getItem('pos_products')) || (isRegisteredStore ? [] : (typeof INITIAL_PRODUCTS !== 'undefined' ? INITIAL_PRODUCTS : []));
-    this.sales = JSON.parse(localStorage.getItem('pos_sales')) || (isRegisteredStore ? [] : (typeof INITIAL_SALES !== 'undefined' ? INITIAL_SALES : []));
-    this.settings = JSON.parse(localStorage.getItem('pos_settings')) || (typeof DEFAULT_SETTINGS !== 'undefined' ? DEFAULT_SETTINGS : {});
+    const activeStoreId = localStorage.getItem('pos_active_store_id') || 'store_demo_101';
+    const isGuestStore = activeStoreId === 'store_demo_101';
+
+    const tenantProdKey = `pos_tenant_${activeStoreId}_pos_products`;
+    const tenantSalesKey = `pos_tenant_${activeStoreId}_pos_sales`;
+    const tenantSettingsKey = `pos_tenant_${activeStoreId}_pos_settings`;
+    const tenantCatKey = `pos_tenant_${activeStoreId}_pos_categories`;
+    const tenantCouponKey = `pos_tenant_${activeStoreId}_pos_coupons`;
+    const tenantCustKey = `pos_tenant_${activeStoreId}_pos_customers`;
+
+    let rawProd = localStorage.getItem(tenantProdKey) || localStorage.getItem('pos_products');
+    let rawSales = localStorage.getItem(tenantSalesKey) || localStorage.getItem('pos_sales');
+    let rawSettings = localStorage.getItem(tenantSettingsKey) || localStorage.getItem('pos_settings');
+    let rawCats = localStorage.getItem(tenantCatKey) || localStorage.getItem('pos_categories');
+    let rawCoupons = localStorage.getItem(tenantCouponKey) || localStorage.getItem('pos_coupons');
+    let rawCusts = localStorage.getItem(tenantCustKey) || localStorage.getItem('pos_customers');
+
+    this.products = rawProd && rawProd !== '[]' ? JSON.parse(rawProd) : (isGuestStore && typeof INITIAL_PRODUCTS !== 'undefined' ? INITIAL_PRODUCTS : []);
+    this.sales = rawSales && rawSales !== '[]' ? JSON.parse(rawSales) : [];
+    this.settings = rawSettings && rawSettings !== '{}' ? JSON.parse(rawSettings) : (typeof DEFAULT_SETTINGS !== 'undefined' ? DEFAULT_SETTINGS : {});
     if (this.settings) {
-      // Only fill in defaults if values are completely missing — do NOT override Bengali store names
-      if (!this.settings.storeName) this.settings.storeName = 'My Shop';
+      if (!this.settings.storeName) this.settings.storeName = isGuestStore ? 'গেস্ট ডেমো সুপারশপ' : 'My Shop';
       if (!this.settings.storeAddress) this.settings.storeAddress = 'Dhaka, Bangladesh';
       if (!this.settings.receiptFooterNote) this.settings.receiptFooterNote = 'Thank you! Come again.';
       localStorage.setItem('pos_settings', JSON.stringify(this.settings));
+      localStorage.setItem(tenantSettingsKey, JSON.stringify(this.settings));
     }
-    this.categories = JSON.parse(localStorage.getItem('pos_categories')) || (isRegisteredStore ? [] : (typeof INITIAL_CATEGORIES !== 'undefined' ? INITIAL_CATEGORIES : []));
-    this.coupons = JSON.parse(localStorage.getItem('pos_coupons')) || (isRegisteredStore ? [] : (typeof INITIAL_COUPONS !== 'undefined' ? INITIAL_COUPONS : []));
-    this.customers = JSON.parse(localStorage.getItem('pos_customers')) || (isRegisteredStore ? [] : (typeof INITIAL_CUSTOMERS !== 'undefined' ? INITIAL_CUSTOMERS : []));
-    if (!isRegisteredStore && !localStorage.getItem('pos_coupons') && typeof INITIAL_COUPONS !== 'undefined') {
-      localStorage.setItem('pos_coupons', JSON.stringify(INITIAL_COUPONS));
-    }
-    if (!isRegisteredStore && !localStorage.getItem('pos_customers') && typeof INITIAL_CUSTOMERS !== 'undefined') {
-      localStorage.setItem('pos_customers', JSON.stringify(INITIAL_CUSTOMERS));
-    }
+
+    this.categories = rawCats && rawCats !== '[]' ? JSON.parse(rawCats) : (isGuestStore && typeof INITIAL_CATEGORIES !== 'undefined' ? INITIAL_CATEGORIES : []);
+    this.coupons = rawCoupons && rawCoupons !== '[]' ? JSON.parse(rawCoupons) : [];
+    this.customers = rawCusts && rawCusts !== '[]' ? JSON.parse(rawCusts) : [];
     
     this.activeTab = 'adminAllProducts';
     this.selectedVariantCategory = 'ALL';
@@ -39,6 +50,7 @@ class AdminPanel {
   }
 
   init() {
+    this.checkAccountStatusSecurityGuard();
     this.initEventListeners();
     this.initClock();
     this.initDatePicker();
@@ -54,6 +66,7 @@ class AdminPanel {
     this.initBarcodeGenerator();
     this.renderSalesLog();
     this.setupMobileSidebar();
+    this.setupHardwareScanner();
 
     try {
       this.stateChannel = new BroadcastChannel('pos_state_sync');
@@ -70,20 +83,42 @@ class AdminPanel {
       };
     } catch (e) {}
 
-    // Real-time storage sync across tabs/windows
-    window.addEventListener('storage', () => {
-      this.products = JSON.parse(localStorage.getItem('pos_products')) || (typeof INITIAL_PRODUCTS !== 'undefined' ? INITIAL_PRODUCTS : []);
-      this.sales = JSON.parse(localStorage.getItem('pos_sales')) || (typeof INITIAL_SALES !== 'undefined' ? INITIAL_SALES : []);
-      this.settings = JSON.parse(localStorage.getItem('pos_settings')) || (typeof DEFAULT_SETTINGS !== 'undefined' ? DEFAULT_SETTINGS : {});
-      this.categories = JSON.parse(localStorage.getItem('pos_categories')) || (typeof INITIAL_CATEGORIES !== 'undefined' ? INITIAL_CATEGORIES : []);
-      this.coupons = JSON.parse(localStorage.getItem('pos_coupons')) || (typeof INITIAL_COUPONS !== 'undefined' ? INITIAL_COUPONS : []);
-      this.customers = JSON.parse(localStorage.getItem('pos_customers')) || (typeof INITIAL_CUSTOMERS !== 'undefined' ? INITIAL_CUSTOMERS : []);
+    // Real-time storage & cloud sync across tabs/windows
+    const reloadState = () => {
+      const activeStoreId = localStorage.getItem('pos_active_store_id') || 'store_demo_101';
+      const isGuestStore = activeStoreId === 'store_demo_101';
+
+      const tenantProdKey = `pos_tenant_${activeStoreId}_pos_products`;
+      const tenantSalesKey = `pos_tenant_${activeStoreId}_pos_sales`;
+      const tenantSettingsKey = `pos_tenant_${activeStoreId}_pos_settings`;
+      const tenantCatKey = `pos_tenant_${activeStoreId}_pos_categories`;
+      const tenantCouponKey = `pos_tenant_${activeStoreId}_pos_coupons`;
+      const tenantCustKey = `pos_tenant_${activeStoreId}_pos_customers`;
+
+      let savedProd = localStorage.getItem(tenantProdKey) || localStorage.getItem('pos_products');
+      let savedSales = localStorage.getItem(tenantSalesKey) || localStorage.getItem('pos_sales');
+      let savedSettings = localStorage.getItem(tenantSettingsKey) || localStorage.getItem('pos_settings');
+      let savedCats = localStorage.getItem(tenantCatKey) || localStorage.getItem('pos_categories');
+      let savedCoupons = localStorage.getItem(tenantCouponKey) || localStorage.getItem('pos_coupons');
+      let savedCusts = localStorage.getItem(tenantCustKey) || localStorage.getItem('pos_customers');
+
+      this.products = savedProd && savedProd !== '[]' ? JSON.parse(savedProd) : (isGuestStore && typeof INITIAL_PRODUCTS !== 'undefined' ? INITIAL_PRODUCTS : []);
+      this.sales = savedSales && savedSales !== '[]' ? JSON.parse(savedSales) : [];
+      this.settings = savedSettings && savedSettings !== '{}' ? JSON.parse(savedSettings) : (typeof DEFAULT_SETTINGS !== 'undefined' ? DEFAULT_SETTINGS : {});
+      this.categories = savedCats && savedCats !== '[]' ? JSON.parse(savedCats) : (isGuestStore && typeof INITIAL_CATEGORIES !== 'undefined' ? INITIAL_CATEGORIES : []);
+      this.coupons = savedCoupons && savedCoupons !== '[]' ? JSON.parse(savedCoupons) : [];
+      this.customers = savedCusts && savedCusts !== '[]' ? JSON.parse(savedCusts) : [];
+
       this.updateSidebarStoreProfile();
       this.populateCategoryDropdowns();
       this.renderCoupons();
       this.renderAdminCustomers();
       this.refreshCurrentView();
-    });
+    };
+
+    window.addEventListener('storage', reloadState);
+    window.addEventListener('pos_cloud_update', reloadState);
+    window.addEventListener('pos_tenant_changed', reloadState);
 
     document.addEventListener('click', (e) => {
       if (e.target.closest('.close-modal')) {
@@ -94,10 +129,11 @@ class AdminPanel {
   }
 
   updateSidebarStoreProfile() {
-    const s = this.settings || {};
-    const sub = JSON.parse(localStorage.getItem('pos_subscription')) || {};
+    const s = this.settings || JSON.parse(localStorage.getItem('pos_settings')) || {};
+    const sub = JSON.parse(localStorage.getItem('pos_subscription')) || JSON.parse(localStorage.getItem('pos_active_subscription')) || {};
     const storeName = s.storeName || sub.storeName || 'SmartPOS Admin';
-    const ownerName = sub.ownerName || s.ownerName || 'মার্চেন্ট';
+    const ownerName = s.storeOwner || sub.ownerName || s.ownerName || 'মার্চেন্ট';
+    const storeLogo = s.storeLogo || sub.storeLogo || '';
 
     const brandNameEl = document.getElementById('adminSidebarStoreName');
     const storeTitleEl = document.getElementById('adminSidebarStoreTitle');
@@ -106,6 +142,76 @@ class AdminPanel {
     if (brandNameEl) brandNameEl.textContent = storeName;
     if (storeTitleEl) storeTitleEl.textContent = storeName;
     if (ownerNameEl) ownerNameEl.textContent = `মালিক: ${ownerName}`;
+
+    const profileDiv = document.querySelector('.sidebar-footer .store-profile div');
+    if (profileDiv) {
+      profileDiv.innerHTML = `
+        <strong>${storeName}</strong>
+        <small>Owner: ${ownerName}</small>
+      `;
+    }
+
+    // Top-Left Sidebar Main Logo Update
+    const logoContainer = document.getElementById('adminSidebarBrandLogo');
+    const logoIcon = document.getElementById('adminSidebarBrandIcon');
+    const logoImg = document.getElementById('adminSidebarBrandImg');
+
+    if (logoImg && logoIcon && logoContainer) {
+      if (storeLogo) {
+        logoImg.src = storeLogo;
+        logoImg.style.display = 'block';
+        logoIcon.style.display = 'none';
+        logoContainer.style.background = 'transparent';
+      } else {
+        logoImg.style.display = 'none';
+        logoIcon.style.display = 'block';
+        logoContainer.style.background = 'linear-gradient(135deg, var(--accent-orange), var(--accent-purple))';
+      }
+    }
+  }
+
+  checkAccountStatusSecurityGuard() {
+    const activeStoreId = localStorage.getItem('pos_active_store_id');
+    const allSubs = JSON.parse(localStorage.getItem('pos_subscriptions')) || [];
+    let sub = JSON.parse(localStorage.getItem('pos_subscription')) || {};
+    if (activeStoreId && allSubs.length > 0) {
+      const match = allSubs.find(s => s.storeId === activeStoreId || s.id === activeStoreId);
+      if (match) sub = { ...sub, ...match };
+    }
+
+    // 1. Full Merchant Account Block Check
+    if (sub.accountBlocked === true || sub.status === 'Suspended' || sub.status === 'Suspended (Transaction Rejected)') {
+      let overlay = document.getElementById('accountBlockedOverlayGate');
+      if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'accountBlockedOverlayGate';
+        overlay.style.cssText = 'position:fixed; inset:0; background:rgba(15,23,42,0.98); backdrop-filter:blur(15px); z-index:999999; display:flex; align-items:center; justify-content:center; padding:1.5rem; color:#fff; text-align:center; font-family:"Hind Siliguri", sans-serif;';
+        overlay.innerHTML = `
+          <div style="background:#1e293b; border:2px solid #ef4444; border-radius:24px; padding:2.5rem 2rem; max-width:480px; width:100%; box-shadow:0 25px 60px rgba(239,68,68,0.3);">
+            <div style="width:70px; height:70px; border-radius:50%; background:rgba(239,68,68,0.2); color:#ef4444; display:flex; align-items:center; justify-content:center; font-size:2.5rem; margin:0 auto 1.25rem;">
+              <i class="fa-solid fa-user-slash"></i>
+            </div>
+            <h2 style="color:#ef4444; font-size:1.6rem; margin-bottom:0.75rem;">⛔ অ্যাকাউন্ট স্থগিত (Suspended)</h2>
+            <p style="color:#cbd5e1; font-size:0.95rem; line-height:1.6; margin-bottom:1.5rem;">
+              আপনার মার্চেন্ট অ্যাকাউন্টটি সুপার এডমিন দ্বারা স্থগিত বা ব্লক করা হয়েছে। বিস্তারিত জানতে বা অ্যাকাউন্ট পুনরায় সক্রিয় করতে কর্তৃপক্ষের সাথে যোগাযোগ করুন।
+            </p>
+            <div style="display:flex; gap:10px; justify-content:center;">
+              <a href="portal.html" class="btn" style="background:#334155; color:#fff; padding:0.75rem 1.25rem; border-radius:12px; text-decoration:none; font-weight:700;"><i class="fa-solid fa-arrow-left"></i> পোর্টালে যান</a>
+              <a href="https://wa.me/8801XXXXXXXXX" target="_blank" class="btn" style="background:#10b981; color:#fff; padding:0.75rem 1.25rem; border-radius:12px; text-decoration:none; font-weight:700;"><i class="fa-brands fa-whatsapp"></i> সাপোর্ট টিম</a>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(overlay);
+      }
+      return;
+    }
+
+    // 2. Access Fee Block Check
+    if (sub.accessBlocked === true || sub.accessFeePaid === false) {
+      if (typeof window.openSubscriptionRenewModal === 'function') {
+        setTimeout(() => window.openSubscriptionRenewModal(), 1000);
+      }
+    }
   }
 
   initClock() {
@@ -317,6 +423,11 @@ class AdminPanel {
       this.renderCategoryCards();
       this.renderCategoryProductsTable();
     } else if (tabId === 'adminBarcodes') {
+      const paperFormatSelect = document.getElementById('barcodePaperFormatSelect');
+      if (paperFormatSelect) {
+        const savedFormat = localStorage.getItem('pos_barcode_paper_format') || 'sticker_38x25';
+        paperFormatSelect.value = savedFormat;
+      }
       this.renderBarcodeBatchPreview();
     } else if (tabId === 'adminSales') {
       this.renderSalesLog();
@@ -349,96 +460,115 @@ class AdminPanel {
 
   getFilteredSales() {
     const filter = this.currentDateFilter || 'today';
-    if (filter === 'all') return this.sales;
-
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).getTime();
     const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).getTime();
 
+    let matched = this.sales;
     if (filter === 'custom' && this.customStartDate && this.customEndDate) {
       const startMs = new Date(this.customStartDate + 'T00:00:00').getTime();
       const endMs = new Date(this.customEndDate + 'T23:59:59').getTime();
-      return this.sales.filter(sale => {
+      matched = this.sales.filter(sale => {
         const saleTime = new Date(sale.timestamp).getTime();
         if (isNaN(saleTime)) return true;
         return saleTime >= startMs && saleTime <= endMs;
       });
+    } else if (filter !== 'all') {
+      const currentDayOfWeek = now.getDay(); // 0 = Sun
+      const sundayStart = todayStart - (currentDayOfWeek * 86400000);
+      const lastSundayStart = sundayStart - (7 * 86400000);
+
+      matched = this.sales.filter(sale => {
+        const saleTime = new Date(sale.timestamp).getTime();
+        if (isNaN(saleTime)) return true;
+
+        if (filter === 'today') {
+          return saleTime >= todayStart && saleTime <= todayEnd;
+        } else if (filter === 'yesterday') {
+          const yesterdayStart = todayStart - 86400000;
+          return saleTime >= yesterdayStart && saleTime < todayStart;
+        } else if (filter === 'today_yesterday') {
+          const yesterdayStart = todayStart - 86400000;
+          return saleTime >= yesterdayStart && saleTime <= todayEnd;
+        } else if (filter === '7days') {
+          return saleTime >= todayStart - (6 * 86400000) && saleTime <= todayEnd;
+        } else if (filter === '14days') {
+          return saleTime >= todayStart - (13 * 86400000) && saleTime <= todayEnd;
+        } else if (filter === '28days') {
+          return saleTime >= todayStart - (27 * 86400000) && saleTime <= todayEnd;
+        } else if (filter === '30days') {
+          return saleTime >= todayStart - (29 * 86400000) && saleTime <= todayEnd;
+        } else if (filter === 'thisWeek') {
+          return saleTime >= sundayStart && saleTime <= todayEnd;
+        } else if (filter === 'lastWeek') {
+          return saleTime >= lastSundayStart && saleTime < sundayStart;
+        } else if (filter === 'thisMonth') {
+          const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+          return saleTime >= monthStart && saleTime <= todayEnd;
+        } else if (filter === 'lastMonth') {
+          const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).getTime();
+          const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+          return saleTime >= lastMonthStart && saleTime < thisMonthStart;
+        }
+        return true;
+      });
     }
 
-    const currentDayOfWeek = now.getDay(); // 0 = Sun
-    const sundayStart = todayStart - (currentDayOfWeek * 86400000);
-    const lastSundayStart = sundayStart - (7 * 86400000);
-
-    return this.sales.filter(sale => {
-      const saleTime = new Date(sale.timestamp).getTime();
-      if (isNaN(saleTime)) return true;
-
-      if (filter === 'today') {
-        return saleTime >= todayStart && saleTime <= todayEnd;
-      } else if (filter === 'yesterday') {
-        const yesterdayStart = todayStart - 86400000;
-        return saleTime >= yesterdayStart && saleTime < todayStart;
-      } else if (filter === 'today_yesterday') {
-        const yesterdayStart = todayStart - 86400000;
-        return saleTime >= yesterdayStart && saleTime <= todayEnd;
-      } else if (filter === '7days') {
-        return saleTime >= todayStart - (6 * 86400000) && saleTime <= todayEnd;
-      } else if (filter === '14days') {
-        return saleTime >= todayStart - (13 * 86400000) && saleTime <= todayEnd;
-      } else if (filter === '28days') {
-        return saleTime >= todayStart - (27 * 86400000) && saleTime <= todayEnd;
-      } else if (filter === '30days') {
-        return saleTime >= todayStart - (29 * 86400000) && saleTime <= todayEnd;
-      } else if (filter === 'thisWeek') {
-        return saleTime >= sundayStart && saleTime <= todayEnd;
-      } else if (filter === 'lastWeek') {
-        return saleTime >= lastSundayStart && saleTime < sundayStart;
-      } else if (filter === 'thisMonth') {
-        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
-        return saleTime >= monthStart && saleTime <= todayEnd;
-      } else if (filter === 'lastMonth') {
-        const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).getTime();
-        const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
-        return saleTime >= lastMonthStart && saleTime < thisMonthStart;
-      }
-      return true;
-    });
+    return matched.slice().sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime());
   }
 
-  // 1. DASHBOARD ANALYTICS (7 KPI METRICS IN EXACT ORDER)
+  // 1. DASHBOARD ANALYTICS (9 KPI METRICS IN EXACT ORDER)
   renderDashboard() {
     const filteredSales = this.getFilteredSales();
-    const grossRevenue = filteredSales.reduce((sum, s) => sum + (s.grandTotal || 0), 0);
     const totalOrders = filteredSales.length;
 
     let cashTotal = 0;
     let epayTotal = 0;
     let totalItemsSold = 0;
+    let grossItemsSold = 0;
+    let returnedItemsSold = 0;
     let totalNetProfit = 0;
+    let totalReturnsCount = 0;
+    let totalRefundAmount = 0;
 
     filteredSales.forEach(s => {
-      // Payment Breakdown
-      if (s.paymentMethod === 'epay' || (s.paymentDetails && s.paymentDetails.method === 'epay')) {
-        epayTotal += (s.grandTotal || 0);
+      const refunded = s.refundedAmount || 0;
+      const netGrand = Math.max(0, (s.grandTotal || 0) - refunded);
+
+      if (s.status === 'RETURNED' || s.status === 'PARTIALLY_RETURNED') {
+        totalReturnsCount++;
+        totalRefundAmount += refunded;
+      }
+
+      // Payment Breakdown — normalize to uppercase for comparison
+      const pm = (s.paymentMethod || '').toUpperCase();
+      if (pm === 'EPAY') {
+        epayTotal += netGrand;
       } else {
-        cashTotal += (s.grandTotal || 0);
+        cashTotal += netGrand;
       }
 
       // Items Sold & Profit Breakdown
       if (s.items && Array.isArray(s.items)) {
         s.items.forEach(item => {
-          const qty = item.quantity || 1;
+          const origQty = item.quantity || 1;
+          const retQty = item.returnedQuantity || 0;
+          const netQty = Math.max(0, origQty - retQty);
           const cost = item.cost !== undefined ? item.cost : (item.price * 0.8);
           const price = item.price || 0;
-          
-          totalItemsSold += qty;
 
-          const itemRev = item.subtotal || (price * qty);
-          const itemCostTotal = cost * qty;
+          grossItemsSold += origQty;
+          returnedItemsSold += retQty;
+          totalItemsSold += netQty;
+
+          const itemRev = item.subtotal ? (item.subtotal * (netQty / origQty)) : (price * netQty);
+          const itemCostTotal = cost * netQty;
           totalNetProfit += (itemRev - itemCostTotal);
         });
       }
     });
+
+    const netGrossRevenue = cashTotal + epayTotal;
 
     let lowStockCount = 0;
     this.products.forEach(p => {
@@ -454,17 +584,60 @@ class AdminPanel {
     const elEpay = document.getElementById('statEpayPayment');
     const elOrders = document.getElementById('statTotalOrders');
     const elItem = document.getElementById('statTotalItem');
-    const elRevenue = document.getElementById('statRevenue');
     const elProfit = document.getElementById('statNetProfit');
+    const elRet = document.getElementById('statTotalReturns');
     const elBannerBadge = document.getElementById('bannerLowStockBadge');
 
-    if (elGross) elGross.innerText = `৳${grossRevenue.toFixed(2)}`;
+    let totalVat = 0;
+    let totalCouponDisc = 0;
+    let totalManualDisc = 0;
+
+    filteredSales.forEach(s => {
+      const vatAmt = s.tax || 0;
+      const discAmt = s.discount || 0;
+      const hasCoupon = Boolean(s.couponCode || s.coupon || (s.couponDiscount && s.couponDiscount > 0));
+
+      totalVat += vatAmt;
+
+      if (hasCoupon) {
+        totalCouponDisc += (s.couponDiscount !== undefined ? s.couponDiscount : discAmt);
+      } else {
+        totalManualDisc += (s.manualDiscount !== undefined ? s.manualDiscount : discAmt);
+      }
+    });
+
+    const totalDiscounts = totalCouponDisc + totalManualDisc;
+    const netVatDisc = totalVat - totalDiscounts;
+
+    const elVatDisc = document.getElementById('statVatDiscount');
+    if (elVatDisc) {
+      if (netVatDisc > 0) {
+        elVatDisc.innerText = `+৳${netVatDisc.toFixed(2)}`;
+        elVatDisc.style.color = 'var(--accent-green, #10b981)';
+      } else if (netVatDisc < 0) {
+        elVatDisc.innerText = `-৳${Math.abs(netVatDisc).toFixed(2)}`;
+        elVatDisc.style.color = '#ef4444';
+      } else {
+        elVatDisc.innerText = `৳0.00`;
+        elVatDisc.style.color = 'inherit';
+      }
+    }
+
+    const finalNetProfit = totalNetProfit + netVatDisc;
+    if (elGross) elGross.innerText = `৳${netGrossRevenue.toFixed(2)}`;
     if (elCash) elCash.innerText = `৳${cashTotal.toFixed(2)}`;
     if (elEpay) elEpay.innerText = `৳${epayTotal.toFixed(2)}`;
     if (elOrders) elOrders.innerText = `${totalOrders} টি`;
     if (elItem) elItem.innerText = `${totalItemsSold} টি`;
-    if (elRevenue) elRevenue.innerText = `৳${grossRevenue.toFixed(2)}`;
-    if (elProfit) elProfit.innerText = `৳${totalNetProfit.toFixed(2)}`;
+    if (elProfit) {
+      elProfit.innerText = `৳${finalNetProfit.toFixed(2)}`;
+      if (finalNetProfit < 0) {
+        elProfit.style.color = '#ef4444';
+      } else {
+        elProfit.style.color = 'var(--accent-purple, #8b5cf6)';
+      }
+    }
+    if (elRet) elRet.innerText = `${totalReturnsCount} টি (৳${totalRefundAmount.toFixed(2)})`;
     if (elBannerBadge) elBannerBadge.innerText = `${lowStockCount} টি পণ্য লো স্টক`;
 
     this.renderCharts(filteredSales);
@@ -500,19 +673,51 @@ class AdminPanel {
           datasets: [{
             label: 'বিক্রি (৳)',
             data: catData.length > 0 ? catData : [0],
-            backgroundColor: 'rgba(16, 185, 129, 0.75)',
+            backgroundColor: 'rgba(16, 185, 129, 0.8)',
             borderColor: '#10b981',
             borderWidth: 1,
-            borderRadius: 8
+            borderRadius: 6,
+            maxBarThickness: 36,
+            categoryPercentage: 0.5,
+            barPercentage: 0.7
           }]
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          plugins: { legend: { display: false } },
+          layout: {
+            padding: { top: 10, bottom: 5, left: 5, right: 10 }
+          },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: '#1e293b',
+              titleColor: '#f8fafc',
+              bodyColor: '#cbd5e1',
+              borderColor: 'rgba(255, 255, 255, 0.1)',
+              borderWidth: 1,
+              callbacks: {
+                label: (ctx) => ` বিক্রি: ৳${(ctx.parsed.y || 0).toFixed(2)}`
+              }
+            }
+          },
           scales: {
-            y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' } },
-            x: { grid: { display: false } }
+            y: {
+              beginAtZero: true,
+              grid: { color: 'rgba(255, 255, 255, 0.05)' },
+              ticks: {
+                color: '#9ca3af',
+                font: { family: "'Inter', sans-serif", size: 11 },
+                callback: (v) => '৳' + v
+              }
+            },
+            x: {
+              grid: { display: false },
+              ticks: {
+                color: '#cbd5e1',
+                font: { family: "'Inter', sans-serif", size: 11, weight: '500' }
+              }
+            }
           }
         }
       });
@@ -521,10 +726,14 @@ class AdminPanel {
     let cashTotal = 0;
     let epayTotal = 0;
     salesList.forEach(s => {
-      if (s.paymentMethod === 'epay' || (s.paymentDetails && s.paymentDetails.method === 'epay')) {
-        epayTotal += (s.grandTotal || 0);
+      const pm = (s.paymentMethod || '').toUpperCase();
+      const isEpay = pm === 'EPAY' || (s.paymentDetails && (s.paymentDetails.method || '').toLowerCase() === 'epay');
+      const refunded = s.refundedAmount || 0;
+      const netGrand = Math.max(0, (s.grandTotal || 0) - refunded);
+      if (isEpay) {
+        epayTotal += netGrand;
       } else {
-        cashTotal += (s.grandTotal || 0);
+        cashTotal += netGrand;
       }
     });
 
@@ -538,13 +747,44 @@ class AdminPanel {
           datasets: [{
             data: [cashTotal, epayTotal],
             backgroundColor: ['#10b981', '#3b82f6'],
+            hoverBackgroundColor: ['#059669', '#2563eb'],
             borderWidth: 0
           }]
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          plugins: { legend: { position: 'bottom', labels: { color: '#9ca3af' } } }
+          cutout: '68%',
+          layout: {
+            padding: { top: 10, bottom: 15, left: 10, right: 10 }
+          },
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: {
+                color: '#cbd5e1',
+                font: { family: "'Inter', sans-serif", size: 12, weight: '500' },
+                padding: 14,
+                usePointStyle: true,
+                pointStyle: 'circle'
+              }
+            },
+            tooltip: {
+              backgroundColor: '#1e293b',
+              titleColor: '#f8fafc',
+              bodyColor: '#cbd5e1',
+              borderColor: 'rgba(255, 255, 255, 0.1)',
+              borderWidth: 1,
+              callbacks: {
+                label: function(ctx) {
+                  const val = ctx.parsed || 0;
+                  const total = cashTotal + epayTotal;
+                  const pct = total > 0 ? ((val / total) * 100).toFixed(1) : '0.0';
+                  return ` ${ctx.label}: ৳${val.toFixed(2)} (${pct}%)`;
+                }
+              }
+            }
+          }
         }
       });
     }
@@ -1271,6 +1511,108 @@ class AdminPanel {
     }
   }
 
+  setupHardwareScanner() {
+    this.scannerBuffer = '';
+    this.scannerTimeout = null;
+
+    document.addEventListener('keydown', (e) => {
+      const activeEl = document.activeElement;
+      const isInput = activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'SELECT';
+      
+      if (activeEl && (activeEl.id === 'allProductSearch' || activeEl.id === 'allSalesSearch' || activeEl.id === 'barcodeBatchCount')) {
+        return;
+      }
+
+      if (isInput) return;
+
+      if (e.key === 'Enter') {
+        if (this.scannerBuffer.trim().length >= 2) {
+          this.handleBarcodeScan(this.scannerBuffer.trim());
+          this.scannerBuffer = '';
+        }
+      } else if (e.key.length === 1) {
+        this.scannerBuffer += e.key;
+        clearTimeout(this.scannerTimeout);
+        this.scannerTimeout = setTimeout(() => { this.scannerBuffer = ''; }, 250);
+      }
+    });
+  }
+
+  handleBarcodeScan(barcodeStr) {
+    if (!barcodeStr) return;
+    const cleanStr = String(barcodeStr).trim();
+    const normClean = cleanStr.toLowerCase().replace(/\s+/g, '');
+    const isInvoicePrefix = normClean.startsWith('inv') || normClean.startsWith('inv-');
+
+    // Check if Invoice
+    const saleMatch = this.sales.find(s => {
+      const sid = String(s.id).toLowerCase().replace(/\s+/g, '');
+      return sid === normClean || sid.includes(normClean) || normClean.includes(sid);
+    });
+
+    if (saleMatch || isInvoicePrefix) {
+      const targetId = saleMatch ? saleMatch.id : cleanStr;
+      this.switchTab('adminSales');
+      const salesSearch = document.getElementById('allSalesSearch');
+      if (salesSearch) {
+        salesSearch.value = targetId;
+        this.renderSalesLog();
+      }
+      if (saleMatch) {
+        this.openSaleDetailsModal(saleMatch.id);
+        this.showToast(`🧾 ইনভয়েস ${saleMatch.id} পাওয়া গেছে! সেলস লগে নেভিগেট করা হয়েছে।`);
+      } else {
+        this.showToast(`ইনভয়েস '${cleanStr}' সেলস লগে পাওয়া যায়নি!`, 'error');
+      }
+      return;
+    }
+
+    // Check if Product
+    let foundProd = null;
+    let foundVar = null;
+
+    for (const p of this.products) {
+      if (p.variants && Array.isArray(p.variants)) {
+        const matchingVar = p.variants.find(v => String(v.barcode).trim() === cleanStr);
+        if (matchingVar) {
+          foundProd = p;
+          foundVar = matchingVar;
+          break;
+        }
+      }
+    }
+
+    if (!foundProd) {
+      for (const p of this.products) {
+        if (p.variants && Array.isArray(p.variants)) {
+          const matchingVar = p.variants.find(v => String(v.barcode).toLowerCase().includes(cleanStr.toLowerCase()));
+          if (matchingVar) {
+            foundProd = p;
+            foundVar = matchingVar;
+            break;
+          }
+        }
+      }
+    }
+
+    if (foundProd && foundVar) {
+      this.switchTab('adminBarcodes');
+      setTimeout(() => {
+        const prodSelect = document.getElementById('barcodeProdSelect');
+        const variantSelect = document.getElementById('barcodeVariantSelect');
+        if (prodSelect) {
+          prodSelect.value = foundProd.id;
+          this.onBarcodeProductChange();
+          if (variantSelect) variantSelect.value = foundVar.variantId;
+          this.renderBarcodeBatchPreview();
+        }
+      }, 100);
+      this.showToast(`🏷️ পণ্য ${foundProd.name} (${foundVar.color}/${foundVar.size}) বারকোড জেনারেটরে সিলেক্ট করা হয়েছে!`);
+    } else {
+      this.showToast(`বারকোড '${cleanStr}' সিস্টেমে পাওয়া যায়নি!`, 'error');
+    }
+  }
+
   // 7. BARCODE STICKER GENERATOR
   initBarcodeGenerator() {
     this.initBarcodeGeneratorOptions();
@@ -1280,6 +1622,24 @@ class AdminPanel {
     const modeSelect = document.getElementById('barcodePrintModeSelect');
     const paperFormatSelect = document.getElementById('barcodePaperFormatSelect');
     const customInput = document.getElementById('barcodeBatchCount');
+
+    // Load saved barcode paper format or fallback to sticker_38x25 as default
+    if (paperFormatSelect) {
+      const posSettings = JSON.parse(localStorage.getItem('pos_settings')) || {};
+      const savedFormat = localStorage.getItem('pos_barcode_paper_format') || posSettings.barcodePaperFormat || 'sticker_38x25';
+      paperFormatSelect.value = savedFormat;
+
+      paperFormatSelect.addEventListener('change', () => {
+        const val = paperFormatSelect.value;
+        localStorage.setItem('pos_barcode_paper_format', val);
+        try {
+          const posS = JSON.parse(localStorage.getItem('pos_settings')) || {};
+          posS.barcodePaperFormat = val;
+          localStorage.setItem('pos_settings', JSON.stringify(posS));
+        } catch(e) {}
+        this.renderBarcodeBatchPreview();
+      });
+    }
 
     if (prodSelect) {
       prodSelect.addEventListener('change', () => {
@@ -1299,7 +1659,6 @@ class AdminPanel {
         this.renderBarcodeBatchPreview();
       });
     }
-    if (paperFormatSelect) paperFormatSelect.addEventListener('change', () => this.renderBarcodeBatchPreview());
     if (modeSelect) {
       modeSelect.addEventListener('change', () => {
         const customGrp = document.getElementById('barcodeCustomCountGroup');
@@ -1348,6 +1707,8 @@ class AdminPanel {
     const variantId = document.getElementById('barcodeVariantSelect')?.value;
     const printMode = document.getElementById('barcodePrintModeSelect')?.value;
     const customCount = parseInt(document.getElementById('barcodeBatchCount')?.value) || 1;
+    const paperFormatSelect = document.getElementById('barcodePaperFormatSelect');
+    const paperFormat = paperFormatSelect ? paperFormatSelect.value : (localStorage.getItem('pos_barcode_paper_format') || 'sticker_38x25');
 
     const prod = this.products.find(p => p.id === prodId);
     if (!prod) {
@@ -1372,30 +1733,144 @@ class AdminPanel {
       return printMode === 'auto_stock' ? Math.max(1, v.stock) : customCount;
     };
 
+    // Calculate preview card dimension and styling per sticker paper format
+    let cardWidth = '160px';
+    let cardMinHeight = '110px';
+    let cardPadding = '5px 4px';
+    let titleFontSize = '0.66rem';
+    let titleLineClamp = '2';
+    let variantFontSize = '0.58rem';
+    let priceFontSize = '0.76rem';
+    let bcWidth = 1.25;
+    let bcHeight = 44;
+    let bcFontSize = 9.5;
+    let bcMargin = 1;
+
+    switch (paperFormat) {
+      case 'sticker_38x25':
+        cardWidth = '160px';
+        cardMinHeight = '110px';
+        cardPadding = '5px 4px';
+        titleFontSize = '0.66rem';
+        variantFontSize = '0.58rem';
+        priceFontSize = '0.76rem';
+        bcWidth = 1.2;
+        bcHeight = 42;
+        bcFontSize = 9.5;
+        bcMargin = 1;
+        break;
+      case 'sticker_50x30':
+        cardWidth = '205px';
+        cardMinHeight = '130px';
+        cardPadding = '8px 6px';
+        titleFontSize = '0.72rem';
+        variantFontSize = '0.64rem';
+        priceFontSize = '0.82rem';
+        bcWidth = 1.4;
+        bcHeight = 52;
+        bcFontSize = 10;
+        bcMargin = 2;
+        break;
+      case 'sticker_50x25':
+        cardWidth = '205px';
+        cardMinHeight = '110px';
+        cardPadding = '6px 6px';
+        titleFontSize = '0.68rem';
+        variantFontSize = '0.60rem';
+        priceFontSize = '0.78rem';
+        bcWidth = 1.35;
+        bcHeight = 44;
+        bcFontSize = 9.5;
+        bcMargin = 1;
+        break;
+      case 'sticker_75x50':
+        cardWidth = '280px';
+        cardMinHeight = '185px';
+        cardPadding = '12px 10px';
+        titleFontSize = '0.85rem';
+        variantFontSize = '0.74rem';
+        priceFontSize = '0.92rem';
+        bcWidth = 1.8;
+        bcHeight = 72;
+        bcFontSize = 12;
+        bcMargin = 3;
+        break;
+      case 'sticker_25x15':
+        cardWidth = '125px';
+        cardMinHeight = '78px';
+        cardPadding = '4px 2px';
+        titleFontSize = '0.55rem';
+        titleLineClamp = '1';
+        variantFontSize = '0.50rem';
+        priceFontSize = '0.65rem';
+        bcWidth = 0.9;
+        bcHeight = 28;
+        bcFontSize = 8;
+        bcMargin = 0;
+        break;
+      case '2up_label':
+        cardWidth = '175px';
+        cardMinHeight = '115px';
+        cardPadding = '6px 4px';
+        titleFontSize = '0.68rem';
+        variantFontSize = '0.60rem';
+        priceFontSize = '0.78rem';
+        bcWidth = 1.3;
+        bcHeight = 44;
+        bcFontSize = 9.5;
+        bcMargin = 1;
+        break;
+      case 'a4_grid':
+        cardWidth = '165px';
+        cardMinHeight = '110px';
+        cardPadding = '6px 4px';
+        titleFontSize = '0.66rem';
+        variantFontSize = '0.58rem';
+        priceFontSize = '0.76rem';
+        bcWidth = 1.25;
+        bcHeight = 42;
+        bcFontSize = 9.5;
+        bcMargin = 1;
+        break;
+      case '80mm':
+        cardWidth = '240px';
+        cardMinHeight = '140px';
+        cardPadding = '10px 8px';
+        titleFontSize = '0.78rem';
+        variantFontSize = '0.70rem';
+        priceFontSize = '0.85rem';
+        bcWidth = 1.4;
+        bcHeight = 56;
+        bcFontSize = 10;
+        bcMargin = 1;
+        break;
+    }
+
     let html = '';
     let svgIndex = 0;
 
     targetVariants.forEach(v => {
       const copyCount = getCopyCount(v);
-      const mrpText = (v.mrp && v.mrp > v.price) ? `<del style="font-size:0.75rem; color:#666;">৳${v.mrp}</del> ` : '';
+      const mrpText = (v.mrp && v.mrp > v.price) ? `<del style="font-size:0.68rem; color:#666;">৳${v.mrp}</del> ` : '';
       const nameStr = prod.name || '';
       const len = nameStr.trim().length;
-      let fontStyling = 'font-size:0.8rem; font-weight:800; line-height:1.15;';
+
+      let dynamicTitleStyle = `font-size:${titleFontSize}; font-weight:700; line-height:1.1; margin-bottom:1px;`;
       if (len > 32) {
-        fontStyling = 'font-size:0.64rem; font-weight:600; line-height:1.1;';
+        dynamicTitleStyle = `font-size:calc(${titleFontSize} - 0.08rem); font-weight:600; line-height:1.05; margin-bottom:1px;`;
       } else if (len > 22) {
-        fontStyling = 'font-size:0.71rem; font-weight:700; line-height:1.12;';
+        dynamicTitleStyle = `font-size:calc(${titleFontSize} - 0.04rem); font-weight:700; line-height:1.08; margin-bottom:1px;`;
       }
 
       for (let i = 0; i < copyCount; i++) {
         html += `
-          <div class="barcode-sticker-card" style="width:190px; max-width:100%; box-sizing:border-box; padding:10px 8px; background:#fff; color:#000; border-radius:10px; text-align:center; border:1px solid #d1d5db; box-shadow:0 3px 10px rgba(0,0,0,0.12); overflow:hidden; display:flex; flex-direction:column; align-items:center; justify-content:center;">
-            <div style="${fontStyling} width:100%; text-align:center; color:#111827; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; word-break:break-word; word-wrap:break-word;">${prod.name}</div>
-            <div style="font-size:0.72rem; font-weight:600; color:#4b5563; margin-top:2px;">${v.color || ''} ${v.size ? '| ' + v.size : ''}</div>
-            <div style="width:100%; overflow:hidden; display:flex; justify-content:center; margin:4px 0;">
+          <div class="barcode-sticker-card" style="width:${cardWidth}; min-height:${cardMinHeight}; max-width:100%; box-sizing:border-box; padding:${cardPadding}; background:#fff; color:#000; border-radius:8px; text-align:center; border:1px solid #000; box-shadow:0 3px 10px rgba(0,0,0,0.12); overflow:hidden; display:flex; flex-direction:column; align-items:center; justify-content:center; transition: all 0.2s ease;">
+            <div style="${dynamicTitleStyle} width:100%; text-align:center; color:#000; display:-webkit-box; -webkit-line-clamp:${titleLineClamp}; -webkit-box-orient:vertical; overflow:hidden; word-break:break-word;">${prod.name}</div>
+            <div style="font-size:${variantFontSize}; font-weight:600; color:#4b5563; margin-top:1px; margin-bottom:2px; line-height:1.1;">${v.color || ''} ${v.size ? '| ' + v.size : ''}</div>
+            <div style="width:100%; overflow:hidden; display:flex; justify-content:center; margin:2px 0;">
               <svg id="bcSvg_${svgIndex}" style="max-width:100%; height:auto; display:block; margin:0 auto; shape-rendering:crispEdges;"></svg>
             </div>
-            <div style="font-size:0.9rem; font-weight:800; color:#000; margin-top:2px;">
+            <div style="font-size:${priceFontSize}; font-weight:800; color:#000; margin-top:1px; line-height:1.1;">
               মূল্য: ${mrpText}৳${v.price}
             </div>
           </div>
@@ -1414,12 +1889,12 @@ class AdminPanel {
           try {
             JsBarcode(`#bcSvg_${idx}`, v.barcode.toString().trim(), {
               format: "CODE128",
-              width: 1.35,
-              height: 38,
-              fontSize: 10,
+              width: bcWidth,
+              height: bcHeight,
+              fontSize: bcFontSize,
               fontOptions: "bold",
               font: "monospace",
-              margin: 2,
+              margin: bcMargin,
               background: "#ffffff",
               lineColor: "#000000",
               displayValue: true
@@ -1483,7 +1958,7 @@ class AdminPanel {
     }
 
     const paperFormatSelect = document.getElementById('barcodePaperFormatSelect');
-    const selectedFormat = paperFormatSelect ? paperFormatSelect.value : 'sticker_50x30';
+    const selectedFormat = paperFormatSelect ? paperFormatSelect.value : (localStorage.getItem('pos_barcode_paper_format') || 'sticker_38x25');
 
     const prodId = document.getElementById('barcodeProdSelect')?.value;
     const prod = this.products.find(p => p.id === prodId);
@@ -1502,6 +1977,60 @@ class AdminPanel {
     }
   }
 
+  // Helper: Get payment badge configuration for a sale (retains payment method name + refund status)
+  getPaymentBadge(s) {
+    const pm = (s.paymentMethod || 'CASH').toUpperCase();
+    const prov = ((s.paymentDetails && s.paymentDetails.provider) || '').toLowerCase();
+
+    let base = { bg: 'rgba(16,185,129,0.15)', color: '#10b981', label: '💵 CASH', name: 'CASH' };
+    if (pm === 'EPAY' || prov !== '') {
+      if (prov.includes('bkash')) {
+        base = { bg: 'rgba(233,30,140,0.15)', color: '#e91e8c', label: '📱 bKash', name: 'bKash' };
+      } else if (prov.includes('nagad')) {
+        base = { bg: 'rgba(249,115,22,0.15)', color: '#f97316', label: '📲 Nagad', name: 'Nagad' };
+      } else if (prov.includes('qr') || prov.includes('bangla')) {
+        base = { bg: 'rgba(139,92,246,0.15)', color: '#8b5cf6', label: '🔲 Bangla QR', name: 'Bangla QR' };
+      } else if (prov.includes('card')) {
+        base = { bg: 'rgba(59,130,246,0.15)', color: '#3b82f6', label: '💳 Card', name: 'Card' };
+      } else {
+        const pName = (s.paymentDetails?.provider || 'E-PAY').toUpperCase();
+        base = { bg: 'rgba(6,182,212,0.15)', color: '#06b6d4', label: `📱 ${pName}`, name: pName };
+      }
+    }
+
+    const isReturned = s.status === 'RETURNED';
+    const isPartial = s.status === 'PARTIALLY_RETURNED' || (!isReturned && (s.refundedAmount || 0) > 0);
+
+    if (isReturned) {
+      return {
+        bg: base.bg,
+        color: base.color,
+        label: `<div style="display:inline-flex; flex-direction:column; align-items:flex-start; line-height:1.2;"><span>${base.label}</span><span style="font-size:0.68rem; color:#ef4444; font-weight:800; margin-top:2px;"><i class="fa-solid fa-rotate-left"></i> 🔴 Refunded</span></div>`,
+        name: base.name
+      };
+    }
+
+    if (isPartial) {
+      return {
+        bg: base.bg,
+        color: base.color,
+        label: `<div style="display:inline-flex; flex-direction:column; align-items:flex-start; line-height:1.2;"><span>${base.label}</span><span style="font-size:0.68rem; color:#f59e0b; font-weight:800; margin-top:2px;"><i class="fa-solid fa-rotate-left"></i> 🟠 Partial Refund</span></div>`,
+        name: base.name
+      };
+    }
+
+    if (s.status === 'EXCHANGED') {
+      return {
+        bg: base.bg,
+        color: base.color,
+        label: `<div style="display:inline-flex; flex-direction:column; align-items:flex-start; line-height:1.2;"><span>${base.label}</span><span style="font-size:0.68rem; color:#8b5cf6; font-weight:800; margin-top:2px;"><i class="fa-solid fa-rotate-left"></i> 🔄 Exchanged</span></div>`,
+        name: base.name
+      };
+    }
+
+    return base;
+  }
+
   // 8. SALES LOG & AUDIT REPORT
   renderSalesLog() {
     const tbody = document.getElementById('adminSalesTableBody');
@@ -1512,24 +2041,24 @@ class AdminPanel {
       return;
     }
 
-    tbody.innerHTML = this.sales.map(s => `
+    const sortedSales = this.sales.slice().sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime());
+    tbody.innerHTML = sortedSales.map(s => {
+      const { bg, color, label } = this.getPaymentBadge(s);
+      const refunded = s.refundedAmount || 0;
+      const netAmt = Math.max(0, (s.grandTotal || 0) - refunded);
+      return `
       <tr>
         <td><strong>${s.id}</strong></td>
         <td>${new Date(s.timestamp).toLocaleString('bn-BD')}</td>
         <td>${s.customer}</td>
-        <td>
-          <span class="badge" style="background:${s.paymentMethod === 'CASH' ? 'rgba(16,185,129,0.15)' : 'rgba(59,130,246,0.15)'}; color:${s.paymentMethod === 'CASH' ? 'var(--accent-green)' : 'var(--accent-blue)'};">
-            ${s.paymentMethod}
-          </span>
+        <td><span class="badge" style="background:${bg}; color:${color}; font-weight:700; padding: 4px 10px; border-radius: 6px; display: inline-flex; align-items: center;">${label}</span></td>
+        <td style="text-align: right; font-weight: 800; color: ${s.status === 'RETURNED' ? '#ef4444' : '#10b981'};">
+          ৳${netAmt.toFixed(2)}
+          ${refunded > 0 ? `<div style="color: #ef4444; font-size: 0.72rem; font-weight: 600; margin-top: 2px;">(-৳${refunded.toFixed(2)} refund)</div>` : ''}
         </td>
-        <td><strong>৳${s.grandTotal.toFixed(2)}</strong></td>
-        <td>
-          <button class="btn btn-outline btn-sm" onclick="admin.showReceiptModalById('${s.id}')">
-            <i class="fa-solid fa-receipt"></i> মেমো
-          </button>
-        </td>
-      </tr>
-    `).join('');
+        <td><button class="btn btn-outline btn-sm" onclick="adminApp.showReceiptModalById('${s.id}')"><i class="fa-solid fa-receipt"></i> মেমো</button></td>
+      </tr>`;
+    }).join('');
   }
 
   showReceiptModalById(id) {
@@ -1559,7 +2088,8 @@ class AdminPanel {
 
     if (typeof JsBarcode !== 'undefined') {
       JsBarcode("#rcptBarcodeSvg", sale.id, {
-        format: "CODE128", width: 1.5, height: 40, displayValue: false, margin: 0
+        format: "CODE128", width: 1.8, height: 48, displayValue: true, fontSize: 13, fontOptions: "bold", font: "monospace", margin: 8,
+        background: "#ffffff", lineColor: "#000000"
       });
     }
 
@@ -1586,32 +2116,159 @@ class AdminPanel {
       btn.addEventListener('click', () => this.switchTab(btn.dataset.tab));
     });
 
-    // Theme toggle
+    // Permanent Theme Selection (Day / Night Mode) Handler
+    const applyPermanentTheme = (themeMode) => {
+      document.documentElement.setAttribute('data-theme', themeMode);
+      localStorage.setItem('pos_theme', themeMode);
+      
+      const themeSelect = document.getElementById('settingDefaultTheme');
+      if (themeSelect) themeSelect.value = themeMode;
+
+      const themeBtn = document.getElementById('themeToggleBtn');
+      if (themeBtn) {
+        themeBtn.innerHTML = themeMode === 'dark' ? '<i class="fa-solid fa-moon"></i>' : '<i class="fa-solid fa-sun"></i>';
+      }
+
+      try {
+        const currentSettings = JSON.parse(localStorage.getItem('pos_settings')) || {};
+        currentSettings.defaultTheme = themeMode;
+        localStorage.setItem('pos_settings', JSON.stringify(currentSettings));
+        if (this.settings) this.settings.defaultTheme = themeMode;
+      } catch(e) {}
+    };
+
     const themeBtn = document.getElementById('themeToggleBtn');
     if (themeBtn) {
       themeBtn.addEventListener('click', () => {
-        const html = document.documentElement;
-        const next = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-        html.setAttribute('data-theme', next);
+        const curTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+        const nextTheme = curTheme === 'dark' ? 'light' : 'dark';
+        applyPermanentTheme(nextTheme);
+      });
+    }
+
+    const themeSelect = document.getElementById('settingDefaultTheme');
+    if (themeSelect) {
+      themeSelect.addEventListener('change', (e) => {
+        applyPermanentTheme(e.target.value);
+      });
+    }
+
+    // Canvas Image Compression Helper for Device Gallery Photos
+    const compressGalleryImage = (file, maxDimension = 800, quality = 0.8, callback) => {
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          let width = img.width;
+          let height = img.height;
+          if (width > maxDimension || height > maxDimension) {
+            if (width > height) {
+              height = Math.round((height * maxDimension) / width);
+              width = maxDimension;
+            } else {
+              width = Math.round((width * maxDimension) / height);
+              height = maxDimension;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL('image/jpeg', quality);
+          callback(dataUrl);
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    };
+
+    // Store Logo Device/Gallery File Upload Listener
+    const settingLogoBtn = document.getElementById('settingStoreLogoBtn');
+    const settingLogoFileInput = document.getElementById('settingStoreLogoFileInput');
+    const settingLogoPreview = document.getElementById('settingStoreLogoPreview');
+    const settingLogoFileName = document.getElementById('settingStoreLogoFileName');
+    if (settingLogoBtn && settingLogoFileInput) {
+      settingLogoBtn.addEventListener('click', () => settingLogoFileInput.click());
+      if (settingLogoPreview) settingLogoPreview.addEventListener('click', () => settingLogoFileInput.click());
+      settingLogoFileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          compressGalleryImage(file, 800, 0.8, (dataUrl) => {
+            const hiddenVal = document.getElementById('settingStoreLogo');
+            if (hiddenVal) hiddenVal.value = dataUrl;
+            if (settingLogoPreview) settingLogoPreview.src = dataUrl;
+            if (settingLogoFileName) settingLogoFileName.innerText = file.name;
+            if (this.settings) this.settings.storeLogo = dataUrl;
+            this.updateSidebarStoreProfile();
+          });
+        }
+      });
+    }
+
+    // Invoice Logo Device/Gallery File Upload Listener (Transparent PNG Supported)
+    const invLogoBtn = document.getElementById('settingInvoiceLogoBtn');
+    const invLogoFileInput = document.getElementById('settingInvoiceLogoFileInput');
+    const invLogoPreview = document.getElementById('settingInvoiceLogoPreview');
+    const invLogoFileName = document.getElementById('settingInvoiceLogoFileName');
+
+    if (invLogoBtn && invLogoFileInput) {
+      invLogoBtn.addEventListener('click', () => invLogoFileInput.click());
+      if (invLogoPreview) invLogoPreview.addEventListener('click', () => invLogoFileInput.click());
+
+      invLogoFileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          compressGalleryImage(file, 600, 0.9, (dataUrl) => {
+            const hiddenVal = document.getElementById('settingInvoiceLogo');
+            if (hiddenVal) hiddenVal.value = dataUrl;
+            if (invLogoPreview) invLogoPreview.src = dataUrl;
+            if (invLogoFileName) invLogoFileName.innerText = file.name;
+          });
+        }
+      });
+    }
+
+    // Owner NID Card File Upload Listener
+    const nidBtn = document.getElementById('settingOwnerNIDBtn');
+    const nidFileInput = document.getElementById('settingOwnerNIDFileInput');
+    const nidPreview = document.getElementById('settingOwnerNIDPreview');
+    const nidFileName = document.getElementById('settingOwnerNIDFileName');
+
+    if (nidBtn && nidFileInput) {
+      nidBtn.addEventListener('click', () => nidFileInput.click());
+      if (nidPreview) nidPreview.addEventListener('click', () => nidFileInput.click());
+
+      nidFileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          compressGalleryImage(file, 800, 0.8, (dataUrl) => {
+            const hiddenVal = document.getElementById('settingOwnerNIDImage');
+            if (hiddenVal) hiddenVal.value = dataUrl;
+            if (nidPreview) nidPreview.src = dataUrl;
+            if (nidFileName) nidFileName.innerText = file.name;
+          });
+        }
       });
     }
 
     // Product Image Device/Gallery File Upload Listener
     const prodUploadBtn = document.getElementById('prodFormUploadBtn');
     const prodFileInput = document.getElementById('prodFormFileInput');
+    const prodFormImgPreview = document.getElementById('prodFormImgPreview');
     if (prodUploadBtn && prodFileInput) {
       prodUploadBtn.addEventListener('click', () => prodFileInput.click());
+      if (prodFormImgPreview) prodFormImgPreview.addEventListener('click', () => prodFileInput.click());
       prodFileInput.addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (file) {
-          const reader = new FileReader();
-          reader.onload = (evt) => {
-            const dataUrl = evt.target.result;
+          compressGalleryImage(file, 800, 0.8, (dataUrl) => {
             document.getElementById('prodFormImage').value = dataUrl;
-            document.getElementById('prodFormImgPreview').src = dataUrl;
-            document.getElementById('prodImgFileName').innerText = file.name;
-          };
-          reader.readAsDataURL(file);
+            if (prodFormImgPreview) prodFormImgPreview.src = dataUrl;
+            const fileNameEl = document.getElementById('prodImgFileName');
+            if (fileNameEl) fileNameEl.innerText = file.name;
+          });
         }
       });
     }
@@ -1619,19 +2276,19 @@ class AdminPanel {
     // Category Image Device/Gallery File Upload Listener
     const catUploadBtn = document.getElementById('catFormUploadBtn');
     const catFileInput = document.getElementById('catFormFileInput');
+    const catFormImgPreview = document.getElementById('catFormImgPreview');
     if (catUploadBtn && catFileInput) {
       catUploadBtn.addEventListener('click', () => catFileInput.click());
+      if (catFormImgPreview) catFormImgPreview.addEventListener('click', () => catFileInput.click());
       catFileInput.addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (file) {
-          const reader = new FileReader();
-          reader.onload = (evt) => {
-            const dataUrl = evt.target.result;
+          compressGalleryImage(file, 800, 0.8, (dataUrl) => {
             document.getElementById('catImgUrl').value = dataUrl;
-            document.getElementById('catFormImgPreview').src = dataUrl;
-            document.getElementById('catImgFileName').innerText = file.name;
-          };
-          reader.readAsDataURL(file);
+            if (catFormImgPreview) catFormImgPreview.src = dataUrl;
+            const fileNameEl = document.getElementById('catImgFileName');
+            if (fileNameEl) fileNameEl.innerText = file.name;
+          });
         }
       });
     }
@@ -1725,7 +2382,7 @@ class AdminPanel {
 
     const adminPrintBtn = document.getElementById('adminPrintReceiptBtn');
     if (adminPrintBtn) {
-      adminPrintBtn.addEventListener('click', () => window.print());
+      adminPrintBtn.addEventListener('click', () => this.playInModalReceiptPrint('printableReceipt', false));
     }
 
     const replayBtn = document.getElementById('adminRcptReplayAnimBtn');
@@ -1764,11 +2421,14 @@ class AdminPanel {
     const cardItem = document.getElementById('adminCardTotalItem');
     if (cardItem) cardItem.addEventListener('click', () => this.openTotalItemsSoldModal());
 
-    const cardRev = document.getElementById('adminCardRevenue');
-    if (cardRev) cardRev.addEventListener('click', () => this.openGrossSalesModal());
-
     const cardNetProfit = document.getElementById('adminCardNetProfit');
     if (cardNetProfit) cardNetProfit.addEventListener('click', () => this.openNetProfitModal());
+
+    const cardReturns = document.getElementById('adminCardReturns');
+    if (cardReturns) cardReturns.addEventListener('click', () => this.openAdminReturnsModal());
+
+    const cardVatDisc = document.getElementById('adminCardVatDiscount');
+    if (cardVatDisc) cardVatDisc.addEventListener('click', () => this.openVatDiscountModal());
 
     const bannerLowStock = document.getElementById('adminLowStockBanner');
     if (bannerLowStock) bannerLowStock.addEventListener('click', () => this.openLowStockModal());
@@ -1835,55 +2495,72 @@ class AdminPanel {
   }
 
   openGrossSalesModal() {
-    const grossRevenue = this.sales.reduce((sum, s) => sum + (s.grandTotal || 0), 0);
-    const totalOrders = this.sales.length;
-    const avgOrder = totalOrders > 0 ? grossRevenue / totalOrders : 0;
+    const targetSales = this.getFilteredSales();
 
-    let cashTotal = 0;
-    let epayTotal = 0;
+    let cashGross = 0;
+    let epayGross = 0;
+    let totalRefunds = 0;
+    let cashRefunds = 0;
+    let epayRefunds = 0;
 
-    this.sales.forEach(s => {
-      if (s.paymentMethod === 'epay' || (s.paymentDetails && s.paymentDetails.method === 'epay')) {
-        epayTotal += (s.grandTotal || 0);
+    targetSales.forEach(s => {
+      const pm = (s.paymentMethod || '').toUpperCase();
+      const isEpay = pm === 'EPAY' || (s.paymentDetails && (s.paymentDetails.method || '').toLowerCase() === 'epay');
+      const refunded = s.refundedAmount || 0;
+      totalRefunds += refunded;
+
+      if (isEpay) {
+        epayGross += (s.grandTotal || 0);
+        epayRefunds += refunded;
       } else {
-        cashTotal += (s.grandTotal || 0);
+        cashGross += (s.grandTotal || 0);
+        cashRefunds += refunded;
       }
     });
 
-    const cashPct = grossRevenue > 0 ? Math.round((cashTotal / grossRevenue) * 100) : 0;
-    const epayPct = grossRevenue > 0 ? Math.round((epayTotal / grossRevenue) * 100) : 0;
+    const netRevenue = (cashGross + epayGross) - totalRefunds;
 
-    const elTotal = document.getElementById('modalGrossSalesTotal');
-    const elOrders = document.getElementById('modalGrossOrdersCount');
-    const elAvg = document.getElementById('modalGrossAvgOrder');
-    const elCash = document.getElementById('modalGrossCashTotal');
-    const elCashPct = document.getElementById('modalGrossCashPct');
-    const elEpay = document.getElementById('modalGrossEpayTotal');
-    const elEpayPct = document.getElementById('modalGrossEpayPct');
+    const elNet = document.getElementById('totSalesNetRevenue') || document.getElementById('modalGrossSalesTotal');
+    const elCash = document.getElementById('totSalesCashTotal') || document.getElementById('modalGrossCashTotal');
+    const elEpay = document.getElementById('totSalesEpayTotal') || document.getElementById('modalGrossEpayTotal');
+    const elRefund = document.getElementById('totSalesRefundTotal');
 
-    if (elTotal) elTotal.innerText = `৳${grossRevenue.toFixed(2)}`;
-    if (elOrders) elOrders.innerText = `${totalOrders} টি`;
-    if (elAvg) elAvg.innerText = `৳${avgOrder.toFixed(2)}`;
-    if (elCash) elCash.innerText = `৳${cashTotal.toFixed(2)}`;
-    if (elCashPct) elCashPct.innerText = `${cashPct}%`;
-    if (elEpay) elEpay.innerText = `৳${epayTotal.toFixed(2)}`;
-    if (elEpayPct) elEpayPct.innerText = `${epayPct}%`;
+    if (elNet) elNet.innerText = `৳${netRevenue.toFixed(2)}`;
+    if (elCash) elCash.innerText = `৳${(cashGross - cashRefunds).toFixed(2)}`;
+    if (elEpay) elEpay.innerText = `৳${(epayGross - epayRefunds).toFixed(2)}`;
+    if (elRefund) elRefund.innerText = `-৳${totalRefunds.toFixed(2)}`;
 
-    const recentBody = document.getElementById('modalGrossRecentInvoicesBody');
-    if (recentBody) {
-      const recentSales = [...this.sales].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).slice(0, 5);
-      if (recentSales.length === 0) {
-        recentBody.innerHTML = `<tr><td colspan="5" class="text-center text-muted" style="padding: 1.5rem;">কোনো অর্ডারের ইতিহাস পাওয়া যায়নি।</td></tr>`;
+    const tbody = document.getElementById('totSalesTableBody') || document.getElementById('modalGrossRecentInvoicesBody');
+    if (tbody) {
+      if (targetSales.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted" style="padding: 1.5rem;">নির্বাচন করা সময়কালে কোনো বিক্রির ইনভয়েস রেকর্ড করা হয়নি।</td></tr>`;
       } else {
-        recentBody.innerHTML = recentSales.map(s => `
+        tbody.innerHTML = targetSales.map(s => {
+          const dtStr = new Date(s.timestamp).toLocaleString('bn-BD');
+          const { bg, color, label } = this.getPaymentBadge(s);
+          const refunded = s.refundedAmount || 0;
+          const netAmt = Math.max(0, (s.grandTotal || 0) - refunded);
+
+          return `
           <tr>
-            <td><strong>${s.id}</strong></td>
-            <td><small>${new Date(s.timestamp).toLocaleString('bn-BD')}</small></td>
-            <td>${s.customer || 'Walk-in Customer'}</td>
-            <td><span class="badge" style="background: ${s.paymentMethod === 'epay' ? 'rgba(59,130,246,0.15)' : 'rgba(16,185,129,0.15)'}; color: ${s.paymentMethod === 'epay' ? '#3b82f6' : '#10b981'};">${s.paymentMethod === 'epay' ? 'ডিজিটাল ই-পে' : 'ক্যাশ'}</span></td>
-            <td style="text-align: right; font-weight: 700; color: var(--accent-green);">৳${(s.grandTotal || 0).toFixed(2)}</td>
+            <td>
+              <strong style="cursor: pointer; color: var(--accent-blue);" onclick="adminApp.showReceiptModalById('${s.id}')" title="ইনভয়েস বিবরণী দেখুন">${s.id}</strong>
+              <div style="font-size: 0.72rem; color: var(--text-muted); font-family: monospace;">${(s.paymentDetails && s.paymentDetails.trxId) ? s.paymentDetails.trxId : 'SALE-RECORD'}</div>
+            </td>
+            <td><small>${dtStr}</small></td>
+            <td>
+              <span class="badge" style="background: ${bg}; color: ${color}; font-weight: 700; padding: 4px 10px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;">
+                ${label}
+              </span>
+            </td>
+            <td>${s.customer || s.customerName || 'Walk-in Customer'}</td>
+            <td style="text-align: right; font-weight: 800; color: ${s.status === 'RETURNED' ? '#ef4444' : '#10b981'}; font-size: 1.05rem;">
+              ৳${netAmt.toFixed(2)}
+              ${refunded ? `<br><small style="color: #ef4444; font-size: 0.7rem;">(৳${refunded.toFixed(2)} refund)</small>` : ''}
+            </td>
           </tr>
-        `).join('');
+        `;
+        }).join('');
       }
     }
 
@@ -1892,87 +2569,390 @@ class AdminPanel {
 
   openTotalOrdersModal() {
     const filteredSales = this.getFilteredSales();
-    const totalRev = filteredSales.reduce((sum, s) => sum + (s.grandTotal || 0), 0);
+    const totalRev = filteredSales.reduce((sum, s) => sum + Math.max(0, (s.grandTotal || 0) - (s.refundedAmount || 0)), 0);
+    const totalRefunds = filteredSales.reduce((sum, s) => sum + (s.refundedAmount || 0), 0);
 
     const elBadgeCount = document.getElementById('modalOrdersCountBadge');
     const elBadgeTotal = document.getElementById('modalOrdersTotalAmountBadge');
     if (elBadgeCount) elBadgeCount.innerText = `${filteredSales.length} টি মেমো`;
-    if (elBadgeTotal) elBadgeTotal.innerText = `৳${totalRev.toFixed(2)}`;
+    if (elBadgeTotal) elBadgeTotal.innerHTML = `৳${totalRev.toFixed(2)}${totalRefunds > 0 ? `<small style="font-size:0.75rem; color:#ef4444; margin-left:6px;">(-৳${totalRefunds.toFixed(2)} refund)</small>` : ''}`;
 
     const tbody = document.getElementById('modalOrdersTableBody');
     if (tbody) {
       if (filteredSales.length === 0) {
         tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted" style="padding: 1.5rem;">নির্বাচন করা সময়কালে কোনো মেমো পাওয়া যায়নি।</td></tr>`;
       } else {
-        tbody.innerHTML = filteredSales.slice(-25).reverse().map(s => `
+        tbody.innerHTML = filteredSales.map(s => {
+          const { bg, color, label } = this.getPaymentBadge(s);
+          const refunded = s.refundedAmount || 0;
+          const netAmt = Math.max(0, (s.grandTotal || 0) - refunded);
+          return `
           <tr>
             <td><strong>${s.id}</strong></td>
             <td><small>${new Date(s.timestamp).toLocaleString('bn-BD')}</small></td>
             <td>${s.customer || 'Walk-in Customer'}</td>
-            <td><span class="badge" style="background: ${s.paymentMethod === 'epay' ? 'rgba(59,130,246,0.15)' : 'rgba(16,185,129,0.15)'}; color: ${s.paymentMethod === 'epay' ? '#3b82f6' : '#10b981'};">${s.paymentMethod === 'epay' ? 'ডিজিটাল ই-পে' : 'ক্যাশ'}</span></td>
+            <td><span class="badge" style="background: ${bg}; color: ${color}; font-weight: 700; padding: 4px 10px; border-radius: 6px;">${label}</span></td>
             <td>${(s.items || []).length} টি আইটেম</td>
-            <td style="text-align: right; font-weight: 700; color: var(--accent-green);">৳${(s.grandTotal || 0).toFixed(2)}</td>
+            <td style="text-align: right; font-weight: 700; color: ${s.status === 'RETURNED' ? '#ef4444' : 'var(--accent-green)'};">
+              ৳${netAmt.toFixed(2)}
+              ${refunded > 0 ? `<br><small style="color: #ef4444; font-size: 0.7rem;">(-৳${refunded.toFixed(2)} refund)</small>` : ''}
+            </td>
           </tr>
-        `).join('');
+        `;
+        }).join('');
       }
     }
 
     this.openModal('totalOrdersModal');
   }
 
+  // --- MERCHANT ADMIN RETURN & EXCHANGE BREAKDOWN MODALS ---
+  openAdminReturnsModal() {
+    const filteredSales = this.getFilteredSales();
+    const returnedSales = filteredSales.filter(s => s.status === 'RETURNED' || s.status === 'PARTIALLY_RETURNED' || (s.returnHistory && s.returnHistory.length > 0));
+
+    let totalRefund = 0;
+    let totalItemQty = 0;
+    let invCount = returnedSales.length;
+
+    const rows = [];
+
+    returnedSales.forEach(s => {
+      const histories = (s.returnHistory && s.returnHistory.length > 0) ? s.returnHistory : [{ timestamp: s.timestamp, returnedItems: [], refundAmount: s.refundedAmount || 0 }];
+      histories.forEach(h => {
+        const refAmt = h.refundAmount || 0;
+        totalRefund += refAmt;
+
+        const itemTexts = (h.returnedItems || []).map(i => {
+          totalItemQty += (i.qtyReturned || 0);
+          return `${i.name} (${i.color || ''}/${i.size || ''}) x${i.qtyReturned}`;
+        }).join(', ') || 'রিটার্নকৃত প্রোডাক্ট';
+
+        const dt = new Date(h.timestamp || s.timestamp).toLocaleString('bn-BD');
+        rows.push(`
+          <tr>
+            <td><strong>${s.id}</strong></td>
+            <td><small>${dt}</small></td>
+            <td>${s.customer || s.customerName || 'Walk-in Customer'}</td>
+            <td><small>${itemTexts}</small></td>
+            <td style="text-align: center;"><span class="badge bg-orange" style="font-weight:700; padding:3px 8px;">${h.returnedItems && h.returnedItems.length > 0 ? h.returnedItems.reduce((acc, x) => acc + (x.qtyReturned||0), 0) : 1} টি</span></td>
+            <td style="text-align: right; font-weight: 700; color: var(--accent-red, #ef4444);">৳${refAmt.toFixed(2)}</td>
+            <td style="text-align: center;">
+              <button class="btn btn-outline btn-sm" onclick="adminApp.showReceiptModalById('${s.id}')" title="ইনভয়েস মেমো">
+                <i class="fa-solid fa-receipt"></i> মেমো
+              </button>
+            </td>
+          </tr>
+        `);
+      });
+    });
+
+    const elRefund = document.getElementById('adminRetModalTotalRefund');
+    const elInvCount = document.getElementById('adminRetModalInvCount');
+    const elItemQty = document.getElementById('adminRetModalItemQty');
+    const tbody = document.getElementById('adminReturnsTableBody');
+
+    if (elRefund) elRefund.innerText = `৳${totalRefund.toFixed(2)}`;
+    if (elInvCount) elInvCount.innerText = `${invCount} টি`;
+    if (elItemQty) elItemQty.innerText = `${totalItemQty} টি`;
+
+    if (tbody) {
+      if (rows.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted p-3">নির্বাচন করা সময়কালে কোনো রিটার্নের রেকর্ড নেই।</td></tr>`;
+      } else {
+        tbody.innerHTML = rows.join('');
+      }
+    }
+
+    this.openModal('adminReturnsModal');
+  }
+
+  openVatDiscountModal(tabFilter = 'all') {
+    this.currentVatDiscTab = tabFilter || 'all';
+    const targetSales = this.getFilteredSales();
+
+    let totalVat = 0;
+    let totalCouponDisc = 0;
+    let totalManualDisc = 0;
+    let vatSalesCount = 0;
+    let couponSalesCount = 0;
+    let manualSalesCount = 0;
+
+    targetSales.forEach(s => {
+      const vatAmt = s.tax || 0;
+      const discAmt = s.discount || 0;
+      const hasCoupon = Boolean(s.couponCode || s.coupon || (s.couponDiscount && s.couponDiscount > 0));
+
+      if (vatAmt > 0) {
+        totalVat += vatAmt;
+        vatSalesCount++;
+      }
+
+      if (hasCoupon) {
+        totalCouponDisc += (s.couponDiscount !== undefined ? s.couponDiscount : discAmt);
+        couponSalesCount++;
+      } else if (discAmt > 0) {
+        totalManualDisc += (s.manualDiscount !== undefined ? s.manualDiscount : discAmt);
+        manualSalesCount++;
+      }
+    });
+
+    const elCouponTot = document.getElementById('vatDiscModalCouponTotal');
+    const elCouponCnt = document.getElementById('vatDiscModalCouponCount');
+    const elManualTot = document.getElementById('vatDiscModalManualTotal');
+    const elManualCnt = document.getElementById('vatDiscModalManualCount');
+    const elTaxTot = document.getElementById('vatDiscModalTaxTotal');
+    const elTaxCnt = document.getElementById('vatDiscModalTaxCount');
+    const elNetBal = document.getElementById('vatDiscModalNetBalance');
+
+    if (elCouponTot) elCouponTot.innerText = `৳${totalCouponDisc.toFixed(2)}`;
+    if (elCouponCnt) elCouponCnt.innerText = `${couponSalesCount} টি মেমোতে কুপন প্রয়োগ`;
+    if (elManualTot) elManualTot.innerText = `৳${totalManualDisc.toFixed(2)}`;
+    if (elManualCnt) elManualCnt.innerText = `${manualSalesCount} টি মেমোতে সরাসরি ছাড়`;
+    if (elTaxTot) elTaxTot.innerText = `৳${totalVat.toFixed(2)}`;
+    if (elTaxCnt) elTaxCnt.innerText = `${vatSalesCount} টি মেমোতে ভ্যাট যোগ করা হয়েছে`;
+
+    const totalDisc = totalCouponDisc + totalManualDisc;
+    const netBal = totalVat - totalDisc;
+    if (elNetBal) {
+      if (netBal > 0) {
+        elNetBal.innerHTML = `<span style="color: var(--accent-green, #10b981);"><i class="fa-solid fa-arrow-up"></i> +৳${netBal.toFixed(2)} (ভ্যাট কালেকশন বেশি)</span>`;
+      } else if (netBal < 0) {
+        elNetBal.innerHTML = `<span style="color: #ef4444;"><i class="fa-solid fa-arrow-down"></i> -৳${Math.abs(netBal).toFixed(2)} (ডিসকাউন্ট ছাড় বেশি)</span>`;
+      } else {
+        elNetBal.innerHTML = `<span style="color: var(--text-muted);">৳0.00 (সমান ভারসাম্য)</span>`;
+      }
+    }
+
+    this.filterVatDiscountModal(this.currentVatDiscTab);
+    this.openModal('adminVatDiscountModal');
+  }
+
+  filterVatDiscountModal(tabFilter) {
+    this.currentVatDiscTab = tabFilter || 'all';
+    const targetSales = this.getFilteredSales();
+
+    const allMatchedSales = targetSales.filter(s => (s.tax || 0) > 0 || (s.discount || 0) > 0 || s.couponCode || s.coupon);
+    const couponMatchedSales = targetSales.filter(s => Boolean(s.couponCode || s.coupon || (s.couponDiscount && s.couponDiscount > 0)));
+    const discountMatchedSales = targetSales.filter(s => !s.couponCode && !s.coupon && (!s.couponDiscount || s.couponDiscount === 0) && (s.discount || 0) > 0);
+    const taxMatchedSales = targetSales.filter(s => (s.tax || 0) > 0);
+
+    const cntAll = document.getElementById('vatDiscTabCountAll');
+    const cntCoupon = document.getElementById('vatDiscTabCountCoupon');
+    const cntDisc = document.getElementById('vatDiscTabCountDiscount');
+    const cntTax = document.getElementById('vatDiscTabCountTax');
+
+    if (cntAll) cntAll.innerText = allMatchedSales.length;
+    if (cntCoupon) cntCoupon.innerText = couponMatchedSales.length;
+    if (cntDisc) cntDisc.innerText = discountMatchedSales.length;
+    if (cntTax) cntTax.innerText = taxMatchedSales.length;
+
+    const btnAll = document.getElementById('btnVatTabAll');
+    const btnCoupon = document.getElementById('btnVatTabCoupon');
+    const btnDisc = document.getElementById('btnVatTabDiscount');
+    const btnTax = document.getElementById('btnVatTabTax');
+
+    if (btnAll) btnAll.classList.toggle('active', tabFilter === 'all');
+    if (btnCoupon) btnCoupon.classList.toggle('active', tabFilter === 'coupon');
+    if (btnDisc) btnDisc.classList.toggle('active', tabFilter === 'discount');
+    if (btnTax) btnTax.classList.toggle('active', tabFilter === 'tax');
+
+    let displaySales = allMatchedSales;
+    if (tabFilter === 'coupon') displaySales = couponMatchedSales;
+    else if (tabFilter === 'discount') displaySales = discountMatchedSales;
+    else if (tabFilter === 'tax') displaySales = taxMatchedSales;
+
+    const tbody = document.getElementById('vatDiscModalTableBody');
+    if (tbody) {
+      if (displaySales.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted" style="padding: 1.5rem;">নির্বাচন করা ক্যাটাগরিতে কোনো মেমো পাওয়া যায়নি।</td></tr>`;
+      } else {
+        tbody.innerHTML = displaySales.map(s => {
+          const dtStr = new Date(s.timestamp).toLocaleString('bn-BD');
+          const hasCoupon = Boolean(s.couponCode || s.coupon || (s.couponDiscount && s.couponDiscount > 0));
+          const couponAmt = hasCoupon ? (s.couponDiscount !== undefined ? s.couponDiscount : s.discount || 0) : 0;
+          const manualAmt = !hasCoupon && (s.discount || 0) > 0 ? (s.manualDiscount !== undefined ? s.manualDiscount : s.discount) : 0;
+          const taxAmt = s.tax || 0;
+
+          const couponPill = hasCoupon
+            ? `<span class="badge" style="background: rgba(168,85,247,0.15); color: #c084fc; border: 1px solid rgba(168,85,247,0.3); padding: 0.25rem 0.5rem; border-radius: 6px; font-weight: 600;"><i class="fa-solid fa-ticket"></i> ${s.couponCode || 'COUPON'} (-৳${couponAmt.toFixed(2)})</span>`
+            : `<span class="text-muted">-</span>`;
+
+          const discTypeStr = s.discountType === 'percent' ? `${s.discountValue || ''}%` : (s.discountType === 'flat' ? `৳${s.discountValue || ''}` : 'ছাড়');
+          const manualPill = manualAmt > 0
+            ? `<span class="badge" style="background: rgba(245,158,11,0.15); color: #f59e0b; border: 1px solid rgba(245,158,11,0.3); padding: 0.25rem 0.5rem; border-radius: 6px; font-weight: 600;"><i class="fa-solid fa-tags"></i> ${discTypeStr} (-৳${manualAmt.toFixed(2)})</span>`
+            : `<span class="text-muted">-</span>`;
+
+          const taxTypeStr = s.taxType === 'percent' ? `${s.taxValue || ''}%` : (s.taxType === 'flat' ? `৳${s.taxValue || ''}` : 'ভ্যাট');
+          const taxPill = taxAmt > 0
+            ? `<span class="badge" style="background: rgba(59,130,246,0.15); color: #60a5fa; border: 1px solid rgba(59,130,246,0.3); padding: 0.25rem 0.5rem; border-radius: 6px; font-weight: 600;"><i class="fa-solid fa-file-invoice-dollar"></i> ${taxTypeStr} (+৳${taxAmt.toFixed(2)})</span>`
+            : `<span class="text-muted">-</span>`;
+
+          return `
+            <tr>
+              <td>
+                <strong style="cursor: pointer; color: var(--accent-blue);" onclick="adminApp.showReceiptModalById('${s.id}')" title="ইনভয়েস বিবরণী দেখুন">${s.id}</strong>
+              </td>
+              <td><small>${dtStr}</small></td>
+              <td>${s.customer || 'Walk-in Customer'}</td>
+              <td>${couponPill}</td>
+              <td>${manualPill}</td>
+              <td>${taxPill}</td>
+              <td style="font-weight: 700; color: var(--text-main);">৳${(s.grandTotal || 0).toFixed(2)}</td>
+              <td style="text-align: right;">
+                <button class="btn btn-outline btn-sm" onclick="adminApp.showReceiptModalById('${s.id}')"><i class="fa-solid fa-receipt"></i> মেমো দেখুন</button>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      }
+    }
+  }
+
   openCashPaymentModalDetails() {
     const filteredSales = this.getFilteredSales();
-    const cashSales = filteredSales.filter(s => s.paymentMethod !== 'epay' && (!s.paymentDetails || s.paymentDetails.method !== 'epay'));
-    const totalCash = cashSales.reduce((sum, s) => sum + (s.grandTotal || 0), 0);
+    const cashSales = filteredSales.filter(s => (s.paymentMethod || '').toUpperCase() !== 'EPAY' && (!s.paymentDetails || (s.paymentDetails.method || '').toLowerCase() !== 'epay'));
+    const totalCash = cashSales.reduce((sum, s) => sum + Math.max(0, (s.grandTotal || 0) - (s.refundedAmount || 0)), 0);
+    const totalRefunds = cashSales.reduce((sum, s) => sum + (s.refundedAmount || 0), 0);
 
     const elTotal = document.getElementById('modalCashTotalAmount');
     const elOrders = document.getElementById('modalCashOrdersCount');
-    if (elTotal) elTotal.innerText = `৳${totalCash.toFixed(2)}`;
+    if (elTotal) elTotal.innerHTML = `৳${totalCash.toFixed(2)}${totalRefunds > 0 ? `<small style="font-size:0.75rem; color:#ef4444; margin-left:6px;">(-৳${totalRefunds.toFixed(2)} refund)</small>` : ''}`;
     if (elOrders) elOrders.innerText = `${cashSales.length} টি`;
 
     const tbody = document.getElementById('modalCashTableBody');
     if (tbody) {
       if (cashSales.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted" style="padding: 1.5rem;">কোনো ক্যাশ পেমেন্ট ইনভয়েস পাওয়া যায়নি।</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted" style="padding: 1.5rem;">কোনো ক্যাশ পেমেন্ট ইনভয়েস পাওয়া যায়নি।</td></tr>`;
       } else {
-        tbody.innerHTML = cashSales.slice(-25).reverse().map(s => `
+        tbody.innerHTML = cashSales.map(s => {
+          const dtStr = new Date(s.timestamp).toLocaleString('bn-BD');
+          const { bg, color, label } = this.getPaymentBadge(s);
+          const refunded = s.refundedAmount || 0;
+          const netAmt = Math.max(0, (s.grandTotal || 0) - refunded);
+          return `
           <tr>
-            <td><strong>${s.id}</strong></td>
-            <td><small>${new Date(s.timestamp).toLocaleString('bn-BD')}</small></td>
-            <td>${s.customer || 'Walk-in Customer'}</td>
-            <td style="text-align: right; font-weight: 700; color: var(--accent-purple);">৳${(s.grandTotal || 0).toFixed(2)}</td>
+            <td>
+              <strong style="cursor: pointer; color: var(--accent-blue);" onclick="adminApp.showReceiptModalById('${s.id}')" title="ইনভয়েস মেমো দেখুন">${s.id}</strong>
+              <div style="font-size: 0.72rem; color: var(--text-muted); font-family: monospace;">CASH-PAYMENT</div>
+            </td>
+            <td><small>${dtStr}</small></td>
+            <td>
+              <span class="badge" style="background: ${bg}; color: ${color}; font-weight: 700; padding: 4px 10px; border-radius: 6px; display: inline-flex; align-items: center;">
+                ${label}
+              </span>
+            </td>
+            <td>${s.customer || s.customerName || 'Walk-in Customer'}</td>
+            <td style="text-align: right; font-weight: 800; color: ${s.status === 'RETURNED' ? '#ef4444' : '#10b981'}; font-size: 1.05rem;">
+              ৳${netAmt.toFixed(2)}
+              ${refunded > 0 ? `<br><small style="color: #ef4444; font-size: 0.7rem;">(-৳${refunded.toFixed(2)} refund)</small>` : ''}
+            </td>
           </tr>
-        `).join('');
+        `;
+        }).join('');
       }
     }
 
     this.openModal('cashPaymentModalDetails');
   }
 
-  openEpayPaymentModalDetails() {
+  openEpayPaymentModalDetails(filterProvider = 'all') {
     const filteredSales = this.getFilteredSales();
-    const epaySales = filteredSales.filter(s => s.paymentMethod === 'epay' || (s.paymentDetails && s.paymentDetails.method === 'epay'));
-    const totalEpay = epaySales.reduce((sum, s) => sum + (s.grandTotal || 0), 0);
+    const epaySales = filteredSales.filter(s => (s.paymentMethod || '').toUpperCase() === 'EPAY' || (s.paymentDetails && (s.paymentDetails.method || '').toLowerCase() === 'epay'));
+
+    // Provider totals calculation (NET of refunds)
+    const pt = { bKash: 0, Nagad: 0, 'Bangla QR': 0, Card: 0, Other: 0 };
+    const ptRefunds = { bKash: 0, Nagad: 0, 'Bangla QR': 0, Card: 0, Other: 0 };
+
+    epaySales.forEach(s => {
+      const p = ((s.paymentDetails && s.paymentDetails.provider) || '').toLowerCase();
+      const refunded = s.refundedAmount || 0;
+      const netAmt = Math.max(0, (s.grandTotal || 0) - refunded);
+
+      if (p.includes('bkash')) { pt.bKash += netAmt; ptRefunds.bKash += refunded; }
+      else if (p.includes('nagad')) { pt.Nagad += netAmt; ptRefunds.Nagad += refunded; }
+      else if (p.includes('qr') || p.includes('bangla')) { pt['Bangla QR'] += netAmt; ptRefunds['Bangla QR'] += refunded; }
+      else if (p.includes('card')) { pt.Card += netAmt; ptRefunds.Card += refunded; }
+      else { pt.Other += netAmt; ptRefunds.Other += refunded; }
+    });
+
+    // Filter by provider
+    let displaySales = epaySales;
+    if (filterProvider !== 'all') {
+      displaySales = epaySales.filter(s => {
+        const p = ((s.paymentDetails && s.paymentDetails.provider) || '').toLowerCase();
+        if (filterProvider === 'bKash') return p.includes('bkash');
+        if (filterProvider === 'Nagad') return p.includes('nagad');
+        if (filterProvider === 'BanglaQR') return p.includes('qr') || p.includes('bangla');
+        if (filterProvider === 'Card') return p.includes('card');
+        return true;
+      });
+    }
+
+    const totalEpay = displaySales.reduce((sum, s) => sum + Math.max(0, (s.grandTotal || 0) - (s.refundedAmount || 0)), 0);
+    const totalEpayRefunds = displaySales.reduce((sum, s) => sum + (s.refundedAmount || 0), 0);
 
     const elTotal = document.getElementById('modalEpayTotalAmount');
     const elOrders = document.getElementById('modalEpayOrdersCount');
-    if (elTotal) elTotal.innerText = `৳${totalEpay.toFixed(2)}`;
-    if (elOrders) elOrders.innerText = `${epaySales.length} টি`;
+    if (elTotal) {
+      elTotal.innerHTML = `৳${totalEpay.toFixed(2)}${totalEpayRefunds > 0 ? `<small style="font-size:0.75rem; color:#ef4444; margin-left:6px;">(-৳${totalEpayRefunds.toFixed(2)} refund)</small>` : ''}`;
+    }
+    if (elOrders) elOrders.innerText = `${displaySales.length} টি`;
+
+    // Render Provider Breakdown Mini Stat Cards
+    const provStatsEl = document.getElementById('modalEpayProviderStats');
+    if (provStatsEl) {
+      const cfg = [
+        { key: 'bKash', filter: 'bKash', label: 'bKash', bg: 'rgba(233,30,140,0.15)', color: '#e91e8c' },
+        { key: 'Nagad', filter: 'Nagad', label: 'Nagad', bg: 'rgba(249,115,22,0.15)', color: '#f97316' },
+        { key: 'Bangla QR', filter: 'BanglaQR', label: 'Bangla QR', bg: 'rgba(139,92,246,0.15)', color: '#8b5cf6' },
+        { key: 'Card', filter: 'Card', label: 'Card', bg: 'rgba(59,130,246,0.15)', color: '#3b82f6' },
+      ];
+      provStatsEl.innerHTML = cfg.map(p => {
+        const refStr = ptRefunds[p.key] > 0 ? `<span style="font-size:0.65rem; color:#ef4444;">(-৳${ptRefunds[p.key].toFixed(0)} refund)</span>` : '';
+        return `
+        <button onclick="adminApp.openEpayPaymentModalDetails('${p.filter}')" style="background:${p.bg}; color:${p.color}; border:1px solid ${p.color}30; font-weight:700; flex:1; min-width:90px; padding:6px 10px; border-radius:8px; cursor:pointer; font-size:0.82rem; display:flex; flex-direction:column; align-items:center; gap:2px;">
+          ${p.label}<br><small style="font-size:0.72rem;">৳${pt[p.key].toFixed(0)}</small>${refStr}
+        </button>
+      `;
+      }).join('');
+    }
+
+    // Render Filter Tabs
+    const tabsEl = document.getElementById('modalEpayFilterTabs');
+    if (tabsEl) {
+      const tabs = [
+        { key: 'all', label: 'সব' },
+        { key: 'bKash', label: 'bKash' },
+        { key: 'Nagad', label: 'Nagad' },
+        { key: 'BanglaQR', label: 'Bangla QR' },
+        { key: 'Card', label: 'Card' }
+      ];
+      tabsEl.innerHTML = tabs.map(t => `
+        <button onclick="adminApp.openEpayPaymentModalDetails('${t.key}')" style="${filterProvider === t.key ? 'background:var(--accent-orange); color:#fff;' : 'background:var(--bg-card); color:var(--text-muted);'} border:1px solid var(--border-color); padding:5px 12px; border-radius:6px; cursor:pointer; font-weight:600; font-size:0.82rem;">${t.label}</button>
+      `).join('');
+    }
 
     const tbody = document.getElementById('modalEpayTableBody');
     if (tbody) {
-      if (epaySales.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted" style="padding: 1.5rem;">কোনো ডিজিটাল ই-পে ইনভয়েস পাওয়া যায়নি।</td></tr>`;
+      if (displaySales.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted" style="padding: 1.5rem;">এই প্রোভাইডারের কোনো ডিজিটাল ই-পে রেকর্ড পাওয়া যায়নি।</td></tr>`;
       } else {
-        tbody.innerHTML = epaySales.slice(-25).reverse().map(s => {
-          const provider = (s.paymentDetails && s.paymentDetails.provider) ? s.paymentDetails.provider.toUpperCase() : 'DIGITAL E-PAY';
+        tbody.innerHTML = displaySales.map(s => {
+          const { bg, color, label } = this.getPaymentBadge(s);
+          const trxId = s.paymentDetails?.trxId ? `<br><small style="color:var(--text-muted); font-size:0.75rem;">TrxID: ${s.paymentDetails.trxId}</small>` : '';
+          const refunded = s.refundedAmount || 0;
+          const netAmt = Math.max(0, (s.grandTotal || 0) - refunded);
           return `
             <tr>
-              <td><strong>${s.id}</strong></td>
+              <td><strong>${s.id}</strong>${trxId}</td>
               <td><small>${new Date(s.timestamp).toLocaleString('bn-BD')}</small></td>
-              <td><span class="badge" style="background: rgba(59,130,246,0.15); color: #3b82f6; font-weight: 700;"><i class="fa-solid fa-mobile-screen-button"></i> ${provider}</span></td>
+              <td><span class="badge" style="background: ${bg}; color: ${color}; font-weight: 700; padding: 4px 10px; border-radius: 6px;">${label}</span></td>
               <td>${s.customer || 'Walk-in Customer'}</td>
-              <td style="text-align: right; font-weight: 700; color: var(--accent-orange);">৳${(s.grandTotal || 0).toFixed(2)}</td>
+              <td style="text-align: right; font-weight: 800; color: ${s.status === 'RETURNED' ? '#ef4444' : color}; font-size: 1.05rem;">
+                ৳${netAmt.toFixed(2)}
+                ${refunded > 0 ? `<br><small style="color: #ef4444; font-size: 0.7rem;">(-৳${refunded.toFixed(2)} refund)</small>` : ''}
+              </td>
             </tr>
           `;
         }).join('');
@@ -1982,47 +2962,209 @@ class AdminPanel {
     this.openModal('epayPaymentModalDetails');
   }
 
-  openTotalItemsSoldModal() {
+  openTotalItemsSoldModal(defaultFilter = 'net') {
+    this.currentItemsSoldFilter = defaultFilter;
     const filteredSales = this.getFilteredSales();
+
     const itemMap = {};
-    let totalUnitsSold = 0;
+    let totalNetUnits = 0;
+    let totalGrossUnits = 0;
+    let totalReturnedUnits = 0;
+
+    const returnedItemsList = [];
 
     filteredSales.forEach(s => {
       if (s.items && Array.isArray(s.items)) {
         s.items.forEach(item => {
-          const qty = item.quantity || 1;
-          totalUnitsSold += qty;
-          const key = item.id || item.name;
+          const origQty = item.quantity || 1;
+          const retQty = item.returnedQuantity || 0;
+          const netQty = Math.max(0, origQty - retQty);
+
+          totalGrossUnits += origQty;
+          totalReturnedUnits += retQty;
+          totalNetUnits += netQty;
+
+          const colorStr = (item.color && item.color !== 'N/A') ? item.color : '';
+          const sizeStr = (item.size && item.size !== 'N/A') ? item.size : '';
+          const variantKey = [colorStr, sizeStr].filter(Boolean).join('_') || 'Standard';
+          const key = `${item.id || item.name}_${variantKey}`;
+
+          let variantLabel = 'Standard';
+          if (colorStr && sizeStr) variantLabel = `🎨 ${colorStr} / 📏 ${sizeStr}`;
+          else if (colorStr) variantLabel = `🎨 ${colorStr}`;
+          else if (sizeStr) variantLabel = `📏 ${sizeStr}`;
 
           if (!itemMap[key]) {
             const prod = this.products.find(p => p.id === item.id);
             itemMap[key] = {
               name: item.name,
-              variant: (item.color || item.size) ? `${item.color || ''} ${item.size || ''}`.trim() : 'Standard',
+              variant: variantLabel,
               category: (prod && prod.category) ? prod.category : (item.category || 'অন্যান্য'),
               price: item.price || 0,
-              quantity: 0,
-              totalSubtotal: 0
+              grossQty: 0,
+              returnedQty: 0,
+              netQty: 0,
+              netSubtotal: 0,
+              grossSubtotal: 0
             };
           }
-          itemMap[key].quantity += qty;
-          itemMap[key].totalSubtotal += (item.subtotal || (item.price * qty));
+          itemMap[key].grossQty += origQty;
+          itemMap[key].returnedQty += retQty;
+          itemMap[key].netQty += netQty;
+          itemMap[key].netSubtotal += (item.price * netQty);
+          itemMap[key].grossSubtotal += (item.price * origQty);
+
+          if (retQty > 0) {
+            returnedItemsList.push({
+              invoiceId: s.id,
+              date: new Date(s.timestamp).toLocaleString('bn-BD'),
+              name: item.name,
+              color: item.color || 'N/A',
+              size: item.size || 'N/A',
+              variant: variantLabel,
+              category: (this.products.find(p => p.id === item.id)?.category) || item.category || 'অন্যান্য',
+              price: item.price || 0,
+              returnedQty: retQty,
+              refundAmount: (item.price || 0) * retQty,
+              customer: s.customer || s.customerName || 'Walk-in Customer'
+            });
+          }
         });
       }
     });
 
-    const itemsList = Object.values(itemMap);
+    this.cachedItemsSoldData = {
+      itemsList: Object.values(itemMap),
+      returnedItemsList: returnedItemsList,
+      totalNetUnits,
+      totalGrossUnits,
+      totalReturnedUnits
+    };
 
-    const elTotalUnits = document.getElementById('modalItemsSoldTotalCount');
-    const elUniqueProds = document.getElementById('modalItemsSoldUniqueProducts');
-    if (elTotalUnits) elTotalUnits.innerText = `${totalUnitsSold} টি`;
-    if (elUniqueProds) elUniqueProds.innerText = `${itemsList.length} টি`;
+    // Update Box Count Labels
+    const elNetCount = document.getElementById('modalItemsSoldNetCount');
+    const elRetCount = document.getElementById('modalItemsSoldReturnedCount');
+    const elGrossCount = document.getElementById('modalItemsSoldGrossCount');
 
-    const renderTable = (query = '') => {
-      const tbody = document.getElementById('modalItemsSoldTableBody');
-      if (!tbody) return;
+    if (elNetCount) elNetCount.innerText = `${totalNetUnits} টি`;
+    if (elRetCount) elRetCount.innerText = `${totalReturnedUnits} টি`;
+    if (elGrossCount) elGrossCount.innerText = `${totalGrossUnits} টি`;
 
-      const filtered = itemsList.filter(i => 
+    const searchInput = document.getElementById('modalItemsSearchInput');
+    if (searchInput) searchInput.value = '';
+
+    this.renderItemsSoldModalTable(defaultFilter);
+    this.openModal('totalItemsSoldModal');
+  }
+
+  setItemsSoldModalFilter(filterMode) {
+    this.currentItemsSoldFilter = filterMode;
+    this.renderItemsSoldModalTable(filterMode);
+  }
+
+  onItemsSoldSearchInput() {
+    const filterMode = this.currentItemsSoldFilter || 'net';
+    this.renderItemsSoldModalTable(filterMode);
+  }
+
+  renderItemsSoldModalTable(filterMode = 'net') {
+    const data = this.cachedItemsSoldData;
+    if (!data) return;
+
+    // Update Box Styling (active border and bg)
+    ['boxFilterNet', 'boxFilterReturned', 'boxFilterGross'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.style.border = '1px solid var(--border-color)';
+        el.style.background = 'var(--bg-card)';
+      }
+    });
+
+    if (filterMode === 'net') {
+      const activeEl = document.getElementById('boxFilterNet');
+      if (activeEl) {
+        activeEl.style.border = '2px solid #10b981';
+        activeEl.style.background = 'rgba(16,185,129,0.12)';
+      }
+    } else if (filterMode === 'returned') {
+      const activeEl = document.getElementById('boxFilterReturned');
+      if (activeEl) {
+        activeEl.style.border = '2px solid #ef4444';
+        activeEl.style.background = 'rgba(239,68,68,0.12)';
+      }
+    } else if (filterMode === 'gross') {
+      const activeEl = document.getElementById('boxFilterGross');
+      if (activeEl) {
+        activeEl.style.border = '2px solid #3b82f6';
+        activeEl.style.background = 'rgba(59,130,246,0.12)';
+      }
+    }
+
+    const searchInput = document.getElementById('modalItemsSearchInput');
+    const query = (searchInput ? searchInput.value : '').toLowerCase().trim();
+
+    const thead = document.querySelector('#totalItemsSoldModal table thead');
+    const tbody = document.getElementById('modalItemsSoldTableBody');
+    if (!tbody) return;
+
+    if (filterMode === 'returned') {
+      // Returned Items Detailed View (Showing Product Name, Color, Size, Price, Qty Returned, Refund Amount)
+      if (thead) {
+        thead.innerHTML = `
+          <tr>
+            <th>রিটার্নকৃত পণ্য ও মেমো (Trx)</th>
+            <th>ভেরিয়েন্ট (কালার / সাইজ)</th>
+            <th>একক মূল্য</th>
+            <th>রিটার্ন সংখ্যা</th>
+            <th style="text-align: right;">মোট রিফান্ড (৳)</th>
+          </tr>
+        `;
+      }
+
+      const filtered = data.returnedItemsList.filter(i => 
+        !query || 
+        i.name.toLowerCase().includes(query) || 
+        i.color.toLowerCase().includes(query) ||
+        i.size.toLowerCase().includes(query) ||
+        i.invoiceId.toLowerCase().includes(query)
+      );
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted" style="padding: 1.5rem;">কোনো রিটার্নকৃত আইটেম ডাটা পাওয়া যায়নি।</td></tr>`;
+      } else {
+        tbody.innerHTML = filtered.map(i => `
+          <tr>
+            <td>
+              <strong style="color: var(--accent-red, #ef4444);">${i.name}</strong>
+              <div style="font-size:0.72rem; color:var(--text-muted); font-family:monospace;">${i.invoiceId} (${i.date})</div>
+            </td>
+            <td>
+              <span class="badge" style="background: rgba(245,158,11,0.15); color: #f59e0b; font-weight:700;">
+                ${i.variant}
+              </span>
+            </td>
+            <td>৳${i.price.toFixed(2)}</td>
+            <td><strong style="color: #ef4444; font-size: 1.05rem;">${i.returnedQty} টি</strong></td>
+            <td style="text-align: right; font-weight: 800; color: #ef4444; font-size: 1.05rem;">৳${i.refundAmount.toFixed(2)}</td>
+          </tr>
+        `).join('');
+      }
+
+    } else if (filterMode === 'gross') {
+      // Gross Sales View (Showing Gross, Returned, Net Breakdown)
+      if (thead) {
+        thead.innerHTML = `
+          <tr>
+            <th>পণ্যের নাম ও ভেরিয়েন্ট</th>
+            <th>ক্যাটাগরি</th>
+            <th>বিক্রয় ব্রেকডাউন (Gross/Ret/Net)</th>
+            <th>একক বিক্রয় মূল্য</th>
+            <th style="text-align: right;">সর্বমোট বিক্রয় টাকা</th>
+          </tr>
+        `;
+      }
+
+      const filtered = data.itemsList.filter(i => 
         !query || 
         i.name.toLowerCase().includes(query) || 
         i.category.toLowerCase().includes(query) ||
@@ -2032,94 +3174,242 @@ class AdminPanel {
       if (filtered.length === 0) {
         tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted" style="padding: 1.5rem;">কোনো বিক্রিত আইটেম ডাটা পাওয়া যায়নি।</td></tr>`;
       } else {
-        tbody.innerHTML = filtered.sort((a, b) => b.quantity - a.quantity).map(item => `
+        tbody.innerHTML = filtered.sort((a, b) => b.grossQty - a.grossQty).map(item => `
           <tr>
             <td>
               <strong>${item.name}</strong><br>
-              <small class="text-muted">(${item.variant})</small>
+              <small class="badge" style="background: rgba(245,158,11,0.15); color: #f59e0b; font-size: 0.72rem; margin-top: 2px;">(${item.variant})</small>
             </td>
             <td><span class="badge" style="background: rgba(59,130,246,0.15); color: #3b82f6;">${item.category}</span></td>
-            <td><strong style="color: var(--accent-cyan); font-size: 1rem;">${item.quantity} টি</strong></td>
+            <td>
+              <strong style="color: #3b82f6; font-size: 1rem;">${item.grossQty} টি Gross</strong>
+              <div style="font-size: 0.68rem; font-weight: 600; margin-top: 2px;">
+                <span style="color:#10b981;">নিট বিক্রি: ${item.netQty}</span> | <span style="color:#ef4444;">রিটার্ন: ${item.returnedQty}</span>
+              </div>
+            </td>
             <td>৳${item.price.toFixed(2)}</td>
-            <td style="text-align: right; font-weight: 700; color: var(--accent-green);">৳${item.totalSubtotal.toFixed(2)}</td>
+            <td style="text-align: right; font-weight: 700; color: var(--accent-green);">৳${item.grossSubtotal.toFixed(2)}</td>
           </tr>
         `).join('');
       }
-    };
 
-    renderTable();
+    } else {
+      // Net Sales View (Default Box 1 - Showing Net Sold Items)
+      if (thead) {
+        thead.innerHTML = `
+          <tr>
+            <th>পণ্যের নাম ও ভেরিয়েন্ট</th>
+            <th>ক্যাটাগরি</th>
+            <th>সক্রিয় বিক্রির সংখ্যা (Net)</th>
+            <th>একক মূল্য</th>
+            <th style="text-align: right;">নিট বিক্রয় টাকা</th>
+          </tr>
+        `;
+      }
 
-    const searchInput = document.getElementById('modalItemsSearchInput');
-    if (searchInput) {
-      searchInput.value = '';
-      searchInput.oninput = (e) => renderTable(e.target.value.toLowerCase().trim());
+      const filtered = data.itemsList.filter(i => 
+        i.netQty > 0 &&
+        (!query || 
+        i.name.toLowerCase().includes(query) || 
+        i.category.toLowerCase().includes(query) ||
+        i.variant.toLowerCase().includes(query))
+      );
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted" style="padding: 1.5rem;">কোনো সক্রিয় বিক্রিত আইটেম ডাটা পাওয়া যায়নি।</td></tr>`;
+      } else {
+        tbody.innerHTML = filtered.sort((a, b) => b.netQty - a.netQty).map(item => `
+          <tr>
+            <td>
+              <strong>${item.name}</strong><br>
+              <small class="badge" style="background: rgba(245,158,11,0.15); color: #f59e0b; font-size: 0.72rem; margin-top: 2px;">(${item.variant})</small>
+            </td>
+            <td><span class="badge" style="background: rgba(16,185,129,0.15); color: #10b981;">${item.category}</span></td>
+            <td>
+              <strong style="color: #10b981; font-size: 1.05rem;">${item.netQty} টি</strong>
+            </td>
+            <td>৳${item.price.toFixed(2)}</td>
+            <td style="text-align: right; font-weight: 800; color: #10b981;">৳${item.netSubtotal.toFixed(2)}</td>
+          </tr>
+        `).join('');
+      }
     }
-
-    this.openModal('totalItemsSoldModal');
   }
 
-  openNetProfitModal() {
+  openNetProfitModal(defaultFilter = 'net') {
+    this.currentProfitFilter = defaultFilter;
     const filteredSales = this.getFilteredSales();
-    let totalSales = 0;
-    let totalCost = 0;
-    const itemProfits = {};
+
+    let totalNetSales = 0;
+    let totalNetCost = 0;
+    let totalGrossSales = 0;
+    let totalGrossCost = 0;
+    let totalReturnedRefund = 0;
+    let totalReturnedCost = 0;
+    let totalReturnedItemsCount = 0;
+
+    const itemProfitsMap = {};
+    const returnedProfitItemsList = [];
 
     filteredSales.forEach(sale => {
-      totalSales += (sale.grandTotal || 0);
       if (sale.items && Array.isArray(sale.items)) {
         sale.items.forEach(item => {
-          const cost = item.cost !== undefined ? item.cost : (item.price * 0.8);
+          const origQty = item.quantity || 1;
+          const retQty = item.returnedQuantity || 0;
+          const netQty = Math.max(0, origQty - retQty);
+
           const price = item.price || 0;
-          const qty = item.quantity || 1;
-          const itemCostTotal = cost * qty;
-          const itemRevTotal = item.subtotal || (price * qty);
-          const itemProfit = itemRevTotal - itemCostTotal;
+          const cost = item.cost !== undefined ? item.cost : (price * 0.8);
 
-          totalCost += itemCostTotal;
+          const grossRev = price * origQty;
+          const grossCost = cost * origQty;
 
-          const prod = this.products.find(p => p.id === item.id);
-          const key = item.id || item.name;
+          const netRev = price * netQty;
+          const netCost = cost * netQty;
 
-          if (!itemProfits[key]) {
-            itemProfits[key] = {
+          const retRev = price * retQty;
+          const retCost = cost * retQty;
+
+          totalGrossSales += grossRev;
+          totalGrossCost += grossCost;
+          totalNetSales += netRev;
+          totalNetCost += netCost;
+          totalReturnedRefund += retRev;
+          totalReturnedCost += retCost;
+          totalReturnedItemsCount += retQty;
+
+          const colorStr = (item.color && item.color !== 'N/A') ? item.color : '';
+          const sizeStr = (item.size && item.size !== 'N/A') ? item.size : '';
+          const variantKey = [colorStr, sizeStr].filter(Boolean).join('_') || 'Standard';
+          const key = `${item.id || item.name}_${variantKey}`;
+
+          let variantLabel = 'Standard';
+          if (colorStr && sizeStr) variantLabel = `🎨 ${colorStr} / 📏 ${sizeStr}`;
+          else if (colorStr) variantLabel = `🎨 ${colorStr}`;
+          else if (sizeStr) variantLabel = `📏 ${sizeStr}`;
+
+          if (!itemProfitsMap[key]) {
+            const prod = this.products.find(p => p.id === item.id);
+            itemProfitsMap[key] = {
               name: item.name,
-              variant: (item.color || item.size) ? `${item.color || ''} ${item.size || ''}`.trim() : 'Standard',
+              variant: variantLabel,
               category: (prod && prod.category) ? prod.category : (item.category || 'অন্যান্য'),
-              quantity: 0,
-              cost: cost,
               price: price,
-              totalSales: 0,
-              totalCost: 0,
-              totalProfit: 0
+              cost: cost,
+              grossQty: 0,
+              returnedQty: 0,
+              netQty: 0,
+              grossSales: 0,
+              grossCost: 0,
+              grossProfit: 0,
+              netSales: 0,
+              netCost: 0,
+              netProfit: 0
             };
           }
-          itemProfits[key].quantity += qty;
-          itemProfits[key].totalSales += itemRevTotal;
-          itemProfits[key].totalCost += itemCostTotal;
-          itemProfits[key].totalProfit += itemProfit;
+
+          itemProfitsMap[key].grossQty += origQty;
+          itemProfitsMap[key].returnedQty += retQty;
+          itemProfitsMap[key].netQty += netQty;
+
+          itemProfitsMap[key].grossSales += grossRev;
+          itemProfitsMap[key].grossCost += grossCost;
+          itemProfitsMap[key].grossProfit += (grossRev - grossCost);
+
+          itemProfitsMap[key].netSales += netRev;
+          itemProfitsMap[key].netCost += netCost;
+          itemProfitsMap[key].netProfit += (netRev - netCost);
+
+          if (retQty > 0) {
+            returnedProfitItemsList.push({
+              invoiceId: sale.id,
+              date: new Date(sale.timestamp).toLocaleString('bn-BD'),
+              name: item.name,
+              variant: variantLabel,
+              color: item.color || 'N/A',
+              size: item.size || 'N/A',
+              category: (this.products.find(p => p.id === item.id)?.category) || item.category || 'অন্যান্য',
+              price: price,
+              cost: cost,
+              returnedQty: retQty,
+              refundAmount: retRev,
+              restockedCost: retCost,
+              profitAdjustment: -(retRev - retCost)
+            });
+          }
         });
       }
     });
 
-    const netProfit = totalSales - totalCost;
-    const marginPct = totalSales > 0 ? ((netProfit / totalSales) * 100).toFixed(1) : 0;
+    let modalVat = 0;
+    let modalCouponDisc = 0;
+    let modalManualDisc = 0;
 
-    const elSales = document.getElementById('modalProfitTotalSales');
-    const elCost = document.getElementById('modalProfitTotalCost');
+    filteredSales.forEach(s => {
+      const vatAmt = s.tax || 0;
+      const discAmt = s.discount || 0;
+      const hasCoupon = Boolean(s.couponCode || s.coupon || (s.couponDiscount && s.couponDiscount > 0));
+
+      modalVat += vatAmt;
+
+      if (hasCoupon) {
+        modalCouponDisc += (s.couponDiscount !== undefined ? s.couponDiscount : discAmt);
+      } else {
+        modalManualDisc += (s.manualDiscount !== undefined ? s.manualDiscount : discAmt);
+      }
+    });
+
+    const netVatDiscAdjustment = modalVat - (modalCouponDisc + modalManualDisc);
+    const grossProductProfit = totalNetSales - totalNetCost;
+    const finalAdjustedNetProfit = grossProductProfit + netVatDiscAdjustment;
+    const totalGrossProfit = totalGrossSales - totalGrossCost;
+    const netMarginPct = totalNetSales > 0 ? ((finalAdjustedNetProfit / totalNetSales) * 100).toFixed(1) : 0;
+
+    this.cachedProfitData = {
+      itemsList: Object.values(itemProfitsMap),
+      returnedItemsList: returnedProfitItemsList,
+      totalNetSales,
+      totalNetCost,
+      totalNetProfit: finalAdjustedNetProfit,
+      grossProductProfit,
+      netVatDiscAdjustment,
+      totalGrossSales,
+      totalGrossCost,
+      totalGrossProfit,
+      totalReturnedRefund,
+      totalReturnedCost,
+      totalReturnedItemsCount,
+      netMarginPct
+    };
+
+    // Update Header Cards & Box Values
     const elNet = document.getElementById('modalProfitNetTotal');
+    const elNetSub = document.getElementById('modalProfitTotalSalesSub');
+    const elRet = document.getElementById('modalProfitReturnedTotal');
+    const elRetSub = document.getElementById('modalProfitReturnedCountSub');
+    const elGross = document.getElementById('modalProfitGrossTotal');
+    const elGrossSub = document.getElementById('modalProfitGrossSalesSub');
     const elMargin = document.getElementById('modalProfitMarginPercent');
+    const elHeaderDetail = document.getElementById('modalProfitHeaderDetail');
 
-    if (elSales) elSales.innerText = `৳${totalSales.toFixed(2)}`;
-    if (elCost) elCost.innerText = `৳${totalCost.toFixed(2)}`;
-    if (elNet) elNet.innerText = `৳${netProfit.toFixed(2)}`;
-    if (elMargin) elMargin.innerText = `${marginPct}%`;
+    if (elNet) elNet.innerText = `৳${finalAdjustedNetProfit.toFixed(2)}`;
+    if (elNetSub) elNetSub.innerText = `(পণ্য মুনাফা ৳${grossProductProfit.toFixed(2)} ${netVatDiscAdjustment >= 0 ? '+' : ''}৳${netVatDiscAdjustment.toFixed(2)} ভ্যাট/ডিসকাউন্ট)`;
+
+    if (elRet) elRet.innerText = `-৳${totalReturnedRefund.toFixed(2)}`;
+    if (elRetSub) elRetSub.innerText = `(${totalReturnedItemsCount}টি রিটার্ন | রিস্টকড খরচ: ৳${totalReturnedCost.toFixed(2)})`;
+
+    if (elGross) elGross.innerText = `৳${totalGrossProfit.toFixed(2)}`;
+    if (elGrossSub) elGrossSub.innerText = `(গ্রস রিভেনিউ ৳${totalGrossSales.toFixed(2)})`;
+
+    if (elMargin) elMargin.innerText = `${netMarginPct}%`;
+    if (elHeaderDetail) elHeaderDetail.innerText = `(নিট রিভেনিউ ৳${totalNetSales.toFixed(2)} থেকে নিট কেনা খরচ ৳${totalNetCost.toFixed(2)} বাদ দিয়ে)`;
 
     const statusBadge = document.getElementById('modalProfitStatusBadge');
     if (statusBadge) {
-      if (marginPct >= 20) {
+      if (netMarginPct >= 20) {
         statusBadge.className = 'badge bg-green';
         statusBadge.innerText = 'চমৎকার প্রফিট মার্জিন (> 20%)';
-      } else if (marginPct >= 10) {
+      } else if (netMarginPct >= 10) {
         statusBadge.className = 'badge bg-blue';
         statusBadge.innerText = 'সন্তোষজনক মার্জিন (10%-20%)';
       } else {
@@ -2128,72 +3418,222 @@ class AdminPanel {
       }
     }
 
-    const itemsList = Object.values(itemProfits);
+    const searchInput = document.getElementById('modalProfitSearchInput');
+    if (searchInput) searchInput.value = '';
 
-    const renderTable = () => {
-      const tbody = document.getElementById('modalProfitTopItemsBody');
-      if (!tbody) return;
+    this.renderNetProfitModalTable(defaultFilter);
+    this.openModal('netProfitModal');
+  }
 
-      const query = (document.getElementById('modalProfitSearchInput')?.value || '').toLowerCase().trim();
-      const sortMode = document.getElementById('modalProfitSortSelect')?.value || 'highest_profit';
+  setNetProfitModalFilter(filterMode) {
+    this.currentProfitFilter = filterMode;
+    this.renderNetProfitModalTable(filterMode);
+  }
 
-      let list = itemsList.filter(i => 
+  onNetProfitSearchInput() {
+    this.renderNetProfitModalTable(this.currentProfitFilter || 'net');
+  }
+
+  onNetProfitSortChange() {
+    this.renderNetProfitModalTable(this.currentProfitFilter || 'net');
+  }
+
+  renderNetProfitModalTable(filterMode = 'net') {
+    const data = this.cachedProfitData;
+    if (!data) return;
+
+    // Update Box Styling
+    ['profitBoxNet', 'profitBoxReturned', 'profitBoxGross'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.style.border = '1px solid var(--border-color)';
+        el.style.background = 'var(--bg-card)';
+      }
+    });
+
+    if (filterMode === 'net') {
+      const activeEl = document.getElementById('profitBoxNet');
+      if (activeEl) {
+        activeEl.style.border = '2px solid #10b981';
+        activeEl.style.background = 'rgba(16,185,129,0.12)';
+      }
+    } else if (filterMode === 'returned') {
+      const activeEl = document.getElementById('profitBoxReturned');
+      if (activeEl) {
+        activeEl.style.border = '2px solid #ef4444';
+        activeEl.style.background = 'rgba(239,68,68,0.12)';
+      }
+    } else if (filterMode === 'gross') {
+      const activeEl = document.getElementById('profitBoxGross');
+      if (activeEl) {
+        activeEl.style.border = '2px solid #3b82f6';
+        activeEl.style.background = 'rgba(59,130,246,0.12)';
+      }
+    }
+
+    const searchInput = document.getElementById('modalProfitSearchInput');
+    const sortSelect = document.getElementById('modalProfitSortSelect');
+    const query = (searchInput ? searchInput.value : '').toLowerCase().trim();
+    const sortMode = sortSelect ? sortSelect.value : 'highest_profit';
+
+    const thead = document.querySelector('#netProfitModal table thead');
+    const tbody = document.getElementById('modalProfitTopItemsBody');
+    if (!tbody) return;
+
+    if (filterMode === 'returned') {
+      // Returned Profit Breakdown View
+      if (thead) {
+        thead.innerHTML = `
+          <tr>
+            <th>রিটার্নকৃত পণ্য ও মেমো (Trx)</th>
+            <th>ভেরিয়েন্ট (কালার / সাইজ)</th>
+            <th>রিটার্ন সংখ্যা</th>
+            <th>একক কেনা (Cost)</th>
+            <th>একক বিক্রি (Price)</th>
+            <th>রিফান্ড টাকা (Sales Loss)</th>
+            <th>রিস্টকড খরচ (Cost Back)</th>
+            <th style="text-align: right;">প্রফিট এডজাস্টমেন্ট</th>
+          </tr>
+        `;
+      }
+
+      const filtered = data.returnedItemsList.filter(i => 
+        !query || 
+        i.name.toLowerCase().includes(query) || 
+        i.variant.toLowerCase().includes(query) ||
+        i.invoiceId.toLowerCase().includes(query)
+      );
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted" style="padding: 1.5rem;">কোনো রিটার্নকৃত প্রফিট ডাটা পাওয়া যায়নি।</td></tr>`;
+      } else {
+        tbody.innerHTML = filtered.map(i => `
+          <tr>
+            <td>
+              <strong style="color: var(--accent-red, #ef4444);">${i.name}</strong>
+              <div style="font-size:0.72rem; color:var(--text-muted); font-family:monospace;">${i.invoiceId} (${i.date})</div>
+            </td>
+            <td>
+              <span class="badge" style="background: rgba(245,158,11,0.15); color: #f59e0b; font-weight:700;">
+                ${i.variant}
+              </span>
+            </td>
+            <td><strong style="color: #ef4444;">${i.returnedQty} টি</strong></td>
+            <td>৳${i.cost.toFixed(2)}</td>
+            <td>৳${i.price.toFixed(2)}</td>
+            <td style="color:#ef4444; font-weight:700;">-৳${i.refundAmount.toFixed(2)}</td>
+            <td style="color:#10b981; font-weight:700;">+৳${i.restockedCost.toFixed(2)}</td>
+            <td style="text-align: right; font-weight: 800; color: #ef4444;">${i.profitAdjustment.toFixed(2)}৳</td>
+          </tr>
+        `).join('');
+      }
+
+    } else if (filterMode === 'gross') {
+      // Gross Profit View
+      if (thead) {
+        thead.innerHTML = `
+          <tr>
+            <th>পণ্যের নাম ও ভেরিয়েন্ট</th>
+            <th>ক্যাটাগরি</th>
+            <th>মোট সেলস (Gross Qty)</th>
+            <th>কেনা দাম (Cost)</th>
+            <th>বিক্রি দাম (Price)</th>
+            <th>গ্রস মোট বিক্রি</th>
+            <th>গ্রস কেনা খরচ</th>
+            <th style="text-align: right;">গ্রস প্রফিট</th>
+          </tr>
+        `;
+      }
+
+      let filtered = data.itemsList.filter(i => 
         !query || 
         i.name.toLowerCase().includes(query) || 
         i.category.toLowerCase().includes(query) ||
         i.variant.toLowerCase().includes(query)
       );
 
-      if (sortMode === 'highest_profit') {
-        list.sort((a, b) => b.totalProfit - a.totalProfit);
-      } else if (sortMode === 'highest_qty') {
-        list.sort((a, b) => b.quantity - a.quantity);
-      } else if (sortMode === 'lowest_profit') {
-        list.sort((a, b) => a.totalProfit - b.totalProfit);
+      if (sortMode === 'highest_profit') filtered.sort((a, b) => b.grossProfit - a.grossProfit);
+      else if (sortMode === 'highest_qty') filtered.sort((a, b) => b.grossQty - a.grossQty);
+      else if (sortMode === 'lowest_profit') filtered.sort((a, b) => a.grossProfit - b.grossProfit);
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted" style="padding: 1.5rem;">কোনো বিক্রিত প্রফিট ডাটা পাওয়া যায়নি।</td></tr>`;
+      } else {
+        tbody.innerHTML = filtered.map(item => `
+          <tr>
+            <td>
+              <strong>${item.name}</strong><br>
+              <small class="badge" style="background: rgba(245,158,11,0.15); color: #f59e0b; font-size: 0.72rem; margin-top: 2px;">(${item.variant})</small>
+            </td>
+            <td><span class="badge" style="background: rgba(59,130,246,0.15); color: #3b82f6;">${item.category}</span></td>
+            <td>
+              <strong style="color: #3b82f6;">${item.grossQty} টি</strong>
+              <div style="font-size:0.68rem; color:var(--text-muted);">(নিট: ${item.netQty} | রিটার্ন: ${item.returnedQty})</div>
+            </td>
+            <td>৳${item.cost.toFixed(2)}</td>
+            <td>৳${item.price.toFixed(2)}</td>
+            <td>৳${item.grossSales.toFixed(2)}</td>
+            <td>৳${item.grossCost.toFixed(2)}</td>
+            <td style="text-align: right; font-weight: 800; color: #3b82f6;">৳${item.grossProfit.toFixed(2)}</td>
+          </tr>
+        `).join('');
       }
 
-      if (list.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted" style="padding: 1.5rem;">কোনো প্রোডাক্টের প্রফিট রেকর্ড পাওয়া যায়নি।</td></tr>`;
+    } else {
+      // Net Profit View (Default Box 1 - Showing Net Sold Items)
+      if (thead) {
+        thead.innerHTML = `
+          <tr>
+            <th>পণ্যের নাম ও ভেরিয়েন্ট</th>
+            <th>ক্যাটাগরি</th>
+            <th>সক্রিয় বিক্রি (Net Qty)</th>
+            <th>কেনা দাম (Cost)</th>
+            <th>বিক্রি দাম (Price)</th>
+            <th>নিট মোট বিক্রি</th>
+            <th>নিট কেনা খরচ</th>
+            <th style="text-align: right;">নিট লাভ (Net Profit)</th>
+          </tr>
+        `;
+      }
+
+      let filtered = data.itemsList.filter(i => 
+        i.netQty > 0 &&
+        (!query || 
+        i.name.toLowerCase().includes(query) || 
+        i.category.toLowerCase().includes(query) ||
+        i.variant.toLowerCase().includes(query))
+      );
+
+      if (sortMode === 'highest_profit') filtered.sort((a, b) => b.netProfit - a.netProfit);
+      else if (sortMode === 'highest_qty') filtered.sort((a, b) => b.netQty - a.netQty);
+      else if (sortMode === 'lowest_profit') filtered.sort((a, b) => a.netProfit - b.netProfit);
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted" style="padding: 1.5rem;">কোনো সক্রিয় বিক্রিত প্রফিট ডাটা পাওয়া যায়নি।</td></tr>`;
       } else {
-        tbody.innerHTML = list.map(item => {
-          const itemMargin = item.totalSales > 0 ? ((item.totalProfit / item.totalSales) * 100).toFixed(1) : 0;
+        tbody.innerHTML = filtered.map(item => {
+          const retBadge = item.returnedQty > 0 ? `<br><span class="badge" style="background:rgba(239,68,68,0.12); color:#ef4444; font-size:0.68rem;">(${item.returnedQty}টি রিটার্ন বাদ)</span>` : '';
           return `
-            <tr>
-              <td>
-                <strong>${item.name}</strong><br>
-                <small class="text-muted">(${item.variant})</small>
-              </td>
-              <td><span class="badge" style="background: rgba(59,130,246,0.15); color: #3b82f6;">${item.category}</span></td>
-              <td><strong>${item.quantity} টি</strong></td>
-              <td>৳${item.cost.toFixed(2)}</td>
-              <td>৳${item.price.toFixed(2)}</td>
-              <td>৳${item.totalSales.toFixed(2)}</td>
-              <td>৳${item.totalCost.toFixed(2)}</td>
-              <td style="text-align: right;">
-                <strong style="color: ${item.totalProfit >= 0 ? 'var(--accent-purple)' : '#ef4444'}; font-size: 0.95rem;">
-                  ${item.totalProfit >= 0 ? '+' : ''}৳${item.totalProfit.toFixed(2)}
-                </strong>
-                <br><small style="color: var(--text-muted);">${itemMargin}% মার্জিন</small>
-              </td>
-            </tr>
-          `;
+          <tr>
+            <td>
+              <strong>${item.name}</strong><br>
+              <small class="badge" style="background: rgba(245,158,11,0.15); color: #f59e0b; font-size: 0.72rem; margin-top: 2px;">(${item.variant})</small>
+            </td>
+            <td><span class="badge" style="background: rgba(16,185,129,0.15); color: #10b981;">${item.category}</span></td>
+            <td>
+              <strong style="color: #10b981; font-size: 1.05rem;">${item.netQty} টি</strong>
+              ${retBadge}
+            </td>
+            <td>৳${item.cost.toFixed(2)}</td>
+            <td>৳${item.price.toFixed(2)}</td>
+            <td>৳${item.netSales.toFixed(2)}</td>
+            <td>৳${item.netCost.toFixed(2)}</td>
+            <td style="text-align: right; font-weight: 800; color: #10b981; font-size: 1.05rem;">৳${item.netProfit.toFixed(2)}</td>
+          </tr>
+        `;
         }).join('');
       }
-    };
-
-    renderTable();
-
-    const searchInput = document.getElementById('modalProfitSearchInput');
-    const sortSelect = document.getElementById('modalProfitSortSelect');
-    if (searchInput) {
-      searchInput.value = '';
-      searchInput.oninput = () => renderTable();
     }
-    if (sortSelect) {
-      sortSelect.onchange = () => renderTable();
-    }
-
-    this.openModal('netProfitModal');
   }
 
   openLowStockModal() {
@@ -2266,11 +3706,61 @@ class AdminPanel {
     this.showToast('কাস্টমার বাকি ও বাকির হিসাব দেখতে কাস্টমার ট্যাবে নিয়ে যাওয়া হলো');
   }
 
-  showReceiptModalById(id) {
+  showReceiptModalById(id, isNewSale = false) {
     const sale = this.sales.find(s => s.id === id);
     if (!sale) return;
 
-    const sym = (this.settings && this.settings.currencySymbol) || '৳';
+    const s = this.settings || JSON.parse(localStorage.getItem('pos_settings')) || {};
+    const sym = s.currencySymbol || '৳';
+
+    const logoImg = document.getElementById('rcptStoreLogoImg');
+    const storeTitleEl = document.getElementById('rcptStoreTitle');
+    const storeAddressEl = document.getElementById('rcptStoreAddress');
+    const storePhoneEl = document.getElementById('rcptStorePhone');
+    const storeEmailEl = document.getElementById('rcptStoreEmail');
+
+    const logoSrc = s.invoiceLogo || s.storeLogo || '';
+    const showLogo = s.showInvoiceLogo !== false && logoSrc;
+    const showName = s.showInvoiceStoreName !== false;
+    const showAddress = s.showInvoiceAddress !== false;
+    const showPhone = s.showInvoicePhone !== false;
+    const showEmail = s.showInvoiceEmail === true;
+
+    if (logoImg) {
+      if (showLogo) {
+        logoImg.src = logoSrc;
+        logoImg.style.display = 'block';
+      } else {
+        logoImg.style.display = 'none';
+      }
+    }
+
+    if (storeTitleEl) {
+      storeTitleEl.innerText = s.storeName || 'Super Shop Warehouse';
+      storeTitleEl.style.display = showName ? 'block' : 'none';
+    }
+
+    if (storeAddressEl) {
+      storeAddressEl.innerText = s.storeAddress || 'Mirpur 10, Dhaka - 1216';
+      storeAddressEl.style.display = showAddress && s.storeAddress ? 'block' : 'none';
+    }
+
+    if (storePhoneEl) {
+      storePhoneEl.innerText = `Mobile: ${s.storePhone || '+880 1700-000000'}`;
+      storePhoneEl.style.display = showPhone && s.storePhone ? 'block' : 'none';
+    }
+
+    if (storeEmailEl) {
+      storeEmailEl.innerText = `Email: ${s.storeEmail || ''}`;
+      storeEmailEl.style.display = showEmail && s.storeEmail ? 'block' : 'none';
+    }
+
+    const footerNoteEl = document.querySelector('#printableReceipt .receipt-footer .thank-you');
+    if (footerNoteEl) {
+      footerNoteEl.innerText = s.receiptFooterNote || 'Thank you! Come again.';
+      footerNoteEl.style.display = s.showInvoiceFooter !== false ? 'block' : 'none';
+    }
+
     document.getElementById('rcptInvId').innerText = sale.id;
     document.getElementById('rcptDate').innerText = new Date(sale.timestamp).toLocaleString('en-US');
     document.getElementById('rcptCustomer').innerText = sale.customer || 'Walk-in Customer';
@@ -2301,25 +3791,51 @@ class AdminPanel {
     const grandEl = document.getElementById('rcptGrandTotal');
     if (grandEl) grandEl.innerText = `${sym}${sale.grandTotal.toFixed(2)}`;
 
+    const noteBox = document.getElementById('rcptOrderNoteBox');
+    const orderNoteStr = (sale.orderNote || sale.note || '').trim();
+
+    if (noteBox) {
+      if (orderNoteStr) {
+        const safeNote = String(orderNoteStr).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        noteBox.innerHTML = `<strong style="font-weight: 700; color: #000; display: inline;">Note: </strong><span style="font-weight: 500; color: #111; word-break: break-word; overflow-wrap: break-word; white-space: pre-wrap; display: inline;">${safeNote}</span>`;
+        noteBox.style.display = 'block';
+      } else {
+        noteBox.style.display = 'none';
+      }
+    }
+
     if (typeof JsBarcode !== 'undefined') {
       try {
-        JsBarcode("#rcptBarcodeSvg", sale.id, { format: "CODE128", width: 1.8, height: 45, displayValue: false, margin: 0, background: "#ffffff", lineColor: "#000000" });
+        JsBarcode("#rcptBarcodeSvg", sale.id, { format: "CODE128", width: 1.8, height: 48, displayValue: true, fontSize: 13, fontOptions: "bold", font: "monospace", margin: 8, background: "#ffffff", lineColor: "#000000" });
       } catch(e) {}
     }
 
     this.openModal('adminReceiptModal');
 
-    setTimeout(() => {
-      this.playInModalReceiptPrint('printableReceipt', false);
-    }, 200);
+    const paperEl = document.getElementById('printableReceipt');
+    const container = paperEl ? paperEl.closest('.receipt-feed-container') : null;
+    const scanline = container ? container.querySelector('.thermal-feed-scanline') : null;
+    const statusIndicator = container ? container.querySelector('.slot-status-indicator') : null;
+    const statusText = container ? container.querySelector('.slot-status-text') : null;
+
+    if (isNewSale) {
+      setTimeout(() => {
+        this.playInModalReceiptPrint('printableReceipt', false);
+      }, 200);
+    } else {
+      if (paperEl) {
+        paperEl.style.transform = 'translateY(0)';
+        paperEl.style.opacity = '1';
+      }
+      if (scanline) scanline.style.display = 'none';
+      if (statusIndicator) statusIndicator.classList.remove('printing');
+      if (statusText) statusText.innerText = 'Ready';
+    }
   }
 
   playInModalReceiptPrint(receiptPaperId, autoTriggerSystemPrint = false) {
     const paperEl = document.getElementById(receiptPaperId);
-    if (!paperEl) {
-      if (autoTriggerSystemPrint) window.print();
-      return;
-    }
+    if (!paperEl) return;
 
     const container = paperEl.closest('.receipt-feed-container');
     const viewport = paperEl.closest('.receipt-feed-viewport');
@@ -2328,14 +3844,14 @@ class AdminPanel {
     const statusText = container ? container.querySelector('.slot-status-text') : null;
 
     if (statusIndicator) statusIndicator.classList.add('printing');
-    if (statusText) statusText.innerText = 'Printing...';
+    if (statusText) statusText.innerText = '🖨️ প্রিন্ট হচ্ছে...';
     if (scanline) scanline.style.display = 'block';
 
+    const duration = 2200;
     if (window.printHub && window.printHub.playPrinterAudio) {
-      window.printHub.playPrinterAudio(1600);
+      window.printHub.playPrinterAudio(duration);
     }
 
-    const duration = 1600;
     const startTime = performance.now();
 
     if (viewport) viewport.scrollTop = 0;
@@ -2344,7 +3860,7 @@ class AdminPanel {
     paperEl.style.transform = 'translateY(60px)';
     paperEl.style.opacity = '0.3';
 
-    function step(now) {
+    const step = (now) => {
       const elapsed = now - startTime;
       const progress = Math.min(1, elapsed / duration);
 
@@ -2371,7 +3887,7 @@ class AdminPanel {
         if (scanline) scanline.style.display = 'none';
 
         if (statusIndicator) statusIndicator.classList.remove('printing');
-        if (statusText) statusText.innerText = 'Ready';
+        if (statusText) statusText.innerText = '✅ প্রিন্ট সম্পন্ন';
 
         if (viewport) {
           viewport.scrollTop = viewport.scrollHeight;
@@ -2380,16 +3896,14 @@ class AdminPanel {
         if (window.printHub && window.printHub.playSuccessBeep) {
           window.printHub.playSuccessBeep();
         }
+
+        if (window.confetti) {
+          confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } });
+        }
       }
-    }
+    };
 
     requestAnimationFrame(step);
-
-    if (autoTriggerSystemPrint) {
-      setTimeout(() => {
-        window.print();
-      }, 300);
-    }
   }
 
   downloadReceiptPDF(receiptPaperId) {
@@ -2406,7 +3920,7 @@ class AdminPanel {
 
     if (typeof JsBarcode !== 'undefined') {
       try {
-        JsBarcode("#rcptBarcodeSvg", invId, { format: "CODE128", width: 1.8, height: 45, displayValue: false, margin: 0, background: "#ffffff", lineColor: "#000000" });
+        JsBarcode("#rcptBarcodeSvg", invId, { format: "CODE128", width: 1.8, height: 48, displayValue: true, fontSize: 13, fontOptions: "bold", font: "monospace", margin: 8, background: "#ffffff", lineColor: "#000000" });
       } catch(e) {}
     }
 
@@ -2452,6 +3966,41 @@ class AdminPanel {
     }
   }
 
+  switchManageShopSubTab(tabName) {
+    const btnPersonal = document.getElementById('btnShopTabPersonal');
+    const btnBusiness = document.getElementById('btnShopTabBusiness');
+    const contentPersonal = document.getElementById('shopTabPersonalContent');
+    const contentBusiness = document.getElementById('shopTabBusinessContent');
+
+    if (tabName === 'personal') {
+      if (btnPersonal) {
+        btnPersonal.classList.add('active');
+        btnPersonal.style.background = 'var(--accent-blue)';
+        btnPersonal.style.color = '#ffffff';
+      }
+      if (btnBusiness) {
+        btnBusiness.classList.remove('active');
+        btnBusiness.style.background = 'transparent';
+        btnBusiness.style.color = 'var(--text-color)';
+      }
+      if (contentPersonal) contentPersonal.style.display = 'block';
+      if (contentBusiness) contentBusiness.style.display = 'none';
+    } else {
+      if (btnBusiness) {
+        btnBusiness.classList.add('active');
+        btnBusiness.style.background = 'var(--accent-green)';
+        btnBusiness.style.color = '#ffffff';
+      }
+      if (btnPersonal) {
+        btnPersonal.classList.remove('active');
+        btnPersonal.style.background = 'transparent';
+        btnPersonal.style.color = 'var(--text-color)';
+      }
+      if (contentPersonal) contentPersonal.style.display = 'none';
+      if (contentBusiness) contentBusiness.style.display = 'block';
+    }
+  }
+
   renderSettingsForm() {
     const s = this.settings || (typeof DEFAULT_SETTINGS !== 'undefined' ? DEFAULT_SETTINGS : {});
     const setVal = (id, val) => {
@@ -2459,12 +4008,52 @@ class AdminPanel {
       if (el) el.value = val !== undefined ? val : '';
     };
 
-    setVal('settingStoreName', s.storeName || 'Super Shop Dhaka');
+    // Owner Personal Information
     setVal('settingStoreOwner', s.storeOwner || 'Md. Abdul Baqui');
+    setVal('settingPersonalPhone', s.personalPhone || s.storePhone || '+880 1700-000000');
+    setVal('settingPersonalEmail', s.personalEmail || s.storeEmail || '');
+    setVal('settingOwnerNID', s.ownerNID || '');
+    setVal('settingOwnerNIDImage', s.ownerNIDImage || '');
+    const nidPrev = document.getElementById('settingOwnerNIDPreview');
+    if (nidPrev && s.ownerNIDImage) nidPrev.src = s.ownerNIDImage;
+    setVal('settingOwnerAddress', s.ownerAddress || '');
+
+    // Business & Brand Information
+    setVal('settingStoreName', s.storeName || 'Super Shop Dhaka');
     setVal('settingStorePhone', s.storePhone || '+880 1700-000000');
     setVal('settingStoreEmail', s.storeEmail || 'dhaka.supershop@gmail.com');
     setVal('settingStoreAddress', s.storeAddress || 'Mirpur 10, Dhaka - 1216');
+    setVal('settingTradeLicense', s.tradeLicense || '');
     setVal('settingStoreLogo', s.storeLogo || '');
+    const logoPrev = document.getElementById('settingStoreLogoPreview');
+    if (logoPrev && s.storeLogo) logoPrev.src = s.storeLogo;
+
+    // Load Invoice & Barcode Print Customization Settings
+    setVal('settingInvoiceLogo', s.invoiceLogo || s.storeLogo || '');
+    const invLogoPrev = document.getElementById('settingInvoiceLogoPreview');
+    if (invLogoPrev && (s.invoiceLogo || s.storeLogo)) invLogoPrev.src = s.invoiceLogo || s.storeLogo;
+
+    const setChk = (id, checked) => {
+      const el = document.getElementById(id);
+      if (el) el.checked = !!checked;
+    };
+
+    setChk('settingShowInvoiceLogo', s.showInvoiceLogo !== false);
+    setChk('settingShowInvoiceStoreName', s.showInvoiceStoreName !== false);
+    setChk('settingShowInvoicePhone', s.showInvoicePhone !== false);
+    setChk('settingShowInvoiceEmail', s.showInvoiceEmail === true);
+    setChk('settingShowInvoiceAddress', s.showInvoiceAddress !== false);
+    setChk('settingShowInvoiceFooter', s.showInvoiceFooter !== false);
+
+    setVal('settingInvoiceHeaderNote', s.receiptHeaderNote || '');
+    setVal('settingInvoiceFooterNote', s.receiptFooterNote || 'Thank you! Come again.');
+
+    setVal('settingBarcodePaperFormat', s.barcodePaperFormat || 'sticker_38x25');
+    setVal('settingBarcodeScale', s.barcodeScale || 'normal');
+    setChk('settingBarcodeShowName', s.barcodeShowName !== false);
+    setChk('settingBarcodeShowVariant', s.barcodeShowVariant !== false);
+    setChk('settingBarcodeShowPrice', s.barcodeShowPrice !== false);
+
     setVal('settingDefaultDiscountMode', s.defaultDiscountMode || 'percent');
     setVal('settingDefaultDiscountValue', s.defaultDiscountValue !== undefined ? s.defaultDiscountValue : 0);
     setVal('settingDefaultTaxMode', s.defaultTaxMode || 'percent');
@@ -2477,11 +4066,6 @@ class AdminPanel {
 
     // Load payment gateways settings
     const gateways = JSON.parse(localStorage.getItem('pos_payment_gateways')) || (typeof DEFAULT_PAYMENT_GATEWAYS !== 'undefined' ? DEFAULT_PAYMENT_GATEWAYS : {});
-    
-    const setChk = (id, checked) => {
-      const el = document.getElementById(id);
-      if (el) el.checked = !!checked;
-    };
 
     setChk('gwEnableBkash', gateways.bKash ? gateways.bKash.enabled !== false : true);
     setVal('gwNumBkash', gateways.bKash ? gateways.bKash.accountNumber : '01700-000000');
@@ -2506,32 +4090,52 @@ class AdminPanel {
       return el ? el.value.trim() : '';
     };
 
+    const getChk = (id) => {
+      const el = document.getElementById(id);
+      return el ? el.checked : false;
+    };
+
     const updatedSettings = {
       storeName: getVal('settingStoreName') || 'Super Shop Dhaka',
       storeOwner: getVal('settingStoreOwner') || 'Md. Abdul Baqui',
+      personalPhone: getVal('settingPersonalPhone') || getVal('settingStorePhone'),
+      personalEmail: getVal('settingPersonalEmail') || getVal('settingStoreEmail'),
+      ownerNID: getVal('settingOwnerNID'),
+      ownerNIDImage: getVal('settingOwnerNIDImage'),
+      ownerAddress: getVal('settingOwnerAddress'),
       storePhone: getVal('settingStorePhone') || '+880 1700-000000',
       storeEmail: getVal('settingStoreEmail'),
       storeAddress: getVal('settingStoreAddress') || 'Mirpur 10, Dhaka - 1216',
+      tradeLicense: getVal('settingTradeLicense'),
       storeLogo: getVal('settingStoreLogo'),
+      invoiceLogo: getVal('settingInvoiceLogo') || getVal('settingStoreLogo'),
+      showInvoiceLogo: getChk('settingShowInvoiceLogo'),
+      showInvoiceStoreName: getChk('settingShowInvoiceStoreName'),
+      showInvoicePhone: getChk('settingShowInvoicePhone'),
+      showInvoiceEmail: getChk('settingShowInvoiceEmail'),
+      showInvoiceAddress: getChk('settingShowInvoiceAddress'),
+      showInvoiceFooter: getChk('settingShowInvoiceFooter'),
+      receiptHeaderNote: getVal('settingInvoiceHeaderNote') || getVal('settingReceiptHeader'),
+      receiptFooterNote: getVal('settingInvoiceFooterNote') || getVal('settingReceiptFooter') || 'Thank you! Come again.',
+      barcodePaperFormat: getVal('settingBarcodePaperFormat') || 'sticker_38x25',
+      barcodeScale: getVal('settingBarcodeScale') || 'normal',
+      barcodeShowName: getChk('settingBarcodeShowName'),
+      barcodeShowVariant: getChk('settingBarcodeShowVariant'),
+      barcodeShowPrice: getChk('settingBarcodeShowPrice'),
       defaultDiscountMode: getVal('settingDefaultDiscountMode') || 'percent',
       defaultDiscountValue: parseFloat(getVal('settingDefaultDiscountValue')) || 0,
       defaultTaxMode: getVal('settingDefaultTaxMode') || 'percent',
       defaultTax: parseFloat(getVal('settingDefaultTax')) || 0,
       currencySymbol: getVal('settingCurrencySymbol') || '৳',
       currencyCode: 'BDT',
-      receiptHeaderNote: getVal('settingReceiptHeader'),
-      receiptFooterNote: getVal('settingReceiptFooter') || 'Thank you! Come again.',
       adminPin: getVal('settingAdminPin') || '1234',
       defaultTheme: getVal('settingDefaultTheme') || 'dark'
     };
 
     this.settings = updatedSettings;
     localStorage.setItem('pos_settings', JSON.stringify(updatedSettings));
-
-    const getChk = (id) => {
-      const el = document.getElementById(id);
-      return el ? el.checked : false;
-    };
+    localStorage.setItem('pos_theme', updatedSettings.defaultTheme);
+    document.documentElement.setAttribute('data-theme', updatedSettings.defaultTheme);
 
     const paymentGateways = {
       bKash: {
@@ -2754,6 +4358,15 @@ class AdminPanel {
     }
   }
 
+  isGuestSale(s) {
+    if (!s) return false;
+    if (s.customerId === 'GUEST') return true;
+    if (s.customerPhone && String(s.customerPhone).trim() !== '') return false;
+    const nameLower = (s.customer || s.customerName || '').toLowerCase().trim();
+    if (!nameLower || nameLower === 'walk-in customer' || nameLower === 'walk-in' || nameLower === 'guest' || nameLower === 'n/a') return true;
+    return !s.customerPhone;
+  }
+
   // CUSTOMER MANAGEMENT METHODS
   renderAdminCustomers() {
     this.customers = JSON.parse(localStorage.getItem('pos_customers')) || (typeof INITIAL_CUSTOMERS !== 'undefined' ? INITIAL_CUSTOMERS : []);
@@ -2766,12 +4379,19 @@ class AdminPanel {
     const tbody = document.getElementById('adminCustomersTableBody');
     const searchVal = (document.getElementById('custSearchInput')?.value || '').toLowerCase().trim();
 
-    const totalOrdersCount = this.customers.reduce((sum, c) => sum + (c.totalOrders || 0), 0);
-    const totalSpentSum = this.customers.reduce((sum, c) => sum + (c.totalSpent || 0), 0);
+    const guestSales = this.sales.filter(s => this.isGuestSale(s));
+    const guestOrdersCount = guestSales.length;
+    const guestSpentSum = guestSales.reduce((sum, s) => sum + (s.grandTotal || 0), 0);
 
-    if (countEl) countEl.innerText = `${this.customers.length} জন`;
-    if (ordersEl) ordersEl.innerText = `${totalOrdersCount} টি`;
-    if (spentEl) spentEl.innerText = `৳${totalSpentSum.toFixed(2)}`;
+    const registeredOrdersCount = this.customers.reduce((sum, c) => sum + (c.totalOrders || 0), 0);
+    const registeredSpentSum = this.customers.reduce((sum, c) => sum + (c.totalSpent || 0), 0);
+
+    const overallTotalOrders = registeredOrdersCount + guestOrdersCount;
+    const overallTotalSpent = registeredSpentSum + guestSpentSum;
+
+    if (countEl) countEl.innerText = `${this.customers.length + 1} জন (সহ গেস্ট)`;
+    if (ordersEl) ordersEl.innerText = `${overallTotalOrders} টি`;
+    if (spentEl) spentEl.innerText = `৳${overallTotalSpent.toFixed(2)}`;
 
     const filtered = this.customers.filter(c => 
       !searchVal || 
@@ -2781,10 +4401,38 @@ class AdminPanel {
       (c.email || '').toLowerCase().includes(searchVal)
     );
 
-    if (badgeEl) badgeEl.innerText = `মোট ${filtered.length} জন কাস্টমার`;
+    const showGuest = !searchVal || 'গেস্ট'.includes(searchVal) || 'guest'.includes(searchVal) || 'walk-in'.includes(searchVal) || 'অনিবন্ধিত'.includes(searchVal);
+
+    if (badgeEl) badgeEl.innerText = `মোট ${filtered.length + (showGuest ? 1 : 0)} জন (গেস্ট অন্তর্ভুক্ত)`;
 
     if (!tbody) return;
-    if (filtered.length === 0) {
+
+    let html = '';
+
+    if (showGuest) {
+      html += `
+        <tr onclick="adminApp.viewCustomerOrders('GUEST')" style="cursor: pointer; background: rgba(245, 158, 11, 0.08); border-left: 4px solid #f59e0b;" title="অনিবন্ধিত গেস্ট ও ওয়াক-ইন কাস্টমারদের কেনাকাটার বিস্তারিত দেখুন">
+          <td><strong style="color: #f59e0b;"><i class="fa-solid fa-user-secret"></i> GUEST</strong></td>
+          <td>
+            <strong style="color: var(--text-main);">গেস্ট / ওয়াক-ইন কাস্টমার</strong>
+            <span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #f59e0b; margin-left: 6px; font-weight: 700;"><i class="fa-solid fa-user-tag"></i> সিস্টেম সাধারণ সার্ভিস</span>
+          </td>
+          <td><span class="badge" style="background: rgba(148, 163, 184, 0.15); color: var(--text-muted);"><i class="fa-solid fa-phone-slash"></i> অনিবন্ধিত</span></td>
+          <td><span class="text-muted">N/A</span></td>
+          <td><span class="text-muted">দোকানে আগত সাধারণ ক্রেতা</span></td>
+          <td><span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #f59e0b; font-weight: 700;">${guestOrdersCount} টি অর্ডার</span></td>
+          <td><strong style="color: var(--accent-green);">৳${guestSpentSum.toFixed(2)}</strong></td>
+          <td><small class="text-muted">সিস্টেম মেম্বার</small></td>
+          <td style="text-align: right;" onclick="event.stopPropagation();">
+            <button type="button" class="btn btn-sm btn-warning" onclick="adminApp.viewCustomerOrders('GUEST')" title="গেস্ট ইনভয়েস ও মেমো দেখুন">
+              <i class="fa-solid fa-id-card"></i> গেস্ট বিবরণী
+            </button>
+          </td>
+        </tr>
+      `;
+    }
+
+    if (filtered.length === 0 && !showGuest) {
       tbody.innerHTML = `
         <tr>
           <td colspan="9" class="text-center py-4 text-muted">
@@ -2796,7 +4444,7 @@ class AdminPanel {
       return;
     }
 
-    tbody.innerHTML = filtered.map(c => {
+    html += filtered.map(c => {
       const isBlocked = c.status === 'blocked';
       const statusBadge = isBlocked 
         ? `<span class="badge" style="background: rgba(239, 68, 68, 0.15); color: #ef4444; margin-left: 6px;"><i class="fa-solid fa-ban"></i> ব্লকড</span>`
@@ -2837,6 +4485,8 @@ class AdminPanel {
         </tr>
       `;
     }).join('');
+
+    tbody.innerHTML = html;
   }
 
   toggleBlockCustomer(id) {
@@ -2914,14 +4564,27 @@ class AdminPanel {
     this.sales = JSON.parse(localStorage.getItem('pos_sales')) || (typeof INITIAL_SALES !== 'undefined' ? INITIAL_SALES : []);
     this.customers = JSON.parse(localStorage.getItem('pos_customers')) || (typeof INITIAL_CUSTOMERS !== 'undefined' ? INITIAL_CUSTOMERS : []);
 
+    const isGuestQuery = (phoneOrName === 'GUEST' || phoneOrName === 'guest' || phoneOrName === 'CUST-GUEST');
     const cleanInputPhone = this.normalizePhone(phoneOrName);
     let c = null;
 
-    if (phoneOrName) {
-      c = this.customers.find(x => x.id === phoneOrName || x.phone === phoneOrName || x.name === phoneOrName);
-    }
-    if (!c && cleanInputPhone) {
-      c = this.customers.find(x => this.normalizePhone(x.phone) === cleanInputPhone);
+    if (isGuestQuery) {
+      c = {
+        id: 'GUEST',
+        name: 'গেস্ট / ওয়াক-ইন কাস্টমার',
+        phone: 'অনিবন্ধিত কাস্টমার',
+        email: 'N/A',
+        address: 'দোকানে আগত সাধারণ ক্রেতা',
+        status: 'active',
+        createdAt: 'সিস্টেম অটো'
+      };
+    } else {
+      if (phoneOrName) {
+        c = this.customers.find(x => x.id === phoneOrName || x.phone === phoneOrName || x.name === phoneOrName);
+      }
+      if (!c && cleanInputPhone) {
+        c = this.customers.find(x => this.normalizePhone(x.phone) === cleanInputPhone);
+      }
     }
 
     const custName = c ? c.name : phoneOrName;
@@ -2929,6 +4592,12 @@ class AdminPanel {
 
     // Deep multi-criteria sales matching
     const custSales = this.sales.filter(s => {
+      if (isGuestQuery) {
+        return this.isGuestSale(s);
+      }
+
+      if (this.isGuestSale(s)) return false;
+
       // 1. Exact Customer ID match
       if (c && c.id && s.customerId && s.customerId === c.id) return true;
       if (phoneOrName && s.customerId && s.customerId === phoneOrName) return true;
@@ -2956,6 +4625,8 @@ class AdminPanel {
 
       return false;
     });
+
+    custSales.sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime());
 
     // Auto-bind unlinked sales to this customer ID & sync totals
     if (c && custSales.length > 0) {
@@ -3055,6 +4726,7 @@ class AdminPanel {
         memosContainer.innerHTML = custSales.map(s => {
           const formattedDate = s.date || new Date(s.timestamp || Date.now()).toLocaleString('bn-BD');
           const itemsList = s.items || [];
+          const badgeInfo = this.getPaymentBadge(s);
           return `
             <div class="cust-memo-card">
               <div class="cust-memo-header">
@@ -3063,7 +4735,7 @@ class AdminPanel {
                   <span style="font-size: 0.8rem; color: var(--text-muted); margin-left: 0.5rem;"><i class="fa-regular fa-clock"></i> ${formattedDate}</span>
                 </div>
                 <div style="display: flex; align-items: center; gap: 0.75rem;">
-                  <span class="badge" style="background: rgba(59, 130, 246, 0.15); color: var(--accent-blue);">${s.paymentMethod || 'CASH'}</span>
+                  <span class="badge" style="background: ${badgeInfo.bg}; color: ${badgeInfo.color}; font-weight:700;">${badgeInfo.label}</span>
                   <strong style="color: var(--accent-green); font-size: 1.05rem;">৳${(s.grandTotal || 0).toFixed(2)}</strong>
                   <button type="button" class="btn btn-sm btn-outline" onclick="adminApp.viewSaleDetails('${s.id}')" title="মেমো দেখুন / প্রিন্ট করুন">
                     <i class="fa-solid fa-file-invoice"></i> মেমো দেখুন

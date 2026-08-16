@@ -78,8 +78,8 @@ class SmartPrintHub {
             <div class="toolbar-item">
               <label><i class="fa-solid fa-scroll"></i> পেপার ও স্টিকার ফরম্যাট:</label>
               <select id="printHubFormatSelect" class="form-control form-control-sm">
+                <option value="sticker_38x25" selected>🏷️ 38mm × 25mm কসমেটিকস ও পোশাক ১-আপ রোল (Small Roll)</option>
                 <option value="sticker_50x30">🏷️ 50mm × 30mm স্টিকার রোল (BD Standard 1-Up Roll)</option>
-                <option value="sticker_38x25">🏷️ 38mm × 25mm কসমেটিকস ও পোশাক ১-আপ রোল (Small Roll)</option>
                 <option value="sticker_50x25">🏷️ 50mm × 25mm গ্যাজেট ও জুয়েলারি ১-আপ রোল (Medium Roll)</option>
                 <option value="sticker_75x50">🏷️ 75mm × 50mm কার্টন ও শিপিং লেবেল (Large Shipping Label)</option>
                 <option value="sticker_25x15">🏷️ 25mm × 15mm ফার্মেসী ও অ্যাকসেসোরিজ ট্যাগ (Micro Tag)</option>
@@ -369,7 +369,9 @@ class SmartPrintHub {
     const paperTarget = document.getElementById('printablePrintHubTarget');
     if (!paperTarget) return;
 
-    paperTarget.className = `printed-paper-sheet paper-format-${this.paperFormat}`;
+    const isSticker = this.paperFormat.startsWith('sticker_') || this.paperFormat === '2up_label' || this.paperFormat === 'a4_grid';
+
+    paperTarget.className = `printed-paper-sheet paper-format-${this.paperFormat}${isSticker ? ' sticker-mode' : ''}`;
 
     // Width styling based on paperFormat
     if (this.paperFormat === 'custom') {
@@ -399,7 +401,17 @@ class SmartPrintHub {
     // Scale & padding
     const scale = (this.settings.scalePercent || 100) / 100;
     paperTarget.style.fontSize = `${scale * 100}%`;
-    paperTarget.style.padding = `${this.settings.marginMm !== undefined ? this.settings.marginMm : 0}mm`;
+
+    if (isSticker) {
+      paperTarget.style.background = 'transparent';
+      paperTarget.style.boxShadow = 'none';
+      paperTarget.style.border = 'none';
+      paperTarget.style.padding = '0';
+    } else {
+      paperTarget.style.background = '#ffffff';
+      paperTarget.style.boxShadow = '0 10px 25px rgba(0,0,0,0.3)';
+      paperTarget.style.padding = `${this.settings.marginMm !== undefined ? this.settings.marginMm : 0}mm`;
+    }
 
     // Sticker grid column layout
     const gridEl = document.getElementById('barcodeHubGrid');
@@ -673,7 +685,6 @@ class SmartPrintHub {
   }
 
   // --- PAPER EJECTION & SCANNER ANIMATION ENGINE ---
-  // Triggered when printing or replaying paper ejection animation
   triggerPrintEjection() {
     this.playPrintAnimation();
   }
@@ -691,22 +702,25 @@ class SmartPrintHub {
 
     if (!paperTarget) return;
 
-    let animDuration = 1500;
-    if (speed === 'fast') animDuration = 600;
+    const itemCount = (this.currentItems && this.currentItems.length > 0) ? this.currentItems.length : 1;
+    // Calculate dynamic animation duration based on total sticker count (~350ms per sticker, min 1600ms, max 10000ms)
+    let baseTime = Math.max(1600, Math.min(10000, itemCount * 350 + 600));
+    let animDuration = baseTime;
+    if (speed === 'fast') animDuration = Math.max(700, Math.round(baseTime * 0.45));
     if (speed === 'instant') animDuration = 50;
 
     this.isAnimating = true;
 
-    // Lock viewport overflow during animation so paper emerges inside chassis frame
+    // Reset paper tray scroll to top
     if (paperTrayViewport) {
       paperTrayViewport.scrollTop = 0;
-      paperTrayViewport.style.overflowY = 'hidden';
+      paperTrayViewport.style.overflowY = 'auto';
     }
 
-    // Reset paper feed initial state (sliding UPWARD from bottom to top)
+    // Reset paper target initial position and opacity
     paperTarget.style.transition = 'none';
-    paperTarget.style.transform = 'translateY(100%)';
-    paperTarget.style.opacity = '0.3';
+    paperTarget.style.transform = 'translateY(30px)';
+    paperTarget.style.opacity = '0.4';
     if (laserLine) {
       laserLine.style.display = 'block';
       laserLine.style.top = '0%';
@@ -717,7 +731,7 @@ class SmartPrintHub {
 
     if (progressWrapper) progressWrapper.style.display = 'flex';
     if (progressBar) progressBar.style.width = '0%';
-    if (progressText) progressText.innerText = '🖨️ নিচ থেকে ওপরের দিকে বারকোড স্টিকার প্রিন্ট হয়ে বের হচ্ছে... 0%';
+    if (progressText) progressText.innerText = `🖨️ নিচ থেকে ওপরের দিকে বারকোড স্টিকার প্রিন্ট হয়ে বের হচ্ছে (১/${itemCount})... 0%`;
 
     // Play thermal printer motor audio sound
     if (speed !== 'instant') {
@@ -734,13 +748,24 @@ class SmartPrintHub {
       const progress = Math.min(1, elapsed / animDuration);
 
       const percent = Math.floor(progress * 100);
-      if (progressBar) progressBar.style.width = `${percent}%`;
-      if (progressText) progressText.innerText = `🖨️ নিচ থেকে ওপরের দিকে বারকোড স্টিকার প্রিন্ট হয়ে বের হচ্ছে... ${percent}%`;
+      const processedCount = Math.min(itemCount, Math.max(1, Math.ceil(progress * itemCount)));
 
-      // Smooth realistic paper feeding animation sliding UPWARD from bottom to top out of slot
-      const translateY = 100 - (progress * 100);
-      paperTarget.style.transform = `translateY(${translateY}%)`;
-      paperTarget.style.opacity = `${0.3 + (progress * 0.7)}`;
+      if (progressBar) progressBar.style.width = `${percent}%`;
+      if (progressText) progressText.innerText = `🖨️ নিচ থেকে ওপরের দিকে বারকোড স্টিকার প্রিন্ট হয়ে বের হচ্ছে (${processedCount}/${itemCount})... ${percent}%`;
+
+      // Smooth initial slide out from printer slot
+      const initialEntryRatio = Math.min(1, progress * 4);
+      const translateY = Math.round((1 - initialEntryRatio) * 30);
+      paperTarget.style.transform = `translateY(${translateY}px)`;
+      paperTarget.style.opacity = `${0.4 + (progress * 0.6)}`;
+
+      // Scroll viewport down continuously so stickers feed upwards from #1 to the last sticker
+      if (paperTrayViewport) {
+        const maxScroll = Math.max(0, paperTarget.scrollHeight - paperTrayViewport.clientHeight + 10);
+        if (maxScroll > 0) {
+          paperTrayViewport.scrollTop = Math.round(progress * maxScroll);
+        }
+      }
 
       if (laserLine) {
         laserLine.style.top = `${(1 - progress) * 100}%`;
@@ -750,15 +775,14 @@ class SmartPrintHub {
         requestAnimationFrame(animateStep);
       } else {
         // Animation complete
-        paperTarget.style.transform = 'translateY(0%)';
+        paperTarget.style.transform = 'translateY(0px)';
         paperTarget.style.opacity = '1';
         if (laserLine) laserLine.style.display = 'none';
 
         if (statusLed) statusLed.className = 'led led-status ready';
         if (statusLedText) statusLedText.innerText = 'PRINT COMPLETE';
-        if (progressText) progressText.innerText = '✅ বারকোড স্টিকার প্রিন্ট সম্পন্ন!';
+        if (progressText) progressText.innerText = `✅ মোট ${itemCount} টি বারকোড স্টিকার প্রিন্ট সম্পন্ন!`;
 
-        // Unlock scroll after ejection completes so user can inspect roll
         if (paperTrayViewport) {
           paperTrayViewport.style.overflowY = 'auto';
         }
@@ -768,7 +792,7 @@ class SmartPrintHub {
 
         setTimeout(() => {
           if (progressWrapper) progressWrapper.style.display = 'none';
-        }, 800);
+        }, 1000);
       }
     };
 
@@ -778,35 +802,39 @@ class SmartPrintHub {
   // Set instant visible state (no loading animation delay on modal open)
   setInstantVisible() {
     const paperTarget = document.getElementById('printablePrintHubTarget');
-    const paperTrayViewport = document.getElementById('paperTrayViewport');
     const progressWrapper = document.getElementById('printProgressWrapper');
     const laserLine = document.getElementById('printerLaserLine');
     const statusLed = document.getElementById('printerStatusLed');
     const statusLedText = document.getElementById('printerLedText');
 
-    if (paperTarget) {
-      paperTarget.style.transition = 'none';
-      paperTarget.style.transform = 'translateY(0%)';
-      paperTarget.style.opacity = '1';
-    }
-    if (paperTrayViewport) {
-      paperTrayViewport.style.overflowY = 'auto';
-    }
-    if (progressWrapper) progressWrapper.style.display = 'none';
+    if (!paperTarget) return;
+
+    paperTarget.style.transition = 'none';
+    paperTarget.style.transform = 'translateY(0%)';
+    paperTarget.style.opacity = '1';
+
     if (laserLine) laserLine.style.display = 'none';
+    if (progressWrapper) progressWrapper.style.display = 'none';
     if (statusLed) statusLed.className = 'led led-status ready';
     if (statusLedText) statusLedText.innerText = 'READY';
+
+    this.isAnimating = false;
   }
 
   // --- OPEN BARCODE STICKER PRINT STUDIO ---
   openBarcodeStudio({ title = 'বারকোড স্টিকার প্রিন্ট হাব', items = [], paperFormat = null }) {
     this.currentTitle = title;
     this.currentItems = items || [];
+    const posSettings = JSON.parse(localStorage.getItem('pos_settings')) || {};
+    const showName = posSettings.barcodeShowName !== false;
+    const showVariant = posSettings.barcodeShowVariant !== false;
+    const showPrice = posSettings.barcodeShowPrice !== false;
+
     if (paperFormat) {
       this.paperFormat = paperFormat;
       this.settings.paperFormat = paperFormat;
     } else {
-      this.paperFormat = this.settings.paperFormat || 'sticker_50x30';
+      this.paperFormat = localStorage.getItem('pos_barcode_paper_format') || posSettings.barcodePaperFormat || this.settings.paperFormat || 'sticker_38x25';
     }
 
     // Hide top toolbar & settings drawer button for clean centered viewport view
@@ -827,35 +855,32 @@ class SmartPrintHub {
     if (!paperTarget) return;
 
     let stickersHtml = `
-      <div class="barcode-studio-header text-center mb-3">
-        <h4 style="margin:0; font-size:1.1rem; color:#111; font-weight:800;">SmartPOS Barcode Label Sheet</h4>
-        <p style="margin:2px 0 0; font-size:0.75rem; color:#555;">তারিখ: ${new Date().toLocaleDateString('bn-BD')} | মোট স্টিকার: ${items.length} টি</p>
-        <div style="border-bottom:2px dashed #333; margin:8px 0 14px;"></div>
-      </div>
       <div class="barcode-hub-grid" id="barcodeHubGrid">
     `;
 
     items.forEach((item, idx) => {
-      const mrpText = (item.mrp && item.mrp > item.price) ? `<del style="font-size:0.7rem; color:#777;">৳${item.mrp}</del> ` : '';
+      const mrpText = (item.mrp && item.mrp > item.price) ? `<del style="font-size:0.68rem; color:#777;">৳${item.mrp}</del> ` : '';
       const nameStr = item.name || '';
       const len = nameStr.trim().length;
-      let fontStyling = 'font-size:0.78rem; font-weight:800; line-height:1.15;';
+      let fontStyling = 'font-size:0.68rem; font-weight:700; line-height:1.1; margin-bottom:1px;';
       if (len > 32) {
-        fontStyling = 'font-size:0.64rem; font-weight:600; line-height:1.1;';
+        fontStyling = 'font-size:0.58rem; font-weight:600; line-height:1.05; margin-bottom:1px;';
       } else if (len > 22) {
-        fontStyling = 'font-size:0.70rem; font-weight:700; line-height:1.12;';
+        fontStyling = 'font-size:0.64rem; font-weight:700; line-height:1.08; margin-bottom:1px;';
       }
 
+      const nameHtml = showName ? `<div style="${fontStyling} width:100%; text-align:center; color:#000; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; word-break:break-word;">${item.name}</div>` : '';
+      const variantHtml = (showVariant && item.variantDetails) ? `<div style="font-size:0.60rem; font-weight:600; color:#333; margin-top:1px; margin-bottom:1px; line-height:1.1;">${item.variantDetails}</div>` : '';
+      const priceHtml = showPrice ? `<div style="font-size:0.78rem; font-weight:800; color:#000; margin-top:1px; line-height:1.1;">মূল্য: ${mrpText}৳${item.price}</div>` : '';
+
       stickersHtml += `
-        <div class="barcode-sticker-card hub-sticker" style="background:#fff; color:#000; padding:6px 5px; border:1px solid #000; border-radius:6px; text-align:center; box-shadow:0 2px 5px rgba(0,0,0,0.08); display:flex; flex-direction:column; align-items:center; justify-content:center; page-break-inside:avoid; break-inside:avoid;">
-          <div style="${fontStyling} width:100%; text-align:center; color:#000; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; word-break:break-word; word-wrap:break-word;">${item.name}</div>
-          <div style="font-size:0.68rem; font-weight:600; color:#333; margin-top:2px;">${item.variantDetails || ''}</div>
-          <div style="width:100%; display:flex; justify-content:center; margin:3px 0;">
+        <div class="barcode-sticker-card hub-sticker" style="background:#fff; color:#000; padding:5px 4px; border:1px solid #000; border-radius:6px; text-align:center; box-shadow:0 2px 5px rgba(0,0,0,0.08); display:flex; flex-direction:column; align-items:center; justify-content:center; page-break-inside:avoid; break-inside:avoid;">
+          ${nameHtml}
+          ${variantHtml}
+          <div style="width:100%; display:flex; justify-content:center; margin:2px 0;">
             <svg id="hubBcSvg_${idx}" style="max-width:100%; height:auto; display:block; margin:0 auto; shape-rendering:crispEdges;"></svg>
           </div>
-          <div style="font-size:0.85rem; font-weight:800; color:#000; margin-top:1px;">
-            মূল্য: ${mrpText}৳${item.price}
-          </div>
+          ${priceHtml}
         </div>
       `;
     });
@@ -881,52 +906,61 @@ class SmartPrintHub {
     if (!this.currentItems || this.currentItems.length === 0) return;
     if (typeof JsBarcode === 'undefined') return;
 
-    let bcWidth = 1.4;
-    let bcHeight = 40;
-    let bcFontSize = 10;
-    let bcMargin = 2;
+    let bcWidth = 1.35;
+    let bcHeight = 44;
+    let bcFontSize = 9.5;
+    let bcMargin = 1;
 
-    if (this.paperFormat === 'sticker_50x30') {
-      bcWidth = 1.35;
-      bcHeight = 36;
+    if (this.paperFormat === 'sticker_38x25') {
+      bcWidth = 1.25;
+      bcHeight = 42;
+      bcFontSize = 9.5;
+      bcMargin = 1;
+    } else if (this.paperFormat === 'sticker_50x30') {
+      bcWidth = 1.4;
+      bcHeight = 52;
       bcFontSize = 10;
       bcMargin = 2;
-    } else if (this.paperFormat === 'sticker_38x25') {
-      bcWidth = 1.15;
-      bcHeight = 28;
-      bcFontSize = 9;
-      bcMargin = 1;
     } else if (this.paperFormat === 'sticker_50x25') {
-      bcWidth = 1.3;
-      bcHeight = 30;
+      bcWidth = 1.35;
+      bcHeight = 44;
       bcFontSize = 9.5;
       bcMargin = 1;
     } else if (this.paperFormat === 'sticker_75x50') {
-      bcWidth = 1.75;
-      bcHeight = 55;
+      bcWidth = 1.8;
+      bcHeight = 72;
       bcFontSize = 12;
       bcMargin = 3;
     } else if (this.paperFormat === 'sticker_25x15') {
-      bcWidth = 0.85;
-      bcHeight = 18;
+      bcWidth = 0.9;
+      bcHeight = 24;
       bcFontSize = 8;
       bcMargin = 0;
     } else if (this.paperFormat === '2up_label') {
-      bcWidth = 1.25;
-      bcHeight = 32;
-      bcFontSize = 10;
+      bcWidth = 1.3;
+      bcHeight = 44;
+      bcFontSize = 9.5;
       bcMargin = 1;
     } else if (this.paperFormat === 'a4_grid') {
-      bcWidth = 1.4;
-      bcHeight = 40;
-      bcFontSize = 11;
-      bcMargin = 2;
-    } else if (this.paperFormat === '58mm') {
-      bcWidth = 1.25;
-      bcHeight = 32;
+      bcWidth = 1.3;
+      bcHeight = 44;
       bcFontSize = 10;
       bcMargin = 1;
+    } else if (this.paperFormat === '58mm') {
+      bcWidth = 1.3;
+      bcHeight = 44;
+      bcFontSize = 9.5;
+      bcMargin = 1;
     }
+
+    const posSettings = JSON.parse(localStorage.getItem('pos_settings')) || {};
+    const scale = posSettings.barcodeScale || 'normal';
+    let scaleMult = 1.0;
+    if (scale === 'compact') scaleMult = 0.85;
+    if (scale === 'large') scaleMult = 1.25;
+
+    bcWidth = parseFloat((bcWidth * scaleMult).toFixed(2));
+    bcHeight = Math.round(bcHeight * scaleMult);
 
     this.currentItems.forEach((item, idx) => {
       try {

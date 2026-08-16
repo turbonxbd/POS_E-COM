@@ -2,20 +2,34 @@
 
 class CashierTerminal {
   constructor() {
-    const isRegisteredStore = !!localStorage.getItem('pos_active_store_id');
-    this.products = JSON.parse(localStorage.getItem('pos_products')) || (isRegisteredStore ? [] : (typeof INITIAL_PRODUCTS !== 'undefined' ? INITIAL_PRODUCTS : []));
-    this.sales = JSON.parse(localStorage.getItem('pos_sales')) || (isRegisteredStore ? [] : (typeof INITIAL_SALES !== 'undefined' ? INITIAL_SALES : []));
-    this.settings = JSON.parse(localStorage.getItem('pos_settings')) || (typeof DEFAULT_SETTINGS !== 'undefined' ? DEFAULT_SETTINGS : {});
+    const activeStoreId = localStorage.getItem('pos_active_store_id') || 'store_demo_101';
+    const isGuestStore = activeStoreId === 'store_demo_101';
+
+    const tenantProdKey = `pos_tenant_${activeStoreId}_pos_products`;
+    const tenantSalesKey = `pos_tenant_${activeStoreId}_pos_sales`;
+    const tenantSettingsKey = `pos_tenant_${activeStoreId}_pos_settings`;
+    const tenantCouponKey = `pos_tenant_${activeStoreId}_pos_coupons`;
+    const tenantCustKey = `pos_tenant_${activeStoreId}_pos_customers`;
+
+    let rawProd = localStorage.getItem(tenantProdKey) || localStorage.getItem('pos_products');
+    let rawSales = localStorage.getItem(tenantSalesKey) || localStorage.getItem('pos_sales');
+    let rawSettings = localStorage.getItem(tenantSettingsKey) || localStorage.getItem('pos_settings');
+    let rawCoupons = localStorage.getItem(tenantCouponKey) || localStorage.getItem('pos_coupons');
+    let rawCusts = localStorage.getItem(tenantCustKey) || localStorage.getItem('pos_customers');
+
+    this.products = rawProd && rawProd !== '[]' ? JSON.parse(rawProd) : (isGuestStore && typeof INITIAL_PRODUCTS !== 'undefined' ? INITIAL_PRODUCTS : []);
+    this.sales = rawSales && rawSales !== '[]' ? JSON.parse(rawSales) : [];
+    this.settings = rawSettings && rawSettings !== '{}' ? JSON.parse(rawSettings) : (typeof DEFAULT_SETTINGS !== 'undefined' ? DEFAULT_SETTINGS : {});
     if (this.settings) {
-      // Only fill in defaults if values are completely missing — do NOT override existing Bengali store names
-      if (!this.settings.storeName) this.settings.storeName = 'My Shop';
+      if (!this.settings.storeName) this.settings.storeName = isGuestStore ? 'গেস্ট ডেমো সুপারশপ' : 'My Shop';
       if (!this.settings.storeAddress) this.settings.storeAddress = 'Dhaka, Bangladesh';
       if (!this.settings.receiptFooterNote) this.settings.receiptFooterNote = 'Thank you! Come again.';
       localStorage.setItem('pos_settings', JSON.stringify(this.settings));
+      localStorage.setItem(tenantSettingsKey, JSON.stringify(this.settings));
     }
     this.cart = [];
-    this.coupons = JSON.parse(localStorage.getItem('pos_coupons')) || (isRegisteredStore ? [] : (typeof INITIAL_COUPONS !== 'undefined' ? INITIAL_COUPONS : []));
-    this.customers = JSON.parse(localStorage.getItem('pos_customers')) || (isRegisteredStore ? [] : (typeof INITIAL_CUSTOMERS !== 'undefined' ? INITIAL_CUSTOMERS : []));
+    this.coupons = rawCoupons && rawCoupons !== '[]' ? JSON.parse(rawCoupons) : [];
+    this.customers = rawCusts && rawCusts !== '[]' ? JSON.parse(rawCusts) : [];
     this.appliedCoupon = null;
     this.discountType = this.settings.defaultDiscountMode || 'percent';
     this.discountValue = this.settings.defaultDiscountValue !== undefined ? parseFloat(this.settings.defaultDiscountValue) || 0 : 0;
@@ -45,6 +59,7 @@ class CashierTerminal {
   }
 
   init() {
+    this.checkAccountStatusSecurityGuard();
     this.initEventListeners();
     this.initLiveClock();
     this.initDatePicker();
@@ -63,27 +78,48 @@ class CashierTerminal {
     this.setupMobileSidebar();
     this.updateSidebarStoreBranding();
 
-    // Listen for storage changes from Admin panel in real-time
-    window.addEventListener('storage', () => {
-      const isRegistered = !!localStorage.getItem('pos_active_store_id');
-      this.products = JSON.parse(localStorage.getItem('pos_products')) || (isRegistered ? [] : (typeof INITIAL_PRODUCTS !== 'undefined' ? INITIAL_PRODUCTS : []));
-      this.sales = JSON.parse(localStorage.getItem('pos_sales')) || (isRegistered ? [] : (typeof INITIAL_SALES !== 'undefined' ? INITIAL_SALES : []));
-      this.settings = JSON.parse(localStorage.getItem('pos_settings')) || (typeof DEFAULT_SETTINGS !== 'undefined' ? DEFAULT_SETTINGS : {});
-      this.customers = JSON.parse(localStorage.getItem('pos_customers')) || (isRegistered ? [] : (typeof INITIAL_CUSTOMERS !== 'undefined' ? INITIAL_CUSTOMERS : []));
+    // Listen for storage & cloud changes from Admin panel in real-time
+    const reloadCashierState = () => {
+      const activeStoreId = localStorage.getItem('pos_active_store_id') || 'store_demo_101';
+      const isGuestStore = activeStoreId === 'store_demo_101';
+
+      const tenantProdKey = `pos_tenant_${activeStoreId}_pos_products`;
+      const tenantSalesKey = `pos_tenant_${activeStoreId}_pos_sales`;
+      const tenantSettingsKey = `pos_tenant_${activeStoreId}_pos_settings`;
+      const tenantCustKey = `pos_tenant_${activeStoreId}_pos_customers`;
+
+      let savedProd = localStorage.getItem(tenantProdKey) || localStorage.getItem('pos_products');
+      let savedSales = localStorage.getItem(tenantSalesKey) || localStorage.getItem('pos_sales');
+      let savedSettings = localStorage.getItem(tenantSettingsKey) || localStorage.getItem('pos_settings');
+      let savedCusts = localStorage.getItem(tenantCustKey) || localStorage.getItem('pos_customers');
+
+      this.products = savedProd && savedProd !== '[]' ? JSON.parse(savedProd) : (isGuestStore && typeof INITIAL_PRODUCTS !== 'undefined' ? INITIAL_PRODUCTS : []);
+      this.sales = savedSales && savedSales !== '[]' ? JSON.parse(savedSales) : [];
+      this.settings = savedSettings && savedSettings !== '{}' ? JSON.parse(savedSettings) : (typeof DEFAULT_SETTINGS !== 'undefined' ? DEFAULT_SETTINGS : {});
+      this.customers = savedCusts && savedCusts !== '[]' ? JSON.parse(savedCusts) : [];
+
+      this.updateDiscountTaxUI();
+      this.populateCustomerSelect();
+      this.renderCart();
+      if (this.activeTab === 'cashierDashboardView') this.renderDashboardView();
+      if (this.activeTab === 'cashierProductsView') this.renderProducts();
+      
       this.discountType = this.settings.defaultDiscountMode || 'percent';
       this.discountValue = this.settings.defaultDiscountValue !== undefined ? parseFloat(this.settings.defaultDiscountValue) || 0 : 0;
       this.taxType = this.settings.defaultTaxMode || 'percent';
       this.taxValue = this.settings.defaultTax !== undefined ? parseFloat(this.settings.defaultTax) || 0 : 0;
-      this.updateDiscountTaxUI();
-      this.populateCustomerSelect();
-      this.renderCart();
+      
       if (this.activeTab === 'cashierDashboardView') this.renderDashboardView();
       else if (this.activeTab === 'cashierTerminalView') this.renderProducts();
       else if (this.activeTab === 'cashierAnalyticsView') this.renderAnalyticsView();
       else if (this.activeTab === 'cashierShiftView') this.renderShiftSales();
       else if (this.activeTab === 'cashierCustomersView') this.renderCashierCustomers();
       this.renderQuickBarcodeChips();
-    });
+    };
+
+    window.addEventListener('storage', reloadCashierState);
+    window.addEventListener('pos_cloud_update', reloadCashierState);
+    window.addEventListener('pos_tenant_changed', reloadCashierState);
 
     document.addEventListener('click', (e) => {
       if (e.target.closest('.close-modal')) {
@@ -107,16 +143,83 @@ class CashierTerminal {
   }
 
   updateSidebarStoreBranding() {
-    const s = this.settings || {};
+    const s = this.settings || JSON.parse(localStorage.getItem('pos_settings')) || {};
+    const sub = JSON.parse(localStorage.getItem('pos_subscription')) || JSON.parse(localStorage.getItem('pos_active_subscription')) || {};
+    const storeName = s.storeName || sub.storeName || 'SmartPOS Cashier';
+    const storeLogo = s.storeLogo || sub.storeLogo || '';
+
     const storeNameEl = document.getElementById('cashierSidebarStoreName');
     const cashierNameEl = document.getElementById('cashierNameDisplay');
     const shiftEl = document.getElementById('cashierShiftDisplay');
-    if (storeNameEl && s.storeName) storeNameEl.textContent = s.storeName;
+
+    if (storeNameEl && storeName) storeNameEl.textContent = storeName;
     if (cashierNameEl) cashierNameEl.textContent = s.cashierName || 'ক্যাশিয়ার টার্মিনাল';
     if (shiftEl) {
       const now = new Date();
       const shiftId = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
       shiftEl.textContent = `শিফট: ${shiftId}`;
+    }
+
+    // Top-Left Sidebar Main Logo Update
+    const logoContainer = document.getElementById('cashierSidebarBrandLogo');
+    const logoIcon = document.getElementById('cashierSidebarBrandIcon');
+    const logoImg = document.getElementById('cashierSidebarBrandImg');
+
+    if (logoImg && logoIcon && logoContainer) {
+      if (storeLogo) {
+        logoImg.src = storeLogo;
+        logoImg.style.display = 'block';
+        logoIcon.style.display = 'none';
+        logoContainer.style.background = 'transparent';
+      } else {
+        logoImg.style.display = 'none';
+        logoIcon.style.display = 'block';
+        logoContainer.style.background = 'linear-gradient(135deg, var(--accent-blue), var(--accent-purple, #8b5cf6))';
+      }
+    }
+  }
+
+  checkAccountStatusSecurityGuard() {
+    const activeStoreId = localStorage.getItem('pos_active_store_id');
+    const allSubs = JSON.parse(localStorage.getItem('pos_subscriptions')) || [];
+    let sub = JSON.parse(localStorage.getItem('pos_subscription')) || {};
+    if (activeStoreId && allSubs.length > 0) {
+      const match = allSubs.find(s => s.storeId === activeStoreId || s.id === activeStoreId);
+      if (match) sub = { ...sub, ...match };
+    }
+
+    // 1. Full Merchant Account Block Check
+    if (sub.accountBlocked === true || sub.status === 'Suspended' || sub.status === 'Suspended (Transaction Rejected)') {
+      let overlay = document.getElementById('accountBlockedOverlayGateCashier');
+      if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'accountBlockedOverlayGateCashier';
+        overlay.style.cssText = 'position:fixed; inset:0; background:rgba(15,23,42,0.98); backdrop-filter:blur(15px); z-index:999999; display:flex; align-items:center; justify-content:center; padding:1.5rem; color:#fff; text-align:center; font-family:"Hind Siliguri", sans-serif;';
+        overlay.innerHTML = `
+          <div style="background:#1e293b; border:2px solid #ef4444; border-radius:24px; padding:2.5rem 2rem; max-width:480px; width:100%; box-shadow:0 25px 60px rgba(239,68,68,0.3);">
+            <div style="width:70px; height:70px; border-radius:50%; background:rgba(239,68,68,0.2); color:#ef4444; display:flex; align-items:center; justify-content:center; font-size:2.5rem; margin:0 auto 1.25rem;">
+              <i class="fa-solid fa-user-slash"></i>
+            </div>
+            <h2 style="color:#ef4444; font-size:1.6rem; margin-bottom:0.75rem;">⛔ অ্যাকাউন্ট স্থগিত (Suspended)</h2>
+            <p style="color:#cbd5e1; font-size:0.95rem; line-height:1.6; margin-bottom:1.5rem;">
+              আপনার মার্চেন্ট অ্যাকাউন্টটি সুপার এডমিন দ্বারা স্থগিত বা ব্লক করা হয়েছে। বিস্তারিত জানতে বা অ্যাকাউন্ট পুনরায় সক্রিয় করতে কর্তৃপক্ষের সাথে যোগাযোগ করুন।
+            </p>
+            <div style="display:flex; gap:10px; justify-content:center;">
+              <a href="portal.html" class="btn" style="background:#334155; color:#fff; padding:0.75rem 1.25rem; border-radius:12px; text-decoration:none; font-weight:700;"><i class="fa-solid fa-arrow-left"></i> পোর্টালে যান</a>
+              <a href="https://wa.me/8801XXXXXXXXX" target="_blank" class="btn" style="background:#10b981; color:#fff; padding:0.75rem 1.25rem; border-radius:12px; text-decoration:none; font-weight:700;"><i class="fa-brands fa-whatsapp"></i> সাপোর্ট টিম</a>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(overlay);
+      }
+      return;
+    }
+
+    // 2. Access Fee Block Check
+    if (sub.accessBlocked === true || sub.accessFeePaid === false) {
+      if (typeof window.openSubscriptionRenewModal === 'function') {
+        setTimeout(() => window.openSubscriptionRenewModal(), 1000);
+      }
     }
   }
 
@@ -396,10 +499,45 @@ class CashierTerminal {
     });
   }
 
-  // Handle Scanned Barcode Logic (Matches exact or fuzzy variant barcode)
+  // Handle Scanned Barcode Logic (Matches exact variant barcode or invoice ID)
   handleBarcodeScan(barcodeStr) {
     if (!barcodeStr) return;
     const cleanStr = String(barcodeStr).trim();
+    const normClean = cleanStr.toLowerCase().replace(/\s+/g, '');
+    const isInvoicePrefix = normClean.startsWith('inv') || normClean.startsWith('inv-');
+
+    // 0. Check if scanned barcode matches an Invoice ID (INV-XXXX) or has invoice format
+    const saleMatch = this.sales.find(s => {
+      const sid = String(s.id).toLowerCase().replace(/\s+/g, '');
+      return sid === normClean || sid.includes(normClean) || normClean.includes(sid);
+    });
+
+    if (saleMatch || isInvoicePrefix) {
+      const targetInvId = saleMatch ? saleMatch.id : cleanStr;
+
+      // AUTOMATICALLY SWITCH TAB TO TODAY'S SHIFT REPORT / SALES LOG VIEW
+      this.switchTab('cashierShiftView');
+
+      // Auto-fill invoice search input box on Sales Summary page & filter list
+      const shiftSearch = document.getElementById('shiftInvoiceSearchInput');
+      if (shiftSearch) {
+        shiftSearch.value = targetInvId;
+        if (typeof this.filterShiftSales === 'function') {
+          this.filterShiftSales();
+        }
+      }
+
+      if (saleMatch) {
+        this.openInvoiceReturnExchangeModal(saleMatch.id);
+        this.playAudioBeep('success');
+        this.showToast(`🧾 ইনভয়েস ${saleMatch.id} সেলস সামারিতে লোড করা হয়েছে!`);
+      } else {
+        this.playAudioBeep('error');
+        this.showToast(`ইনভয়েস '${cleanStr}' সেলস সামারিতে সিস্টেমে পাওয়া যায়নি!`, 'error');
+      }
+      return;
+    }
+
     let foundProd = null;
     let foundVar = null;
 
@@ -438,9 +576,14 @@ class CashierTerminal {
     }
 
     if (foundProd && foundVar) {
+      // AUTOMATICALLY SWITCH TAB TO POS TERMINAL (cashierTerminalView)
+      if (this.activeTab !== 'cashierTerminalView') {
+        this.switchTab('cashierTerminalView');
+      }
+
       this.addVariantToCart(foundProd, foundVar);
       this.playAudioBeep('scan');
-      this.showToast(`স্ক্যান সফল: ${foundProd.name} (${foundVar.color}/${foundVar.size}) - ৳${foundVar.price}`);
+      this.showToast(`🛒 ${foundProd.name} (${foundVar.color}/${foundVar.size}) - পিওএস টার্মিনালে কার্টে যোগ করা হয়েছে!`);
       this.highlightCartItem(foundVar.variantId);
       
       const barInput = document.getElementById('barcodeScanInput');
@@ -449,6 +592,11 @@ class CashierTerminal {
         barInput.focus();
       }
     } else {
+      // If barcode is unknown, switch to POS terminal so user sees error toast & scanner input
+      if (this.activeTab !== 'cashierTerminalView') {
+        this.switchTab('cashierTerminalView');
+      }
+
       this.playAudioBeep('error');
       this.showToast(`বারকোড '${cleanStr}' সিস্টেমে পাওয়া যায়নি!`, 'error');
 
@@ -700,10 +848,15 @@ class CashierTerminal {
     const cartPhone = document.getElementById('cartCustPhone');
     const cartName = document.getElementById('cartCustName');
     const cartBadge = document.getElementById('posCartCustBadge');
+    const cartOrderNote = document.getElementById('cartOrderNote');
 
     if (custSelect) custSelect.value = 'Walk-in Customer';
     if (cartPhone) cartPhone.value = '';
     if (cartName) cartName.value = '';
+    if (cartOrderNote) {
+      cartOrderNote.value = '';
+      cartOrderNote.style.height = 'auto';
+    }
     if (cartBadge) cartBadge.style.display = 'none';
 
     this.updateCouponUI();
@@ -904,40 +1057,100 @@ class CashierTerminal {
   // CASH PAYMENT FLOW
   openCashModal() {
     const totals = this.getCartTotals();
-    document.getElementById('cashModalTotal').innerText = `৳${totals.grandTotal.toFixed(2)}`;
+    const grandTotal = totals.grandTotal;
+    document.getElementById('cashModalTotal').innerText = `৳${grandTotal.toFixed(2)}`;
+
     const tenderedInput = document.getElementById('cashTenderedInput');
-    tenderedInput.value = '';
-    document.getElementById('cashChangeAmount').innerText = '৳0.00';
-    document.getElementById('confirmCashPayBtn').disabled = true;
+    if (tenderedInput) {
+      tenderedInput.value = '';
+      tenderedInput.placeholder = `${grandTotal.toFixed(2)} (গ্রাহকের জমা টাকা টাইপ করুন)`;
+    }
 
     this.prefillCustomerInModal('cash');
     this.openModal('cashPaymentModal');
-    setTimeout(() => tenderedInput.focus(), 100);
+    this.calculateCashChange();
+    setTimeout(() => tenderedInput && tenderedInput.focus(), 100);
   }
 
   calculateCashChange() {
     const totals = this.getCartTotals();
-    const tendered = parseFloat(document.getElementById('cashTenderedInput').value) || 0;
-    const change = tendered - totals.grandTotal;
-
+    const grandTotal = totals.grandTotal;
+    const tenderedInput = document.getElementById('cashTenderedInput');
+    const rawVal = tenderedInput ? tenderedInput.value.trim() : '';
+    const changeLabel = document.getElementById('cashChangeLabel');
     const changeEl = document.getElementById('cashChangeAmount');
+    const statusBox = document.getElementById('cashStatusBox');
     const confirmBtn = document.getElementById('confirmCashPayBtn');
 
-    if (change >= 0) {
-      changeEl.innerText = `৳${change.toFixed(2)}`;
-      changeEl.style.color = 'var(--accent-green)';
-      confirmBtn.disabled = false;
+    if (rawVal === '') {
+      // 1. Initial state: Empty input, customer will pay exact grandTotal
+      if (changeLabel) changeLabel.innerHTML = '<i class="fa-solid fa-circle-info"></i> কাস্টমার থেকে পাবেন (প্রদেয় বিল):';
+      if (changeEl) {
+        changeEl.innerText = `৳${grandTotal.toFixed(2)}`;
+        changeEl.style.color = 'var(--accent-blue)';
+      }
+      if (statusBox) {
+        statusBox.style.background = 'rgba(56, 189, 248, 0.1)';
+        statusBox.style.borderColor = 'rgba(56, 189, 248, 0.3)';
+      }
+      if (confirmBtn) confirmBtn.disabled = true;
+      return;
+    }
+
+    const tendered = parseFloat(rawVal) || 0;
+    const diff = tendered - grandTotal;
+
+    if (diff > 0.001) {
+      // 2. Tendered > Total Bill: Customer receives change / refund
+      if (changeLabel) changeLabel.innerHTML = '<i class="fa-solid fa-hand-holding-dollar"></i> কাস্টমারকে ক্যাশ ব্যাক / রিফান্ড দিন (Change Return):';
+      if (changeEl) {
+        changeEl.innerText = `৳${diff.toFixed(2)}`;
+        changeEl.style.color = '#10b981';
+      }
+      if (statusBox) {
+        statusBox.style.background = 'rgba(16, 185, 129, 0.14)';
+        statusBox.style.borderColor = 'rgba(16, 185, 129, 0.4)';
+      }
+      if (confirmBtn) confirmBtn.disabled = false;
+    } else if (Math.abs(diff) <= 0.001) {
+      // 3. Exact Payment
+      if (changeLabel) changeLabel.innerHTML = '<i class="fa-solid fa-circle-check"></i> সম্পূর্ণ পরিশোধিত (Exact Payment):';
+      if (changeEl) {
+        changeEl.innerText = `৳0.00 (কোনো ক্যাশ ব্যাক দেওয়া লাগবে না)`;
+        changeEl.style.color = '#10b981';
+      }
+      if (statusBox) {
+        statusBox.style.background = 'rgba(16, 185, 129, 0.14)';
+        statusBox.style.borderColor = 'rgba(16, 185, 129, 0.4)';
+      }
+      if (confirmBtn) confirmBtn.disabled = false;
     } else {
-      changeEl.innerText = `কম দেওয়া হয়েছে: ৳${Math.abs(change).toFixed(2)}`;
-      changeEl.style.color = 'var(--accent-red)';
-      confirmBtn.disabled = true;
+      // 4. Shortage: Tendered < Total Bill
+      const shortage = Math.abs(diff);
+      if (changeLabel) changeLabel.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> অপর্যাপ্ত ক্যাশ জমা (Shortage Amount):';
+      if (changeEl) {
+        changeEl.innerText = `কম দেওয়া হয়েছে: ৳${shortage.toFixed(2)} (প্রদেয় বিল: ৳${grandTotal.toFixed(2)})`;
+        changeEl.style.color = '#ef4444';
+      }
+      if (statusBox) {
+        statusBox.style.background = 'rgba(239, 68, 68, 0.14)';
+        statusBox.style.borderColor = 'rgba(239, 68, 68, 0.4)';
+      }
+      if (confirmBtn) confirmBtn.disabled = true;
     }
   }
 
   processCashPayment() {
     const totals = this.getCartTotals();
-    const tendered = parseFloat(document.getElementById('cashTenderedInput').value) || totals.grandTotal;
-    const change = tendered - totals.grandTotal;
+    const grandTotal = totals.grandTotal;
+    const rawVal = (document.getElementById('cashTenderedInput')?.value || '').trim();
+    const tendered = parseFloat(rawVal);
+
+    if (isNaN(tendered) || tendered < grandTotal - 0.001) {
+      alert(`প্রদেয় বিল ৳${grandTotal.toFixed(2)} এর চেয়ে কম টাকা গ্রহণ করা যাবে না! অনুগ্রহ করে ৳${grandTotal.toFixed(2)} বা তার বেশি টাকা জমা লিখুন।`);
+      return;
+    }
+    const change = tendered - grandTotal;
 
     const custFirstName = document.getElementById('cashCustFirstName')?.value.trim() || '';
     const custLastName = document.getElementById('cashCustLastName')?.value.trim() || '';
@@ -961,6 +1174,8 @@ class CashierTerminal {
       return;
     }
 
+    const orderNote = (document.getElementById('cartOrderNote')?.value || '').trim();
+
     const saleRecord = {
       id: `INV-${new Date().getFullYear()}${String(new Date().getMonth()+1).padStart(2,'0')}${String(new Date().getDate()).padStart(2,'0')}-${Math.floor(1000 + Math.random() * 9000)}`,
       timestamp: new Date().toISOString(),
@@ -969,6 +1184,7 @@ class CashierTerminal {
       customerPhone: custInfo.phone,
       customerEmail: custInfo.email,
       customerAddress: custInfo.address,
+      orderNote: orderNote,
       items: this.cart.map(i => ({
         id: i.productId,
         variantId: i.variantId,
@@ -983,7 +1199,14 @@ class CashierTerminal {
       })),
       subtotal: totals.subtotal,
       discount: totals.discountAmount,
+      couponCode: this.appliedCoupon ? this.appliedCoupon.code : null,
+      couponDiscount: this.appliedCoupon ? totals.discountAmount : 0,
+      manualDiscount: this.appliedCoupon ? 0 : totals.discountAmount,
+      discountType: this.discountType,
+      discountValue: this.discountValue,
       tax: totals.taxAmount,
+      taxType: this.taxType,
+      taxValue: this.taxValue,
       grandTotal: totals.grandTotal,
       paymentMethod: 'CASH',
       paymentDetails: { cashReceived: tendered, changeGiven: change }
@@ -1063,6 +1286,8 @@ class CashierTerminal {
       return;
     }
 
+    const orderNote = (document.getElementById('cartOrderNote')?.value || '').trim();
+
     const saleRecord = {
       id: `INV-${new Date().getFullYear()}${String(new Date().getMonth()+1).padStart(2,'0')}${String(new Date().getDate()).padStart(2,'0')}-${Math.floor(1000 + Math.random() * 9000)}`,
       timestamp: new Date().toISOString(),
@@ -1071,6 +1296,7 @@ class CashierTerminal {
       customerPhone: custInfo.phone,
       customerEmail: custInfo.email,
       customerAddress: custInfo.address,
+      orderNote: orderNote,
       items: this.cart.map(i => ({
         id: i.productId,
         variantId: i.variantId,
@@ -1085,7 +1311,14 @@ class CashierTerminal {
       })),
       subtotal: totals.subtotal,
       discount: totals.discountAmount,
+      couponCode: this.appliedCoupon ? this.appliedCoupon.code : null,
+      couponDiscount: this.appliedCoupon ? totals.discountAmount : 0,
+      manualDiscount: this.appliedCoupon ? 0 : totals.discountAmount,
+      discountType: this.discountType,
+      discountValue: this.discountValue,
       tax: totals.taxAmount,
+      taxType: this.taxType,
+      taxValue: this.taxValue,
       grandTotal: totals.grandTotal,
       paymentMethod: 'EPAY',
       paymentDetails: { provider: this.selectedEpayProvider, accountNo, trxId }
@@ -1116,25 +1349,61 @@ class CashierTerminal {
 
     this.renderProducts();
     this.renderShiftSales();
-    this.showReceiptModal(saleRecord);
+    this.showReceiptModal(saleRecord, true);
     this.clearCart();
   }
 
-  showReceiptModal(saleRecord) {
+  showReceiptModal(saleRecord, isNewSale = false) {
     const s = this.settings || {};
     const sym = s.currencySymbol || '৳';
 
-    const storeTitleEl = document.querySelector('#printableReceipt .receipt-header h2');
-    if (storeTitleEl) storeTitleEl.innerText = s.storeName || 'Super Shop Dhaka';
+    const logoImg = document.getElementById('rcptStoreLogoImg');
+    const storeTitleEl = document.getElementById('rcptStoreTitle');
+    const storeAddressEl = document.getElementById('rcptStoreAddress');
+    const storePhoneEl = document.getElementById('rcptStorePhone');
+    const storeEmailEl = document.getElementById('rcptStoreEmail');
 
-    const storeAddressEl = document.querySelectorAll('#printableReceipt .receipt-header p')[0];
-    if (storeAddressEl) storeAddressEl.innerText = s.storeAddress || 'Mirpur 10, Dhaka - 1216';
+    const logoSrc = s.invoiceLogo || s.storeLogo || '';
+    const showLogo = s.showInvoiceLogo !== false && logoSrc;
+    const showName = s.showInvoiceStoreName !== false;
+    const showAddress = s.showInvoiceAddress !== false;
+    const showPhone = s.showInvoicePhone !== false;
+    const showEmail = s.showInvoiceEmail === true;
 
-    const storePhoneEl = document.querySelectorAll('#printableReceipt .receipt-header p')[1];
-    if (storePhoneEl) storePhoneEl.innerText = `Mobile: ${s.storePhone || '+880 1700-000000'}`;
+    if (logoImg) {
+      if (showLogo) {
+        logoImg.src = logoSrc;
+        logoImg.style.display = 'block';
+      } else {
+        logoImg.style.display = 'none';
+      }
+    }
+
+    if (storeTitleEl) {
+      storeTitleEl.innerText = s.storeName || 'Super Shop Dhaka';
+      storeTitleEl.style.display = showName ? 'block' : 'none';
+    }
+
+    if (storeAddressEl) {
+      storeAddressEl.innerText = s.storeAddress || 'Mirpur 10, Dhaka - 1216';
+      storeAddressEl.style.display = showAddress && s.storeAddress ? 'block' : 'none';
+    }
+
+    if (storePhoneEl) {
+      storePhoneEl.innerText = `Mobile: ${s.storePhone || '+880 1700-000000'}`;
+      storePhoneEl.style.display = showPhone && s.storePhone ? 'block' : 'none';
+    }
+
+    if (storeEmailEl) {
+      storeEmailEl.innerText = `Email: ${s.storeEmail || ''}`;
+      storeEmailEl.style.display = showEmail && s.storeEmail ? 'block' : 'none';
+    }
 
     const footerNoteEl = document.querySelector('#printableReceipt .receipt-footer .thank-you');
-    if (footerNoteEl) footerNoteEl.innerText = s.receiptFooterNote || 'Thank you! Come again.';
+    if (footerNoteEl) {
+      footerNoteEl.innerText = s.receiptFooterNote || 'Thank you! Come again.';
+      footerNoteEl.style.display = s.showInvoiceFooter !== false ? 'block' : 'none';
+    }
 
     document.getElementById('rcptInvId').innerText = saleRecord.id;
     document.getElementById('rcptDate').innerText = new Date(saleRecord.timestamp).toLocaleString('en-US');
@@ -1213,19 +1482,49 @@ class CashierTerminal {
       if (changeRow) changeRow.style.display = 'none';
     }
 
+    const noteBox = document.getElementById('rcptOrderNoteBox');
+    const orderNoteStr = (saleRecord.orderNote || saleRecord.note || '').trim();
+
+    if (noteBox) {
+      if (orderNoteStr) {
+        const safeNote = String(orderNoteStr).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        noteBox.innerHTML = `<strong style="font-weight: 700; color: #000; display: inline;">Note: </strong><span style="font-weight: 500; color: #111; word-break: break-word; overflow-wrap: break-word; white-space: pre-wrap; display: inline;">${safeNote}</span>`;
+        noteBox.style.display = 'block';
+      } else {
+        noteBox.style.display = 'none';
+      }
+    }
+
     if (typeof JsBarcode !== 'undefined') {
       JsBarcode("#rcptBarcodeSvg", saleRecord.id, {
-        format: "CODE128", width: 1.5, height: 40, displayValue: false, margin: 0,
+        format: "CODE128", width: 1.8, height: 48, displayValue: true, fontSize: 13, fontOptions: "bold", font: "monospace", margin: 8,
         background: "#ffffff", lineColor: "#000000"
       });
     }
 
     this.openModal('receiptModal');
 
-    // Automatically play in-website thermal print animation on screen (no browser print window)
-    setTimeout(() => {
-      this.playInModalReceiptPrint('printableReceipt', false);
-    }, 200);
+    const paperEl = document.getElementById('printableReceipt');
+    const container = paperEl ? paperEl.closest('.receipt-feed-container') : null;
+    const scanline = container ? container.querySelector('.thermal-feed-scanline') : null;
+    const statusIndicator = container ? container.querySelector('.slot-status-indicator') : null;
+    const statusText = container ? container.querySelector('.slot-status-text') : null;
+
+    if (isNewSale) {
+      // New Checkout: Play animation & trigger physical POS printer output
+      setTimeout(() => {
+        this.playInModalReceiptPrint('printableReceipt', true);
+      }, 200);
+    } else {
+      // Past Invoice History Inspection: Static display only (no animation, no auto-print)
+      if (paperEl) {
+        paperEl.style.transform = 'translateY(0)';
+        paperEl.style.opacity = '1';
+      }
+      if (scanline) scanline.style.display = 'none';
+      if (statusIndicator) statusIndicator.classList.remove('printing');
+      if (statusText) statusText.innerText = 'Ready';
+    }
   }
 
   promptAdminPin() {
@@ -1275,8 +1574,163 @@ class CashierTerminal {
     }
   }
 
+  // Helper: get provider-specific badge config for a sale (retains payment method name + refund status)
+  getPaymentBadge(s) {
+    const pm = (s.paymentMethod || 'CASH').toUpperCase();
+    const prov = ((s.paymentDetails && s.paymentDetails.provider) || '').toLowerCase();
+
+    let base = { bg: 'rgba(16,185,129,0.15)', color: '#10b981', label: '💵 CASH', name: 'CASH' };
+    if (pm === 'EPAY' || prov !== '') {
+      if (prov.includes('bkash')) {
+        base = { bg: 'rgba(233,30,140,0.15)', color: '#e91e8c', label: '📱 bKash', name: 'bKash' };
+      } else if (prov.includes('nagad')) {
+        base = { bg: 'rgba(249,115,22,0.15)', color: '#f97316', label: '📲 Nagad', name: 'Nagad' };
+      } else if (prov.includes('qr') || prov.includes('bangla')) {
+        base = { bg: 'rgba(139,92,246,0.15)', color: '#8b5cf6', label: '🔲 Bangla QR', name: 'Bangla QR' };
+      } else if (prov.includes('card')) {
+        base = { bg: 'rgba(59,130,246,0.15)', color: '#3b82f6', label: '💳 Card', name: 'Card' };
+      } else {
+        const pName = (s.paymentDetails?.provider || 'E-PAY').toUpperCase();
+        base = { bg: 'rgba(6,182,212,0.15)', color: '#06b6d4', label: `📱 ${pName}`, name: pName };
+      }
+    }
+
+    const isReturned = s.status === 'RETURNED';
+    const isPartial = s.status === 'PARTIALLY_RETURNED' || (!isReturned && (s.refundedAmount || 0) > 0);
+
+    if (isReturned) {
+      return {
+        bg: base.bg,
+        color: base.color,
+        label: `<div style="display:inline-flex; flex-direction:column; align-items:flex-start; line-height:1.2;"><span>${base.label}</span><span style="font-size:0.68rem; color:#ef4444; font-weight:800; margin-top:2px;"><i class="fa-solid fa-rotate-left"></i> 🔴 Refunded</span></div>`,
+        name: base.name
+      };
+    }
+
+    if (isPartial) {
+      return {
+        bg: base.bg,
+        color: base.color,
+        label: `<div style="display:inline-flex; flex-direction:column; align-items:flex-start; line-height:1.2;"><span>${base.label}</span><span style="font-size:0.68rem; color:#f59e0b; font-weight:800; margin-top:2px;"><i class="fa-solid fa-rotate-left"></i> 🟠 Partial Refund</span></div>`,
+        name: base.name
+      };
+    }
+
+    if (s.status === 'EXCHANGED') {
+      return {
+        bg: base.bg,
+        color: base.color,
+        label: `<div style="display:inline-flex; flex-direction:column; align-items:flex-start; line-height:1.2;"><span>${base.label}</span><span style="font-size:0.68rem; color:#8b5cf6; font-weight:800; margin-top:2px;"><i class="fa-solid fa-rotate-left"></i> 🔄 Exchanged</span></div>`,
+        name: base.name
+      };
+    }
+
+    return base;
+  }
+
+  // Cashier E-Pay Breakdown Modal
+  openCashierEpayBreakdownModal(filterProvider = 'all') {
+    const targetSales = this.getCashierFilteredSales();
+    const epaySales = targetSales.filter(s => (s.paymentMethod || '').toUpperCase() === 'EPAY' || (s.paymentDetails && (s.paymentDetails.method || '').toLowerCase() === 'epay'));
+
+    // Provider totals calculation (NET of refunds)
+    const pt = { bKash: 0, Nagad: 0, 'Bangla QR': 0, Card: 0, Other: 0 };
+    const ptRefunds = { bKash: 0, Nagad: 0, 'Bangla QR': 0, Card: 0, Other: 0 };
+
+    epaySales.forEach(s => {
+      const p = ((s.paymentDetails && s.paymentDetails.provider) || '').toLowerCase();
+      const refunded = s.refundedAmount || 0;
+      const netAmt = Math.max(0, (s.grandTotal || 0) - refunded);
+
+      if (p.includes('bkash')) { pt.bKash += netAmt; ptRefunds.bKash += refunded; }
+      else if (p.includes('nagad')) { pt.Nagad += netAmt; ptRefunds.Nagad += refunded; }
+      else if (p.includes('qr') || p.includes('bangla')) { pt['Bangla QR'] += netAmt; ptRefunds['Bangla QR'] += refunded; }
+      else if (p.includes('card')) { pt.Card += netAmt; ptRefunds.Card += refunded; }
+      else { pt.Other += netAmt; ptRefunds.Other += refunded; }
+    });
+
+    // Filter
+    let displaySales = epaySales;
+    if (filterProvider !== 'all') {
+      displaySales = epaySales.filter(s => {
+        const p = ((s.paymentDetails && s.paymentDetails.provider) || '').toLowerCase();
+        if (filterProvider === 'bKash') return p.includes('bkash');
+        if (filterProvider === 'Nagad') return p.includes('nagad');
+        if (filterProvider === 'BanglaQR') return p.includes('qr') || p.includes('bangla');
+        if (filterProvider === 'Card') return p.includes('card');
+        return true;
+      });
+    }
+
+    const total = displaySales.reduce((s, x) => s + Math.max(0, (x.grandTotal || 0) - (x.refundedAmount || 0)), 0);
+    const totalRefunds = displaySales.reduce((s, x) => s + (x.refundedAmount || 0), 0);
+    const totalEl = document.getElementById('cashierEpayModalTotal');
+    const countEl = document.getElementById('cashierEpayModalCount');
+    if (totalEl) {
+      totalEl.innerHTML = `৳${total.toFixed(2)}${totalRefunds > 0 ? `<small style="font-size:0.75rem; color:#ef4444; margin-left:6px;">(-৳${totalRefunds.toFixed(2)} refund)</small>` : ''}`;
+    }
+    if (countEl) countEl.innerText = `${displaySales.length} টি`;
+
+    // Provider mini-stat cards
+    const provStatsEl = document.getElementById('cashierEpayProviderStats');
+    if (provStatsEl) {
+      const cfg = [
+        { key: 'bKash', filter: 'bKash', label: 'bKash', bg: 'rgba(233,30,140,0.15)', color: '#e91e8c' },
+        { key: 'Nagad', filter: 'Nagad', label: 'Nagad', bg: 'rgba(249,115,22,0.15)', color: '#f97316' },
+        { key: 'Bangla QR', filter: 'BanglaQR', label: 'Bangla QR', bg: 'rgba(139,92,246,0.15)', color: '#8b5cf6' },
+        { key: 'Card', filter: 'Card', label: 'Card', bg: 'rgba(59,130,246,0.15)', color: '#3b82f6' },
+      ];
+      provStatsEl.innerHTML = cfg.map(p => {
+        const refStr = ptRefunds[p.key] > 0 ? `<span style="font-size:0.65rem; color:#ef4444;">(-৳${ptRefunds[p.key].toFixed(0)} refund)</span>` : '';
+        return `
+        <button onclick="cashier.openCashierEpayBreakdownModal('${p.filter}')" style="background:${p.bg}; color:${p.color}; border:1px solid ${p.color}30; font-weight:700; flex:1; min-width:90px; padding:6px 10px; border-radius:8px; cursor:pointer; font-size:0.82rem; display:flex; flex-direction:column; align-items:center; gap:2px;">
+          ${p.label}<br><small style="font-size:0.72rem;">৳${pt[p.key].toFixed(0)}</small>${refStr}
+        </button>
+      `;
+      }).join('');
+    }
+
+    // Filter tabs
+    const tabsEl = document.getElementById('cashierEpayFilterTabs');
+    if (tabsEl) {
+      const tabs = [{ key: 'all', label: 'সব' }, { key: 'bKash', label: 'bKash' }, { key: 'Nagad', label: 'Nagad' }, { key: 'BanglaQR', label: 'Bangla QR' }, { key: 'Card', label: 'Card' }];
+      tabsEl.innerHTML = tabs.map(t => `
+        <button onclick="cashier.openCashierEpayBreakdownModal('${t.key}')" style="${filterProvider === t.key ? 'background:var(--accent-orange); color:#fff;' : 'background:var(--bg-card); color:var(--text-muted);'} border:1px solid var(--border-color); padding:5px 12px; border-radius:6px; cursor:pointer; font-weight:600; font-size:0.82rem;">${t.label}</button>
+      `).join('');
+    }
+
+    // Table
+    const tbody = document.getElementById('cashierEpayTableBody');
+    if (tbody) {
+      if (displaySales.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted" style="padding:1.5rem;">এই প্রোভাইডারের কোনো ই-পে রেকর্ড পাওয়া যায়নি।</td></tr>`;
+      } else {
+        tbody.innerHTML = displaySales.map(s => {
+          const { bg, color, label } = this.getPaymentBadge(s);
+          const trxId = s.paymentDetails?.trxId ? `<small style="color:var(--text-muted);">${s.paymentDetails.trxId}</small>` : '';
+          const refunded = s.refundedAmount || 0;
+          const netAmt = Math.max(0, (s.grandTotal || 0) - refunded);
+          return `
+            <tr>
+              <td><strong>${s.id}</strong><br>${trxId}</td>
+              <td><small>${new Date(s.timestamp).toLocaleString('bn-BD')}</small></td>
+              <td><span class="badge" style="background:${bg}; color:${color}; font-weight:700; padding:4px 10px; border-radius:6px;">${label}</span></td>
+              <td>${s.customer || 'Walk-in Customer'}</td>
+              <td style="text-align:right; font-weight:800; color:${s.status === 'RETURNED' ? '#ef4444' : color}; font-size:1.05rem;">
+                ৳${netAmt.toFixed(2)}
+                ${refunded > 0 ? `<br><small style="color: #ef4444; font-size: 0.7rem;">(-৳${refunded.toFixed(2)} refund)</small>` : ''}
+              </td>
+            </tr>`;
+        }).join('');
+      }
+    }
+
+    this.openModal('cashierEpayBreakdownModal');
+  }
+
   // Shift Sales Report
   renderShiftSales() {
+
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).getTime();
     const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).getTime();
@@ -1285,24 +1739,32 @@ class CashierTerminal {
       return !isNaN(saleTime) && saleTime >= todayStart && saleTime <= todayEnd;
     });
 
-    const cashTotal = todaySales.filter(s => s.paymentMethod === 'CASH').reduce((sum, s) => sum + s.grandTotal, 0);
-    const epayTotal = todaySales.filter(s => s.paymentMethod === 'EPAY').reduce((sum, s) => sum + s.grandTotal, 0);
+    const cashTotal = todaySales.filter(s => (s.paymentMethod || '').toUpperCase() !== 'EPAY' && (!s.paymentDetails || (s.paymentDetails.method || '').toLowerCase() !== 'epay')).reduce((sum, s) => sum + Math.max(0, (s.grandTotal || 0) - (s.refundedAmount || 0)), 0);
+    const epayTotal = todaySales.filter(s => (s.paymentMethod || '').toUpperCase() === 'EPAY' || (s.paymentDetails && (s.paymentDetails.method || '').toLowerCase() === 'epay')).reduce((sum, s) => sum + Math.max(0, (s.grandTotal || 0) - (s.refundedAmount || 0)), 0);
 
     document.getElementById('cashierShiftCash').innerText = `৳${cashTotal.toFixed(2)}`;
     document.getElementById('cashierShiftEpay').innerText = `৳${epayTotal.toFixed(2)}`;
     document.getElementById('cashierShiftCount').innerText = `${todaySales.length} টি`;
 
     const tbody = document.getElementById('cashierShiftTableBody');
-    tbody.innerHTML = todaySales.map(s => `
+    const sortedTodaySales = todaySales.slice().sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime());
+    tbody.innerHTML = sortedTodaySales.map(s => {
+      const { bg, color, label } = this.getPaymentBadge(s);
+      const refunded = s.refundedAmount || 0;
+      const netAmt = Math.max(0, (s.grandTotal || 0) - refunded);
+      return `
       <tr>
         <td><strong>${s.id}</strong></td>
         <td>${new Date(s.timestamp).toLocaleTimeString('bn-BD')}</td>
         <td>${s.customer}</td>
-        <td><span class="badge" style="background:rgba(16,185,129,0.15); color:var(--accent-green);">${s.paymentMethod}</span></td>
-        <td><strong>৳${s.grandTotal.toFixed(2)}</strong></td>
+        <td><span class="badge" style="background:${bg}; color:${color}; font-weight:700; padding:4px 10px; border-radius:6px;">${label}</span></td>
+        <td style="text-align:right; font-weight:800; color:${s.status === 'RETURNED' ? '#ef4444' : '#10b981'};">
+          ৳${netAmt.toFixed(2)}
+          ${refunded > 0 ? `<br><small style="color: #ef4444; font-size: 0.7rem;">(-৳${refunded.toFixed(2)} refund)</small>` : ''}
+        </td>
         <td><button class="btn btn-outline btn-sm" onclick="cashier.showReceiptModalById('${s.id}')"><i class="fa-solid fa-receipt"></i> মেমো</button></td>
-      </tr>
-    `).join('');
+      </tr>`;
+    }).join('');
 
     this.renderShiftChart(todaySales);
   }
@@ -1313,16 +1775,20 @@ class CashierTerminal {
 
     const hourlyData = {};
     for (let h = 8; h <= 22; h++) {
-      const label = `${h > 12 ? h - 12 : h} ${h >= 12 ? 'PM' : 'AM'}`;
+      const displayH = h === 0 ? 12 : (h > 12 ? h - 12 : h);
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      const label = `${displayH} ${ampm}`;
       hourlyData[label] = 0;
     }
 
-    todaySales.forEach(s => {
+    (todaySales || []).forEach(s => {
       const date = new Date(s.timestamp);
       const h = date.getHours();
-      const label = `${h > 12 ? h - 12 : h} ${h >= 12 ? 'PM' : 'AM'}`;
+      const displayH = h === 0 ? 12 : (h > 12 ? h - 12 : h);
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      const label = `${displayH} ${ampm}`;
       if (hourlyData[label] !== undefined) {
-        hourlyData[label] += s.grandTotal;
+        hourlyData[label] += Math.max(0, (s.grandTotal || 0) - (s.refundedAmount || 0));
       }
     });
 
@@ -1341,18 +1807,50 @@ class CashierTerminal {
           borderColor: '#3b82f6',
           backgroundColor: 'rgba(59, 130, 246, 0.15)',
           fill: true,
-          tension: 0.4,
+          tension: 0.35,
           pointRadius: 4,
-          pointBackgroundColor: '#3b82f6'
+          pointHoverRadius: 6,
+          pointBackgroundColor: '#3b82f6',
+          pointBorderColor: '#ffffff',
+          pointBorderWidth: 1.5
         }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
+        layout: {
+          padding: { top: 10, bottom: 5, left: 5, right: 10 }
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#1e293b',
+            titleColor: '#f8fafc',
+            bodyColor: '#cbd5e1',
+            borderColor: 'rgba(255, 255, 255, 0.1)',
+            borderWidth: 1,
+            callbacks: {
+              label: (ctx) => ` বিক্রি: ৳${(ctx.parsed.y || 0).toFixed(2)}`
+            }
+          }
+        },
         scales: {
-          y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' } },
-          x: { grid: { display: false } }
+          y: {
+            beginAtZero: true,
+            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+            ticks: {
+              color: '#9ca3af',
+              font: { family: "'Inter', sans-serif", size: 11 },
+              callback: (v) => '৳' + v
+            }
+          },
+          x: {
+            grid: { display: false },
+            ticks: {
+              color: '#cbd5e1',
+              font: { family: "'Inter', sans-serif", size: 11 }
+            }
+          }
         }
       }
     });
@@ -1405,31 +1903,83 @@ class CashierTerminal {
   renderDashboardView() {
     const todaySales = this.getCashierFilteredSales();
 
-    const totalRev = todaySales.reduce((sum, s) => sum + (s.grandTotal || 0), 0);
-    const totalOrders = todaySales.length;
+    let totalOrders = todaySales.length;
     let itemsSold = 0;
+    let grossItemsSold = 0;
+    let returnedItemsSold = 0;
     let cashReceived = 0;
     let epayReceived = 0;
     let totalNetProfit = 0;
+    let totalReturnsCount = 0;
+    let totalRefundAmount = 0;
+    let dashVat = 0;
+    let dashCouponDisc = 0;
+    let dashManualDisc = 0;
 
     todaySales.forEach(s => {
-      if (s.paymentMethod === 'epay' || (s.paymentDetails && s.paymentDetails.method === 'epay') || s.paymentMethod === 'EPAY') {
-        epayReceived += (s.grandTotal || 0);
+      const vatAmt = s.tax || 0;
+      const discAmt = s.discount || 0;
+      const hasCoupon = Boolean(s.couponCode || s.coupon || (s.couponDiscount && s.couponDiscount > 0));
+
+      dashVat += vatAmt;
+
+      if (hasCoupon) {
+        dashCouponDisc += (s.couponDiscount !== undefined ? s.couponDiscount : discAmt);
       } else {
-        cashReceived += (s.grandTotal || 0);
+        dashManualDisc += (s.manualDiscount !== undefined ? s.manualDiscount : discAmt);
+      }
+
+      const refunded = s.refundedAmount || 0;
+      const netGrand = Math.max(0, (s.grandTotal || 0) - refunded);
+
+      if (s.status === 'RETURNED' || s.status === 'PARTIALLY_RETURNED' || (s.returnHistory && s.returnHistory.length > 0)) {
+        totalReturnsCount++;
+        totalRefundAmount += refunded;
+      }
+
+      const pm = (s.paymentMethod || '').toUpperCase();
+      const isEpay = pm === 'EPAY' || (s.paymentDetails && (s.paymentDetails.method || '').toLowerCase() === 'epay');
+      if (isEpay) {
+        epayReceived += netGrand;
+      } else {
+        cashReceived += netGrand;
       }
 
       if (s.items && Array.isArray(s.items)) {
         s.items.forEach(i => {
-          const qty = i.quantity || 1;
-          itemsSold += qty;
+          const origQty = i.quantity || 1;
+          const retQty = i.returnedQuantity || 0;
+          const netQty = Math.max(0, origQty - retQty);
+
+          grossItemsSold += origQty;
+          returnedItemsSold += retQty;
+          itemsSold += netQty;
+
           const cost = i.cost !== undefined ? i.cost : (i.price * 0.8);
           const price = i.price || 0;
-          const itemRev = i.subtotal || (price * qty);
-          totalNetProfit += (itemRev - (cost * qty));
+          const itemRev = price * netQty;
+          totalNetProfit += (itemRev - (cost * netQty));
         });
       }
     });
+
+    const totalRev = cashReceived + epayReceived;
+    const totalDashDiscounts = dashCouponDisc + dashManualDisc;
+    const netDashVatDisc = dashVat - totalDashDiscounts;
+
+    const elDashVatDisc = document.getElementById('dashVatDiscount');
+    if (elDashVatDisc) {
+      if (netDashVatDisc > 0) {
+        elDashVatDisc.innerText = `+৳${netDashVatDisc.toFixed(2)}`;
+        elDashVatDisc.style.color = 'var(--accent-green, #10b981)';
+      } else if (netDashVatDisc < 0) {
+        elDashVatDisc.innerText = `-৳${Math.abs(netDashVatDisc).toFixed(2)}`;
+        elDashVatDisc.style.color = '#ef4444';
+      } else {
+        elDashVatDisc.innerText = `৳0.00`;
+        elDashVatDisc.style.color = 'inherit';
+      }
+    }
 
     const saleEl = document.getElementById('dashTotalSale');
     if (saleEl) saleEl.innerText = `৳${totalRev.toFixed(2)}`;
@@ -1446,11 +1996,20 @@ class CashierTerminal {
     const itemsEl = document.getElementById('dashItemsSold');
     if (itemsEl) itemsEl.innerText = `${itemsSold} টি`;
 
+    const retEl = document.getElementById('dashTotalReturns');
+    if (retEl) retEl.innerText = `${totalReturnsCount} টি (৳${totalRefundAmount.toFixed(2)})`;
+
     const revEl = document.getElementById('dashTotalRevenue');
     if (revEl) revEl.innerText = `৳${totalRev.toFixed(2)}`;
 
+    const finalDashNetProfit = totalNetProfit + netDashVatDisc;
     const profitEl = document.getElementById('dashNetProfit');
-    if (profitEl) profitEl.innerText = `৳${totalNetProfit.toFixed(2)}`;
+    if (profitEl) {
+      profitEl.innerText = `৳${finalDashNetProfit.toFixed(2)}`;
+      if (finalDashNetProfit < 0) {
+        profitEl.style.color = '#ef4444';
+      }
+    }
 
     this.renderDashboardChart(todaySales);
 
@@ -1460,14 +2019,17 @@ class CashierTerminal {
       if (todaySales.length === 0) {
         recentBody.innerHTML = `<tr><td colspan="4" class="text-center text-muted p-3">আজ কোনো বিক্রি হয়নি</td></tr>`;
       } else {
-        recentBody.innerHTML = todaySales.slice(0, 5).map(s => `
+        recentBody.innerHTML = todaySales.slice(0, 5).map(s => {
+          const { bg, color, label } = this.getPaymentBadge(s);
+          return `
           <tr>
             <td><strong>${s.id}</strong></td>
             <td>${new Date(s.timestamp).toLocaleTimeString('bn-BD')}</td>
-            <td><strong>৳${s.grandTotal.toFixed(2)}</strong></td>
-            <td><span class="badge" style="background:rgba(16,185,129,0.15); color:var(--accent-green);">${s.paymentMethod}</span></td>
+            <td><strong>৳${(s.grandTotal || 0).toFixed(2)}</strong></td>
+            <td><span class="badge" style="background:${bg}; color:${color}; font-weight:700;">${label}</span></td>
           </tr>
-        `).join('');
+        `;
+        }).join('');
       }
     }
   }
@@ -1478,15 +2040,21 @@ class CashierTerminal {
 
     const hourlyData = {};
     for (let h = 8; h <= 22; h++) {
-      const label = `${h > 12 ? h - 12 : h} ${h >= 12 ? 'PM' : 'AM'}`;
+      const displayH = h === 0 ? 12 : (h > 12 ? h - 12 : h);
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      const label = `${displayH} ${ampm}`;
       hourlyData[label] = 0;
     }
 
-    todaySales.forEach(s => {
+    (todaySales || []).forEach(s => {
       const date = new Date(s.timestamp);
       const h = date.getHours();
-      const label = `${h > 12 ? h - 12 : h} ${h >= 12 ? 'PM' : 'AM'}`;
-      if (hourlyData[label] !== undefined) hourlyData[label] += s.grandTotal;
+      const displayH = h === 0 ? 12 : (h > 12 ? h - 12 : h);
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      const label = `${displayH} ${ampm}`;
+      if (hourlyData[label] !== undefined) {
+        hourlyData[label] += Math.max(0, (s.grandTotal || 0) - (s.refundedAmount || 0));
+      }
     });
 
     const labels = Object.keys(hourlyData);
@@ -1504,18 +2072,50 @@ class CashierTerminal {
           borderColor: '#10b981',
           backgroundColor: 'rgba(16, 185, 129, 0.15)',
           fill: true,
-          tension: 0.4,
+          tension: 0.35,
           pointRadius: 4,
-          pointBackgroundColor: '#10b981'
+          pointHoverRadius: 6,
+          pointBackgroundColor: '#10b981',
+          pointBorderColor: '#ffffff',
+          pointBorderWidth: 1.5
         }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
+        layout: {
+          padding: { top: 10, bottom: 5, left: 5, right: 10 }
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#1e293b',
+            titleColor: '#f8fafc',
+            bodyColor: '#cbd5e1',
+            borderColor: 'rgba(255, 255, 255, 0.1)',
+            borderWidth: 1,
+            callbacks: {
+              label: (ctx) => ` বিক্রি: ৳${(ctx.parsed.y || 0).toFixed(2)}`
+            }
+          }
+        },
         scales: {
-          y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' } },
-          x: { grid: { display: false } }
+          y: {
+            beginAtZero: true,
+            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+            ticks: {
+              color: '#9ca3af',
+              font: { family: "'Inter', sans-serif", size: 11 },
+              callback: (v) => '৳' + v
+            }
+          },
+          x: {
+            grid: { display: false },
+            ticks: {
+              color: '#cbd5e1',
+              font: { family: "'Inter', sans-serif", size: 11 }
+            }
+          }
         }
       }
     });
@@ -1525,31 +2125,84 @@ class CashierTerminal {
   renderAnalyticsView() {
     const targetSales = this.getCashierFilteredSales();
 
-    const totalRev = targetSales.reduce((sum, s) => sum + (s.grandTotal || 0), 0);
     const totalOrders = targetSales.length;
     let cashReceived = 0;
     let epayReceived = 0;
     let totalItemsSold = 0;
+    let grossItemsSold = 0;
+    let returnedItemsSold = 0;
     let totalNetProfit = 0;
+    let totalReturnsCount = 0;
+    let totalRefundAmount = 0;
+
+    let analyticsVat = 0;
+    let analyticsCouponDisc = 0;
+    let analyticsManualDisc = 0;
 
     targetSales.forEach(s => {
-      if (s.paymentMethod === 'epay' || (s.paymentDetails && s.paymentDetails.method === 'epay') || s.paymentMethod === 'EPAY') {
-        epayReceived += (s.grandTotal || 0);
+      const vatAmt = s.tax || 0;
+      const discAmt = s.discount || 0;
+      const hasCoupon = Boolean(s.couponCode || s.coupon || (s.couponDiscount && s.couponDiscount > 0));
+
+      analyticsVat += vatAmt;
+
+      if (hasCoupon) {
+        analyticsCouponDisc += (s.couponDiscount !== undefined ? s.couponDiscount : discAmt);
       } else {
-        cashReceived += (s.grandTotal || 0);
+        analyticsManualDisc += (s.manualDiscount !== undefined ? s.manualDiscount : discAmt);
+      }
+
+      const refunded = s.refundedAmount || 0;
+      const netGrand = Math.max(0, (s.grandTotal || 0) - refunded);
+
+      if (s.status === 'RETURNED' || s.status === 'PARTIALLY_RETURNED' || (s.returnHistory && s.returnHistory.length > 0)) {
+        totalReturnsCount++;
+        totalRefundAmount += refunded;
+      }
+
+      const pm = (s.paymentMethod || '').toUpperCase();
+      const isEpay = pm === 'EPAY' || (s.paymentDetails && (s.paymentDetails.method || '').toLowerCase() === 'epay');
+      if (isEpay) {
+        epayReceived += netGrand;
+      } else {
+        cashReceived += netGrand;
       }
 
       if (s.items && Array.isArray(s.items)) {
         s.items.forEach(i => {
-          const qty = i.quantity || 1;
-          totalItemsSold += qty;
+          const origQty = i.quantity || 1;
+          const retQty = i.returnedQuantity || 0;
+          const netQty = Math.max(0, origQty - retQty);
+
+          grossItemsSold += origQty;
+          returnedItemsSold += retQty;
+          totalItemsSold += netQty;
+
           const cost = i.cost !== undefined ? i.cost : (i.price * 0.8);
           const price = i.price || 0;
-          const itemRev = i.subtotal || (price * qty);
-          totalNetProfit += (itemRev - (cost * qty));
+          const itemRev = price * netQty;
+          totalNetProfit += (itemRev - (cost * netQty));
         });
       }
     });
+
+    const totalRev = cashReceived + epayReceived;
+    const totalAnalyticsDiscounts = analyticsCouponDisc + analyticsManualDisc;
+    const netAnalyticsVatDisc = analyticsVat - totalAnalyticsDiscounts;
+
+    const elAnalyticsVatDisc = document.getElementById('analyticsVatDiscount');
+    if (elAnalyticsVatDisc) {
+      if (netAnalyticsVatDisc > 0) {
+        elAnalyticsVatDisc.innerText = `+৳${netAnalyticsVatDisc.toFixed(2)}`;
+        elAnalyticsVatDisc.style.color = 'var(--accent-green, #10b981)';
+      } else if (netAnalyticsVatDisc < 0) {
+        elAnalyticsVatDisc.innerText = `-৳${Math.abs(netAnalyticsVatDisc).toFixed(2)}`;
+        elAnalyticsVatDisc.style.color = '#ef4444';
+      } else {
+        elAnalyticsVatDisc.innerText = `৳0.00`;
+        elAnalyticsVatDisc.style.color = 'inherit';
+      }
+    }
 
     const saleEl = document.getElementById('analyticsTotalSale');
     if (saleEl) saleEl.innerText = `৳${totalRev.toFixed(2)}`;
@@ -1566,14 +2219,23 @@ class CashierTerminal {
     const itemEl = document.getElementById('analyticsTotalItem');
     if (itemEl) itemEl.innerText = `${totalItemsSold} টি`;
 
+    const retEl = document.getElementById('analyticsTotalReturns');
+    if (retEl) retEl.innerText = `${totalReturnsCount} টি (৳${totalRefundAmount.toFixed(2)})`;
+
     const revEl = document.getElementById('analyticsRevenue');
     if (revEl) revEl.innerText = `৳${totalRev.toFixed(2)}`;
 
+    const finalAnalyticsNetProfit = totalNetProfit + netAnalyticsVatDisc;
     const profitEl = document.getElementById('analyticsNetProfit');
-    if (profitEl) profitEl.innerText = `৳${totalNetProfit.toFixed(2)}`;
+    if (profitEl) {
+      profitEl.innerText = `৳${finalAnalyticsNetProfit.toFixed(2)}`;
+      if (finalAnalyticsNetProfit < 0) {
+        profitEl.style.color = '#ef4444';
+      }
+    }
 
     this.renderAnalyticsHourlyChart(targetSales);
-    this.renderAnalyticsPaymentChart(targetSales);
+    this.renderAnalyticsPaymentChart(targetSales, cashReceived, epayReceived);
     this.renderAnalyticsCategoryChart(targetSales);
   }
 
@@ -1583,15 +2245,23 @@ class CashierTerminal {
 
     const hourlyData = {};
     for (let h = 8; h <= 22; h++) {
-      const label = `${h > 12 ? h - 12 : h} ${h >= 12 ? 'PM' : 'AM'}`;
+      const displayH = h === 0 ? 12 : (h > 12 ? h - 12 : h);
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      const label = `${displayH} ${ampm}`;
       hourlyData[label] = 0;
     }
 
-    todaySales.forEach(s => {
+    (todaySales || []).forEach(s => {
       const date = new Date(s.timestamp);
       const h = date.getHours();
-      const label = `${h > 12 ? h - 12 : h} ${h >= 12 ? 'PM' : 'AM'}`;
-      if (hourlyData[label] !== undefined) hourlyData[label] += s.grandTotal;
+      const displayH = h === 0 ? 12 : (h > 12 ? h - 12 : h);
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      const label = `${displayH} ${ampm}`;
+      if (hourlyData[label] !== undefined) {
+        const refunded = s.refundedAmount || 0;
+        const netGrand = Math.max(0, (s.grandTotal || 0) - refunded);
+        hourlyData[label] += netGrand;
+      }
     });
 
     if (this.analyticsHourlyChart) this.analyticsHourlyChart.destroy();
@@ -1606,27 +2276,78 @@ class CashierTerminal {
           borderColor: '#3b82f6',
           backgroundColor: 'rgba(59, 130, 246, 0.15)',
           fill: true,
-          tension: 0.4
+          tension: 0.35,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          pointBackgroundColor: '#3b82f6',
+          pointBorderColor: '#ffffff',
+          pointBorderWidth: 1.5
         }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
+        layout: {
+          padding: { top: 10, bottom: 5, left: 5, right: 10 }
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#1e293b',
+            titleColor: '#f8fafc',
+            bodyColor: '#cbd5e1',
+            borderColor: 'rgba(255, 255, 255, 0.1)',
+            borderWidth: 1,
+            callbacks: {
+              label: (ctx) => ` রিভেনিউ: ৳${(ctx.parsed.y || 0).toFixed(2)}`
+            }
+          }
+        },
         scales: {
-          y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' } },
-          x: { grid: { display: false } }
+          y: {
+            beginAtZero: true,
+            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+            ticks: {
+              color: '#9ca3af',
+              font: { family: "'Inter', sans-serif", size: 11 },
+              callback: (v) => '৳' + v
+            }
+          },
+          x: {
+            grid: { display: false },
+            ticks: {
+              color: '#cbd5e1',
+              font: { family: "'Inter', sans-serif", size: 11 }
+            }
+          }
         }
       }
     });
   }
 
-  renderAnalyticsPaymentChart(todaySales) {
+  renderAnalyticsPaymentChart(todaySales, cashRec, epayRec) {
     const canvas = document.getElementById('cashierAnalyticsPaymentChart');
     if (!canvas || typeof Chart === 'undefined') return;
 
-    const cashTotal = todaySales.filter(s => s.paymentMethod === 'CASH').reduce((sum, s) => sum + s.grandTotal, 0);
-    const epayTotal = todaySales.filter(s => s.paymentMethod === 'EPAY').reduce((sum, s) => sum + s.grandTotal, 0);
+    let cashTotal = 0;
+    let epayTotal = 0;
+
+    if (typeof cashRec === 'number' && typeof epayRec === 'number') {
+      cashTotal = cashRec;
+      epayTotal = epayRec;
+    } else {
+      (todaySales || []).forEach(s => {
+        const refunded = s.refundedAmount || 0;
+        const netGrand = Math.max(0, (s.grandTotal || 0) - refunded);
+        const pm = (s.paymentMethod || '').toUpperCase();
+        const isEpay = pm === 'EPAY' || (s.paymentDetails && (s.paymentDetails.method || '').toLowerCase() === 'epay');
+        if (isEpay) {
+          epayTotal += netGrand;
+        } else {
+          cashTotal += netGrand;
+        }
+      });
+    }
 
     if (this.analyticsPaymentChart) this.analyticsPaymentChart.destroy();
 
@@ -1637,13 +2358,44 @@ class CashierTerminal {
         datasets: [{
           data: [cashTotal, epayTotal],
           backgroundColor: ['#10b981', '#3b82f6'],
+          hoverBackgroundColor: ['#059669', '#2563eb'],
           borderWidth: 0
         }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { legend: { position: 'bottom', labels: { color: '#9ca3af' } } }
+        cutout: '68%',
+        layout: {
+          padding: { top: 10, bottom: 15, left: 10, right: 10 }
+        },
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: {
+              color: '#cbd5e1',
+              font: { family: "'Inter', sans-serif", size: 12, weight: '500' },
+              padding: 14,
+              usePointStyle: true,
+              pointStyle: 'circle'
+            }
+          },
+          tooltip: {
+            backgroundColor: '#1e293b',
+            titleColor: '#f8fafc',
+            bodyColor: '#cbd5e1',
+            borderColor: 'rgba(255, 255, 255, 0.1)',
+            borderWidth: 1,
+            callbacks: {
+              label: function(ctx) {
+                const val = ctx.parsed || 0;
+                const total = cashTotal + epayTotal;
+                const pct = total > 0 ? ((val / total) * 100).toFixed(1) : '0.0';
+                return ` ${ctx.label}: ৳${val.toFixed(2)} (${pct}%)`;
+              }
+            }
+          }
+        }
       }
     });
   }
@@ -1653,12 +2405,18 @@ class CashierTerminal {
     if (!canvas || typeof Chart === 'undefined') return;
 
     const catTotals = {};
-    todaySales.forEach(s => {
-      if (s.items) {
+    (todaySales || []).forEach(s => {
+      if (s.items && Array.isArray(s.items)) {
         s.items.forEach(i => {
-          const prod = this.products.find(p => p.id === i.id);
-          const cat = prod ? prod.category : 'অন্যান্য';
-          catTotals[cat] = (catTotals[cat] || 0) + i.subtotal;
+          const origQty = i.quantity || 1;
+          const retQty = i.returnedQuantity || 0;
+          const netQty = Math.max(0, origQty - retQty);
+          if (netQty > 0) {
+            const prod = (this.products || []).find(p => p.id === i.id);
+            const cat = (prod && prod.category) ? prod.category : (i.category || 'অন্যান্য');
+            const sub = (i.price || 0) * netQty;
+            catTotals[cat] = (catTotals[cat] || 0) + sub;
+          }
         });
       }
     });
@@ -1675,18 +2433,51 @@ class CashierTerminal {
         datasets: [{
           label: 'বিক্রি (৳)',
           data: data.length > 0 ? data : [0],
-          backgroundColor: 'rgba(139, 92, 246, 0.75)',
+          backgroundColor: 'rgba(139, 92, 246, 0.8)',
           borderColor: '#8b5cf6',
-          borderRadius: 8
+          borderWidth: 1,
+          borderRadius: 6,
+          maxBarThickness: 36,
+          categoryPercentage: 0.5,
+          barPercentage: 0.7
         }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
+        layout: {
+          padding: { top: 10, bottom: 5, left: 5, right: 10 }
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#1e293b',
+            titleColor: '#f8fafc',
+            bodyColor: '#cbd5e1',
+            borderColor: 'rgba(255, 255, 255, 0.1)',
+            borderWidth: 1,
+            callbacks: {
+              label: (ctx) => ` বিক্রি: ৳${(ctx.parsed.y || 0).toFixed(2)}`
+            }
+          }
+        },
         scales: {
-          y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' } },
-          x: { grid: { display: false } }
+          y: {
+            beginAtZero: true,
+            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+            ticks: {
+              color: '#9ca3af',
+              font: { family: "'Inter', sans-serif", size: 11 },
+              callback: (v) => '৳' + v
+            }
+          },
+          x: {
+            grid: { display: false },
+            ticks: {
+              color: '#cbd5e1',
+              font: { family: "'Inter', sans-serif", size: 11, weight: '500' }
+            }
+          }
         }
       }
     });
@@ -1741,6 +2532,12 @@ class CashierTerminal {
       const html = document.documentElement;
       const next = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
       html.setAttribute('data-theme', next);
+      localStorage.setItem('pos_theme', next);
+      try {
+        const s = JSON.parse(localStorage.getItem('pos_settings')) || {};
+        s.defaultTheme = next;
+        localStorage.setItem('pos_settings', JSON.stringify(s));
+      } catch(e) {}
     });
 
     document.getElementById('soundToggleBtn').addEventListener('click', () => {
@@ -1881,6 +2678,14 @@ class CashierTerminal {
     handleZeroFocus(discInput, () => this.discountValue, (val) => { this.discountValue = val; this.renderCart(); });
     handleZeroFocus(taxInput, () => this.taxValue, (val) => { this.taxValue = val; this.renderCart(); });
 
+    const cartNoteTextarea = document.getElementById('cartOrderNote');
+    if (cartNoteTextarea) {
+      cartNoteTextarea.addEventListener('input', function() {
+        this.style.height = 'auto';
+        this.style.height = (this.scrollHeight) + 'px';
+      });
+    }
+
     if (removeCouponBtn) {
       removeCouponBtn.addEventListener('click', () => {
         this.removeCoupon();
@@ -1917,7 +2722,7 @@ class CashierTerminal {
     const printBtn = document.getElementById('printReceiptBtn');
     if (printBtn) {
       printBtn.addEventListener('click', () => {
-        window.print();
+        this.playInModalReceiptPrint('printableReceipt', false);
       });
     }
 
@@ -1935,25 +2740,18 @@ class CashierTerminal {
       });
     }
 
-    // Cashier Analytics Date Filter
-    const cashDateSelect = document.getElementById('cashierDateFilterSelect');
-    if (cashDateSelect) {
-      cashDateSelect.addEventListener('change', (e) => {
-        this.currentDateFilter = e.target.value;
-        this.renderAnalyticsView();
-        this.showToast(`সময়কাল ফিল্টার রিলোড করা হলো: ${e.target.options[e.target.selectedIndex].text}`);
-      });
-    }
 
     // Analytics Hub 7 KPI Cards Click Listeners
     ['analyticsCardTotalSale', 'analyticsCardRevenue'].forEach(id => {
       const el = document.getElementById(id);
-      if (el) el.addEventListener('click', () => this.openCashierRevenueModal());
+      if (el) el.addEventListener('click', () => this.openCashierTotalSalesModal());
     });
-    ['analyticsCardCashPayment', 'analyticsCardEpayPayment'].forEach(id => {
+    ['analyticsCardCashPayment'].forEach(id => {
       const el = document.getElementById(id);
-      if (el) el.addEventListener('click', () => this.openCashierRevenueModal());
+      if (el) el.addEventListener('click', () => this.openCashierRevenueModal('CASH'));
     });
+    const analyticsEpayCard = document.getElementById('analyticsCardEpayPayment');
+    if (analyticsEpayCard) analyticsEpayCard.addEventListener('click', () => this.openCashierEpayBreakdownModal());
     const analOrders = document.getElementById('analyticsCardTotalOrders');
     if (analOrders) analOrders.addEventListener('click', () => this.switchTab('cashierShiftView'));
 
@@ -1966,12 +2764,14 @@ class CashierTerminal {
     // Cashier Dashboard 7 KPI Card Click Listeners
     ['dashCardTotalSale', 'dashCardRevenue', 'cashCardRevenue'].forEach(id => {
       const el = document.getElementById(id);
-      if (el) el.addEventListener('click', () => this.openCashierRevenueModal());
+      if (el) el.addEventListener('click', () => this.openCashierTotalSalesModal());
     });
-    ['dashCardCashPayment', 'dashCardEpayPayment', 'cashCardCash'].forEach(id => {
+    ['dashCardCashPayment', 'cashCardCash'].forEach(id => {
       const el = document.getElementById(id);
-      if (el) el.addEventListener('click', () => this.openCashierRevenueModal());
+      if (el) el.addEventListener('click', () => this.openCashierRevenueModal('CASH'));
     });
+    const dashEpayCard = document.getElementById('dashCardEpayPayment');
+    if (dashEpayCard) dashEpayCard.addEventListener('click', () => this.openCashierEpayBreakdownModal());
     ['dashCardTotalOrders', 'cashCardOrders'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.addEventListener('click', () => this.switchTab('cashierShiftView'));
@@ -1982,6 +2782,18 @@ class CashierTerminal {
     });
     const dashProfit = document.getElementById('dashCardNetProfit');
     if (dashProfit) dashProfit.addEventListener('click', () => this.openCashierNetProfitModal());
+
+    // Return Card Listeners
+    ['dashCardReturns', 'analyticsCardReturns'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('click', () => this.openCashierReturnsModal());
+    });
+
+    // Vat & Discount Card Listeners
+    ['dashCardVatDiscount', 'analyticsCardVatDiscount'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('click', () => this.openVatDiscountModal());
+    });
 
     const btnGoShift = document.getElementById('btnCashierGoToShiftView');
     if (btnGoShift) btnGoShift.addEventListener('click', () => {
@@ -1998,171 +2810,331 @@ class CashierTerminal {
     });
   }
 
-  openCashierRevenueModal() {
-    const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).getTime();
-    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).getTime();
-    const todaySales = this.sales.filter(s => {
-      const saleTime = new Date(s.timestamp).getTime();
-      return !isNaN(saleTime) && saleTime >= todayStart && saleTime <= todayEnd;
-    });
+  openCashierRevenueModal(filterPaymentType = 'CASH') {
+    const targetSales = this.getCashierFilteredSales();
+    const cashSales = targetSales.filter(s => (s.paymentMethod || '').toUpperCase() !== 'EPAY' && (!s.paymentDetails || (s.paymentDetails.method || '').toLowerCase() !== 'epay'));
+    const totalCash = cashSales.reduce((sum, s) => sum + Math.max(0, (s.grandTotal || 0) - (s.refundedAmount || 0)), 0);
+    const totalRefunds = cashSales.reduce((sum, s) => sum + (s.refundedAmount || 0), 0);
+    const totalCashCount = cashSales.length;
 
-    const totalRev = todaySales.reduce((sum, s) => sum + (s.grandTotal || 0), 0);
-    const totalOrders = todaySales.length;
-    const avgTicket = totalOrders > 0 ? totalRev / totalOrders : 0;
-
-    let cashTotal = 0;
-    let epayTotal = 0;
-
-    todaySales.forEach(s => {
-      if (s.paymentMethod === 'epay' || (s.paymentDetails && s.paymentDetails.method === 'epay')) {
-        epayTotal += (s.grandTotal || 0);
-      } else {
-        cashTotal += (s.grandTotal || 0);
-      }
-    });
-
-    const elTotal = document.getElementById('cashModalRevTotal');
-    const elOrders = document.getElementById('cashModalRevOrders');
-    const elAvg = document.getElementById('cashModalRevAvg');
     const elCash = document.getElementById('cashModalRevCashTotal');
-    const elEpay = document.getElementById('cashModalRevEpayTotal');
+    const elOrders = document.getElementById('cashModalRevOrders');
 
-    if (elTotal) elTotal.innerText = `৳${totalRev.toFixed(2)}`;
-    if (elOrders) elOrders.innerText = `${totalOrders} টি`;
-    if (elAvg) elAvg.innerText = `৳${avgTicket.toFixed(2)}`;
-    if (elCash) elCash.innerText = `৳${cashTotal.toFixed(2)}`;
-    if (elEpay) elEpay.innerText = `৳${epayTotal.toFixed(2)}`;
+    if (elCash) elCash.innerHTML = `৳${totalCash.toFixed(2)}${totalRefunds > 0 ? `<small style="font-size:0.75rem; color:#ef4444; margin-left:6px;">(-৳${totalRefunds.toFixed(2)} refund)</small>` : ''}`;
+    if (elOrders) elOrders.innerText = `${totalCashCount} টি`;
 
     const tbody = document.getElementById('cashModalRevRecentBody');
     if (tbody) {
-      if (todaySales.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted" style="padding: 1.5rem;">আজকে এখনো কোনো বিক্রি রেকর্ড করা হয়নি।</td></tr>`;
+      if (cashSales.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted" style="padding: 1.5rem;">এখনো কোনো ক্যাশ বিক্রির ইনভয়েস রেকর্ড করা হয়নি।</td></tr>`;
       } else {
-        tbody.innerHTML = todaySales.slice(-5).reverse().map(s => `
+        tbody.innerHTML = cashSales.map(s => {
+          const dtStr = new Date(s.timestamp).toLocaleString('bn-BD');
+          const { bg, color, label } = this.getPaymentBadge(s);
+          const refunded = s.refundedAmount || 0;
+          const netAmt = Math.max(0, (s.grandTotal || 0) - refunded);
+          return `
           <tr>
-            <td><strong>${s.id}</strong></td>
-            <td><small>${new Date(s.timestamp).toLocaleTimeString('bn-BD')}</small></td>
-            <td><span class="badge" style="background: ${s.paymentMethod === 'epay' ? 'rgba(59,130,246,0.15)' : 'rgba(16,185,129,0.15)'}; color: ${s.paymentMethod === 'epay' ? '#3b82f6' : '#10b981'};">${s.paymentMethod === 'epay' ? 'ই-পে' : 'ক্যাশ'}</span></td>
-            <td style="text-align: right; font-weight: 700; color: var(--accent-green);">৳${(s.grandTotal || 0).toFixed(2)}</td>
+            <td>
+              <strong style="cursor: pointer; color: var(--accent-blue);" onclick="cashier.openInvoiceReturnExchangeModal('${s.id}')" title="ইনভয়েস মেমো দেখুন">${s.id}</strong>
+              <div style="font-size: 0.72rem; color: var(--text-muted); font-family: monospace;">CASH-PAYMENT</div>
+            </td>
+            <td><small>${dtStr}</small></td>
+            <td>
+              <span class="badge" style="background: ${bg}; color: ${color}; font-weight: 700; padding: 4px 10px; border-radius: 6px; display: inline-flex; align-items: center;">
+                ${label}
+              </span>
+            </td>
+            <td>${s.customerName || 'Walk-in Customer'}</td>
+            <td style="text-align: right; font-weight: 800; color: ${s.status === 'RETURNED' ? '#ef4444' : '#10b981'}; font-size: 1.05rem;">
+              ৳${netAmt.toFixed(2)}
+              ${refunded > 0 ? `<br><small style="color: #ef4444; font-size: 0.7rem;">(-৳${refunded.toFixed(2)} refund)</small>` : ''}
+            </td>
           </tr>
-        `).join('');
+        `;
+        }).join('');
       }
     }
 
     this.openModal('cashierRevenueModal');
   }
 
-  openCashierItemsSoldModal() {
-    const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).getTime();
-    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).getTime();
-    const todaySales = this.sales.filter(s => {
-      const saleTime = new Date(s.timestamp).getTime();
-      return !isNaN(saleTime) && saleTime >= todayStart && saleTime <= todayEnd;
-    });
+  // --- TOTAL SALES & GROSS REVENUE BREAKDOWN MODAL ---
+  openCashierTotalSalesModal() {
+    const targetSales = this.getCashierFilteredSales();
 
-    const itemMap = {};
-    todaySales.forEach(s => {
-      if (s.items && Array.isArray(s.items)) {
-        s.items.forEach(i => {
-          if (!itemMap[i.name]) {
-            itemMap[i.name] = {
-              name: i.name,
-              category: i.category || 'General',
-              price: i.price || 0,
-              qty: 0,
-              total: 0
-            };
-          }
-          itemMap[i.name].qty += (i.quantity || 1);
-          itemMap[i.name].total += (i.subtotal || (i.price * i.quantity));
-        });
+    let cashGross = 0;
+    let epayGross = 0;
+    let totalRefunds = 0;
+    let cashRefunds = 0;
+    let epayRefunds = 0;
+
+    targetSales.forEach(s => {
+      const pm = (s.paymentMethod || '').toUpperCase();
+      const isEpay = pm === 'EPAY' || (s.paymentDetails && (s.paymentDetails.method || '').toLowerCase() === 'epay');
+      const refunded = s.refundedAmount || 0;
+      totalRefunds += refunded;
+
+      if (isEpay) {
+        epayGross += (s.grandTotal || 0);
+        epayRefunds += refunded;
+      } else {
+        cashGross += (s.grandTotal || 0);
+        cashRefunds += refunded;
       }
     });
 
-    const tbody = document.getElementById('cashModalItemsSoldBody');
+    const netRevenue = (cashGross + epayGross) - totalRefunds;
+
+    const elNet = document.getElementById('totSalesNetRevenue');
+    const elCash = document.getElementById('totSalesCashTotal');
+    const elEpay = document.getElementById('totSalesEpayTotal');
+    const elRefund = document.getElementById('totSalesRefundTotal');
+
+    if (elNet) elNet.innerText = `৳${netRevenue.toFixed(2)}`;
+    if (elCash) elCash.innerText = `৳${(cashGross - cashRefunds).toFixed(2)}`;
+    if (elEpay) elEpay.innerText = `৳${(epayGross - epayRefunds).toFixed(2)}`;
+    if (elRefund) elRefund.innerText = `-৳${totalRefunds.toFixed(2)}`;
+
+    const tbody = document.getElementById('totSalesTableBody');
     if (tbody) {
-      const itemList = Object.values(itemMap).sort((a, b) => b.qty - a.qty);
-      if (itemList.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted" style="padding: 1.5rem;">আজকে এখনো কোনো পণ্য বিক্রি হয়নি।</td></tr>`;
+      if (targetSales.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted" style="padding: 1.5rem;">এখনো কোনো বিক্রির ইনভয়েস রেকর্ড করা হয়নি।</td></tr>`;
       } else {
-        tbody.innerHTML = itemList.map(item => `
+        tbody.innerHTML = targetSales.map(s => {
+          const dtStr = new Date(s.timestamp).toLocaleString('bn-BD');
+          const { bg, color, label } = this.getPaymentBadge(s);
+          const refunded = s.refundedAmount || 0;
+          const netAmt = Math.max(0, (s.grandTotal || 0) - refunded);
+
+          return `
           <tr>
-            <td><strong>${item.name}</strong></td>
-            <td><span class="badge" style="background: rgba(59,130,246,0.15); color: #3b82f6;">${item.category}</span></td>
-            <td>৳${item.price.toFixed(2)}</td>
-            <td><strong style="color: var(--accent-purple);">${item.qty} টি</strong></td>
-            <td style="text-align: right; font-weight: 700; color: var(--accent-green);">৳${item.total.toFixed(2)}</td>
+            <td>
+              <strong style="cursor: pointer; color: var(--accent-blue);" onclick="cashier.openInvoiceReturnExchangeModal('${s.id}')" title="ইনভয়েস বিবরণী দেখুন">${s.id}</strong>
+              <div style="font-size: 0.72rem; color: var(--text-muted); font-family: monospace;">${(s.paymentDetails && s.paymentDetails.trxId) ? s.paymentDetails.trxId : 'SALE-RECORD'}</div>
+            </td>
+            <td><small>${dtStr}</small></td>
+            <td>
+              <span class="badge" style="background: ${bg}; color: ${color}; font-weight: 700; padding: 4px 10px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;">
+                ${label}
+              </span>
+            </td>
+            <td>${s.customerName || 'Walk-in Customer'}</td>
+            <td style="text-align: right; font-weight: 800; color: ${s.status === 'RETURNED' ? '#ef4444' : '#10b981'}; font-size: 1.05rem;">
+              ৳${netAmt.toFixed(2)}
+              ${refunded ? `<br><small style="color: #ef4444; font-size: 0.7rem;">(৳${refunded.toFixed(2)} refund)</small>` : ''}
+            </td>
           </tr>
-        `).join('');
+        `;
+        }).join('');
       }
     }
 
-    this.openModal('cashierItemsSoldModal');
+    this.openModal('cashierTotalSalesModal');
   }
 
-  openCashierNetProfitModal() {
+  openCashierItemsSoldModal(defaultFilter = 'net') {
+    this.currentItemsSoldFilter = defaultFilter;
     const targetSales = this.getCashierFilteredSales();
-    let totalSales = 0;
-    let totalCost = 0;
-    const itemProfits = {};
 
-    targetSales.forEach(sale => {
-      totalSales += (sale.grandTotal || 0);
-      if (sale.items && Array.isArray(sale.items)) {
-        sale.items.forEach(item => {
-          const cost = item.cost !== undefined ? item.cost : (item.price * 0.8);
-          const price = item.price || 0;
-          const qty = item.quantity || 1;
-          const itemCostTotal = cost * qty;
-          const itemRevTotal = item.subtotal || (price * qty);
-          const itemProfit = itemRevTotal - itemCostTotal;
+    const itemMap = {};
+    let totalNetUnits = 0;
+    let totalGrossUnits = 0;
+    let totalReturnedUnits = 0;
 
-          totalCost += itemCostTotal;
-          const key = item.id || item.name;
+    const returnedItemsList = [];
 
-          if (!itemProfits[key]) {
-            itemProfits[key] = {
-              name: item.name,
-              variant: (item.color || item.size) ? `${item.color || ''} ${item.size || ''}`.trim() : 'Standard',
-              category: item.category || 'অন্যান্য',
-              quantity: 0,
-              cost: cost,
-              price: price,
-              totalSales: 0,
-              totalCost: 0,
-              totalProfit: 0
+    targetSales.forEach(s => {
+      if (s.items && Array.isArray(s.items)) {
+        s.items.forEach(i => {
+          const origQty = i.quantity || 1;
+          const retQty = i.returnedQuantity || 0;
+          const netQty = Math.max(0, origQty - retQty);
+
+          totalGrossUnits += origQty;
+          totalReturnedUnits += retQty;
+          totalNetUnits += netQty;
+
+          const colorStr = (i.color && i.color !== 'N/A') ? i.color : '';
+          const sizeStr = (i.size && i.size !== 'N/A') ? i.size : '';
+          const variantKey = [colorStr, sizeStr].filter(Boolean).join('_') || 'Standard';
+          const key = `${i.id || i.name}_${variantKey}`;
+
+          let variantLabel = 'Standard';
+          if (colorStr && sizeStr) variantLabel = `🎨 ${colorStr} / 📏 ${sizeStr}`;
+          else if (colorStr) variantLabel = `🎨 ${colorStr}`;
+          else if (sizeStr) variantLabel = `📏 ${sizeStr}`;
+
+          if (!itemMap[key]) {
+            itemMap[key] = {
+              name: i.name,
+              variant: variantLabel,
+              category: i.category || 'General',
+              price: i.price || 0,
+              grossQty: 0,
+              returnedQty: 0,
+              netQty: 0,
+              netTotal: 0,
+              grossTotal: 0
             };
           }
-          itemProfits[key].quantity += qty;
-          itemProfits[key].totalSales += itemRevTotal;
-          itemProfits[key].totalCost += itemCostTotal;
-          itemProfits[key].totalProfit += itemProfit;
+          itemMap[key].grossQty += origQty;
+          itemMap[key].returnedQty += retQty;
+          itemMap[key].netQty += netQty;
+          itemMap[key].netTotal += (i.price || 0) * netQty;
+          itemMap[key].grossTotal += (i.price || 0) * origQty;
+
+          if (retQty > 0) {
+            returnedItemsList.push({
+              invoiceId: s.id,
+              date: new Date(s.timestamp).toLocaleString('bn-BD'),
+              name: i.name,
+              color: i.color || 'N/A',
+              size: i.size || 'N/A',
+              variant: variantLabel,
+              category: i.category || 'General',
+              price: i.price || 0,
+              returnedQty: retQty,
+              refundAmount: (i.price || 0) * retQty,
+              customer: s.customer || s.customerName || 'Walk-in Customer'
+            });
+          }
         });
       }
     });
 
-    const netProfit = totalSales - totalCost;
-    const marginPct = totalSales > 0 ? ((netProfit / totalSales) * 100).toFixed(1) : 0;
+    this.cachedCashierItemsSoldData = {
+      itemsList: Object.values(itemMap),
+      returnedItemsList: returnedItemsList,
+      totalNetUnits,
+      totalGrossUnits,
+      totalReturnedUnits
+    };
 
-    const elSales = document.getElementById('cashModalProfitTotalSales');
-    const elCost = document.getElementById('cashModalProfitTotalCost');
-    const elNet = document.getElementById('cashModalProfitNetTotal');
-    const elMargin = document.getElementById('cashModalProfitMarginPercent');
+    // Update Box Counts
+    const elNetCount = document.getElementById('cashModalItemsSoldNetCount');
+    const elRetCount = document.getElementById('cashModalItemsSoldReturnedCount');
+    const elGrossCount = document.getElementById('cashModalItemsSoldGrossCount');
 
-    if (elSales) elSales.innerText = `৳${totalSales.toFixed(2)}`;
-    if (elCost) elCost.innerText = `৳${totalCost.toFixed(2)}`;
-    if (elNet) elNet.innerText = `৳${netProfit.toFixed(2)}`;
-    if (elMargin) elMargin.innerText = `${marginPct}%`;
+    if (elNetCount) elNetCount.innerText = `${totalNetUnits} টি`;
+    if (elRetCount) elRetCount.innerText = `${totalReturnedUnits} টি`;
+    if (elGrossCount) elGrossCount.innerText = `${totalGrossUnits} টি`;
 
-    const itemsList = Object.values(itemProfits);
+    const searchInput = document.getElementById('cashModalItemsSearchInput');
+    if (searchInput) searchInput.value = '';
 
-    const renderTable = (query = '') => {
-      const tbody = document.getElementById('cashModalProfitItemsBody');
-      if (!tbody) return;
+    this.renderItemsSoldModalTable(defaultFilter);
+    this.openModal('cashierItemsSoldModal');
+  }
 
-      const filtered = itemsList.filter(i => 
+  setItemsSoldModalFilter(filterMode) {
+    this.currentItemsSoldFilter = filterMode;
+    this.renderItemsSoldModalTable(filterMode);
+  }
+
+  onItemsSoldSearchInput() {
+    const filterMode = this.currentItemsSoldFilter || 'net';
+    this.renderItemsSoldModalTable(filterMode);
+  }
+
+  renderItemsSoldModalTable(filterMode = 'net') {
+    const data = this.cachedCashierItemsSoldData;
+    if (!data) return;
+
+    // Update Box Styling
+    ['cashBoxFilterNet', 'cashBoxFilterReturned', 'cashBoxFilterGross'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.style.border = '1px solid var(--border-color)';
+        el.style.background = 'var(--bg-card)';
+      }
+    });
+
+    if (filterMode === 'net') {
+      const activeEl = document.getElementById('cashBoxFilterNet');
+      if (activeEl) {
+        activeEl.style.border = '2px solid #10b981';
+        activeEl.style.background = 'rgba(16,185,129,0.12)';
+      }
+    } else if (filterMode === 'returned') {
+      const activeEl = document.getElementById('cashBoxFilterReturned');
+      if (activeEl) {
+        activeEl.style.border = '2px solid #ef4444';
+        activeEl.style.background = 'rgba(239,68,68,0.12)';
+      }
+    } else if (filterMode === 'gross') {
+      const activeEl = document.getElementById('cashBoxFilterGross');
+      if (activeEl) {
+        activeEl.style.border = '2px solid #3b82f6';
+        activeEl.style.background = 'rgba(59,130,246,0.12)';
+      }
+    }
+
+    const searchInput = document.getElementById('cashModalItemsSearchInput');
+    const query = (searchInput ? searchInput.value : '').toLowerCase().trim();
+
+    const thead = document.querySelector('#cashierItemsSoldModal table thead');
+    const tbody = document.getElementById('cashModalItemsSoldBody');
+    if (!tbody) return;
+
+    if (filterMode === 'returned') {
+      // Returned Items Detailed View
+      if (thead) {
+        thead.innerHTML = `
+          <tr>
+            <th>রিটার্নকৃত পণ্য ও মেমো (Trx)</th>
+            <th>ভেরিয়েন্ট (কালার / সাইজ)</th>
+            <th>একক মূল্য</th>
+            <th>রিটার্ন সংখ্যা</th>
+            <th style="text-align: right;">মোট রিফান্ড (৳)</th>
+          </tr>
+        `;
+      }
+
+      const filtered = data.returnedItemsList.filter(i => 
+        !query || 
+        i.name.toLowerCase().includes(query) || 
+        i.color.toLowerCase().includes(query) ||
+        i.size.toLowerCase().includes(query) ||
+        i.invoiceId.toLowerCase().includes(query)
+      );
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted" style="padding: 1.5rem;">কোনো রিটার্নকৃত আইটেম ডাটা পাওয়া যায়নি।</td></tr>`;
+      } else {
+        tbody.innerHTML = filtered.map(i => `
+          <tr>
+            <td>
+              <strong style="color: var(--accent-red, #ef4444);">${i.name}</strong>
+              <div style="font-size:0.72rem; color:var(--text-muted); font-family:monospace;">${i.invoiceId} (${i.date})</div>
+            </td>
+            <td>
+              <span class="badge" style="background: rgba(245,158,11,0.15); color: #f59e0b; font-weight:700;">
+                ${i.variant}
+              </span>
+            </td>
+            <td>৳${i.price.toFixed(2)}</td>
+            <td><strong style="color: #ef4444; font-size: 1.05rem;">${i.returnedQty} টি</strong></td>
+            <td style="text-align: right; font-weight: 800; color: #ef4444; font-size: 1.05rem;">৳${i.refundAmount.toFixed(2)}</td>
+          </tr>
+        `).join('');
+      }
+
+    } else if (filterMode === 'gross') {
+      // Gross Sales View
+      if (thead) {
+        thead.innerHTML = `
+          <tr>
+            <th>আইটেম / পণ্য</th>
+            <th>ক্যাটাগরি</th>
+            <th>বিক্রয় ব্রেকডাউন (Gross/Ret/Net)</th>
+            <th>একক দাম</th>
+            <th style="text-align: right;">সর্বমোট অর্জিত রিভেনিউ</th>
+          </tr>
+        `;
+      }
+
+      const filtered = data.itemsList.filter(i => 
         !query || 
         i.name.toLowerCase().includes(query) || 
         i.category.toLowerCase().includes(query) ||
@@ -2170,47 +3142,448 @@ class CashierTerminal {
       );
 
       if (filtered.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted" style="padding: 1.5rem;">কোনো প্রোডাক্টের প্রফিট ডাটা পাওয়া যায়নি।</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted" style="padding: 1.5rem;">কোনো বিক্রিত আইটেম ডাটা পাওয়া যায়নি।</td></tr>`;
       } else {
-        tbody.innerHTML = filtered.sort((a, b) => b.totalProfit - a.totalProfit).map(item => `
+        tbody.innerHTML = filtered.sort((a, b) => b.grossQty - a.grossQty).map(item => `
           <tr>
             <td>
               <strong>${item.name}</strong><br>
-              <small class="text-muted">(${item.variant})</small>
+              <small class="badge" style="background: rgba(245,158,11,0.15); color: #f59e0b; font-size: 0.72rem; margin-top: 2px;">(${item.variant})</small>
             </td>
             <td><span class="badge" style="background: rgba(59,130,246,0.15); color: #3b82f6;">${item.category}</span></td>
-            <td><strong>${item.quantity} টি</strong></td>
-            <td>৳${item.cost.toFixed(2)}</td>
-            <td>৳${item.price.toFixed(2)}</td>
-            <td>৳${item.totalSales.toFixed(2)}</td>
-            <td>৳${item.totalCost.toFixed(2)}</td>
-            <td style="text-align: right;">
-              <strong style="color: ${item.totalProfit >= 0 ? 'var(--accent-purple)' : '#ef4444'}; font-size: 0.95rem;">
-                ${item.totalProfit >= 0 ? '+' : ''}৳${item.totalProfit.toFixed(2)}
-              </strong>
+            <td>
+              <strong style="color: #3b82f6; font-size: 1rem;">${item.grossQty} টি Gross</strong>
+              <div style="font-size: 0.68rem; font-weight: 600; margin-top: 2px;">
+                <span style="color:#10b981;">নিট বিক্রি: ${item.netQty}</span> | <span style="color:#ef4444;">রিটার্ন: ${item.returnedQty}</span>
+              </div>
             </td>
+            <td>৳${item.price.toFixed(2)}</td>
+            <td style="text-align: right; font-weight: 700; color: var(--accent-green);">৳${item.grossTotal.toFixed(2)}</td>
           </tr>
         `).join('');
       }
+
+    } else {
+      // Net Sales View (Default Box 1)
+      if (thead) {
+        thead.innerHTML = `
+          <tr>
+            <th>আইটেম / পণ্য</th>
+            <th>ক্যাটাগরি</th>
+            <th>একক দাম</th>
+            <th>সক্রিয় বিক্রিত সংখ্যা (Net)</th>
+            <th style="text-align: right;">নিট অর্জিত রিভেনিউ</th>
+          </tr>
+        `;
+      }
+
+      const filtered = data.itemsList.filter(i => 
+        i.netQty > 0 &&
+        (!query || 
+        i.name.toLowerCase().includes(query) || 
+        i.category.toLowerCase().includes(query) ||
+        i.variant.toLowerCase().includes(query))
+      );
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted" style="padding: 1.5rem;">কোনো সক্রিয় বিক্রিত আইটেম ডাটা পাওয়া যায়নি।</td></tr>`;
+      } else {
+        tbody.innerHTML = filtered.sort((a, b) => b.netQty - a.netQty).map(item => `
+          <tr>
+            <td>
+              <strong>${item.name}</strong><br>
+              <small class="badge" style="background: rgba(245,158,11,0.15); color: #f59e0b; font-size: 0.72rem; margin-top: 2px;">(${item.variant})</small>
+            </td>
+            <td><span class="badge" style="background: rgba(16,185,129,0.15); color: #10b981;">${item.category}</span></td>
+            <td>৳${item.price.toFixed(2)}</td>
+            <td>
+              <strong style="color: #10b981; font-size: 1.05rem;">${item.netQty} টি</strong>
+            </td>
+            <td style="text-align: right; font-weight: 800; color: #10b981;">৳${item.netTotal.toFixed(2)}</td>
+          </tr>
+        `).join('');
+      }
+    }
+  }
+
+  openCashierNetProfitModal(defaultFilter = 'net') {
+    this.currentProfitFilter = defaultFilter;
+    const targetSales = this.getCashierFilteredSales();
+
+    let totalNetSales = 0;
+    let totalNetCost = 0;
+    let totalGrossSales = 0;
+    let totalGrossCost = 0;
+    let totalReturnedRefund = 0;
+    let totalReturnedCost = 0;
+    let totalReturnedItemsCount = 0;
+
+    const itemProfitsMap = {};
+    const returnedProfitItemsList = [];
+
+    targetSales.forEach(sale => {
+      if (sale.items && Array.isArray(sale.items)) {
+        sale.items.forEach(item => {
+          const origQty = item.quantity || 1;
+          const retQty = item.returnedQuantity || 0;
+          const netQty = Math.max(0, origQty - retQty);
+
+          const price = item.price || 0;
+          const cost = item.cost !== undefined ? item.cost : (price * 0.8);
+
+          const grossRev = price * origQty;
+          const grossCost = cost * origQty;
+
+          const netRev = price * netQty;
+          const netCost = cost * netQty;
+
+          const retRev = price * retQty;
+          const retCost = cost * retQty;
+
+          totalGrossSales += grossRev;
+          totalGrossCost += grossCost;
+          totalNetSales += netRev;
+          totalNetCost += netCost;
+          totalReturnedRefund += retRev;
+          totalReturnedCost += retCost;
+          totalReturnedItemsCount += retQty;
+
+          const colorStr = (item.color && item.color !== 'N/A') ? item.color : '';
+          const sizeStr = (item.size && item.size !== 'N/A') ? item.size : '';
+          const variantKey = [colorStr, sizeStr].filter(Boolean).join('_') || 'Standard';
+          const key = `${item.id || item.name}_${variantKey}`;
+
+          let variantLabel = 'Standard';
+          if (colorStr && sizeStr) variantLabel = `🎨 ${colorStr} / 📏 ${sizeStr}`;
+          else if (colorStr) variantLabel = `🎨 ${colorStr}`;
+          else if (sizeStr) variantLabel = `📏 ${sizeStr}`;
+
+          if (!itemProfitsMap[key]) {
+            itemProfitsMap[key] = {
+              name: item.name,
+              variant: variantLabel,
+              category: item.category || 'অন্যান্য',
+              price: price,
+              cost: cost,
+              grossQty: 0,
+              returnedQty: 0,
+              netQty: 0,
+              grossSales: 0,
+              grossCost: 0,
+              grossProfit: 0,
+              netSales: 0,
+              netCost: 0,
+              netProfit: 0
+            };
+          }
+
+          itemProfitsMap[key].grossQty += origQty;
+          itemProfitsMap[key].returnedQty += retQty;
+          itemProfitsMap[key].netQty += netQty;
+
+          itemProfitsMap[key].grossSales += grossRev;
+          itemProfitsMap[key].grossCost += grossCost;
+          itemProfitsMap[key].grossProfit += (grossRev - grossCost);
+
+          itemProfitsMap[key].netSales += netRev;
+          itemProfitsMap[key].netCost += netCost;
+          itemProfitsMap[key].netProfit += (netRev - netCost);
+
+          if (retQty > 0) {
+            returnedProfitItemsList.push({
+              invoiceId: sale.id,
+              date: new Date(sale.timestamp).toLocaleString('bn-BD'),
+              name: item.name,
+              variant: variantLabel,
+              color: item.color || 'N/A',
+              size: item.size || 'N/A',
+              category: item.category || 'অন্যান্য',
+              price: price,
+              cost: cost,
+              returnedQty: retQty,
+              refundAmount: retRev,
+              restockedCost: retCost,
+              profitAdjustment: -(retRev - retCost)
+            });
+          }
+        });
+      }
+    });
+
+    let modalVat = 0;
+    let modalCouponDisc = 0;
+    let modalManualDisc = 0;
+
+    targetSales.forEach(s => {
+      const vatAmt = s.tax || 0;
+      const discAmt = s.discount || 0;
+      const hasCoupon = Boolean(s.couponCode || s.coupon || (s.couponDiscount && s.couponDiscount > 0));
+
+      modalVat += vatAmt;
+
+      if (hasCoupon) {
+        modalCouponDisc += (s.couponDiscount !== undefined ? s.couponDiscount : discAmt);
+      } else {
+        modalManualDisc += (s.manualDiscount !== undefined ? s.manualDiscount : discAmt);
+      }
+    });
+
+    const netVatDiscAdjustment = modalVat - (modalCouponDisc + modalManualDisc);
+    const grossProductProfit = totalNetSales - totalNetCost;
+    const finalAdjustedNetProfit = grossProductProfit + netVatDiscAdjustment;
+    const totalGrossProfit = totalGrossSales - totalGrossCost;
+    const netMarginPct = totalNetSales > 0 ? ((finalAdjustedNetProfit / totalNetSales) * 100).toFixed(1) : 0;
+
+    this.cachedCashierProfitData = {
+      itemsList: Object.values(itemProfitsMap),
+      returnedItemsList: returnedProfitItemsList,
+      totalNetSales,
+      totalNetCost,
+      totalNetProfit: finalAdjustedNetProfit,
+      grossProductProfit,
+      netVatDiscAdjustment,
+      totalGrossSales,
+      totalGrossCost,
+      totalGrossProfit,
+      totalReturnedRefund,
+      totalReturnedCost,
+      totalReturnedItemsCount,
+      netMarginPct
     };
 
-    renderTable();
+    // Update Header Cards & Box Values
+    const elNet = document.getElementById('cashModalProfitNetTotal');
+    const elNetSub = document.getElementById('cashModalProfitTotalSalesSub');
+    const elRet = document.getElementById('cashModalProfitReturnedTotal');
+    const elRetSub = document.getElementById('cashModalProfitReturnedCountSub');
+    const elGross = document.getElementById('cashModalProfitGrossTotal');
+    const elGrossSub = document.getElementById('cashModalProfitGrossSalesSub');
+    const elMargin = document.getElementById('cashModalProfitMarginPercent');
+    const elHeaderDetail = document.getElementById('cashModalProfitHeaderDetail');
+
+    if (elNet) elNet.innerText = `৳${finalAdjustedNetProfit.toFixed(2)}`;
+    if (elNetSub) elNetSub.innerText = `(পণ্য মুনাফা ৳${grossProductProfit.toFixed(2)} ${netVatDiscAdjustment >= 0 ? '+' : ''}৳${netVatDiscAdjustment.toFixed(2)} ভ্যাট/ডিসকাউন্ট)`;
+
+    if (elRet) elRet.innerText = `-৳${totalReturnedRefund.toFixed(2)}`;
+    if (elRetSub) elRetSub.innerText = `(${totalReturnedItemsCount}টি রিটার্ন | রিস্টকড খরচ: ৳${totalReturnedCost.toFixed(2)})`;
+
+    if (elGross) elGross.innerText = `৳${totalGrossProfit.toFixed(2)}`;
+    if (elGrossSub) elGrossSub.innerText = `(গ্রস রিভেনিউ ৳${totalGrossSales.toFixed(2)})`;
+
+    if (elMargin) elMargin.innerText = `${netMarginPct}%`;
+    if (elHeaderDetail) elHeaderDetail.innerText = `(নিট রিভেনিউ ৳${totalNetSales.toFixed(2)} থেকে নিট কেনা খরচ ৳${totalNetCost.toFixed(2)} বাদ দিয়ে)`;
 
     const searchInput = document.getElementById('cashModalProfitSearchInput');
-    if (searchInput) {
-      searchInput.value = '';
-      searchInput.oninput = (e) => renderTable(e.target.value.toLowerCase().trim());
+    if (searchInput) searchInput.value = '';
+
+    this.renderNetProfitModalTable(defaultFilter);
+    this.openModal('cashierNetProfitModal');
+  }
+
+  setNetProfitModalFilter(filterMode) {
+    this.currentProfitFilter = filterMode;
+    this.renderNetProfitModalTable(filterMode);
+  }
+
+  onNetProfitSearchInput() {
+    this.renderNetProfitModalTable(this.currentProfitFilter || 'net');
+  }
+
+  renderNetProfitModalTable(filterMode = 'net') {
+    const data = this.cachedCashierProfitData;
+    if (!data) return;
+
+    // Update Box Styling
+    ['cashProfitBoxNet', 'cashProfitBoxReturned', 'cashProfitBoxGross'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.style.border = '1px solid var(--border-color)';
+        el.style.background = 'var(--bg-card)';
+      }
+    });
+
+    if (filterMode === 'net') {
+      const activeEl = document.getElementById('cashProfitBoxNet');
+      if (activeEl) {
+        activeEl.style.border = '2px solid #10b981';
+        activeEl.style.background = 'rgba(16,185,129,0.12)';
+      }
+    } else if (filterMode === 'returned') {
+      const activeEl = document.getElementById('cashProfitBoxReturned');
+      if (activeEl) {
+        activeEl.style.border = '2px solid #ef4444';
+        activeEl.style.background = 'rgba(239,68,68,0.12)';
+      }
+    } else if (filterMode === 'gross') {
+      const activeEl = document.getElementById('cashProfitBoxGross');
+      if (activeEl) {
+        activeEl.style.border = '2px solid #3b82f6';
+        activeEl.style.background = 'rgba(59,130,246,0.12)';
+      }
     }
 
-    this.openModal('cashierNetProfitModal');
+    const searchInput = document.getElementById('cashModalProfitSearchInput');
+    const query = (searchInput ? searchInput.value : '').toLowerCase().trim();
+
+    const thead = document.querySelector('#cashierNetProfitModal table thead');
+    const tbody = document.getElementById('cashModalProfitItemsBody');
+    if (!tbody) return;
+
+    if (filterMode === 'returned') {
+      // Returned Profit Breakdown View
+      if (thead) {
+        thead.innerHTML = `
+          <tr>
+            <th>রিটার্নকৃত পণ্য ও মেমো (Trx)</th>
+            <th>ভেরিয়েন্ট (কালার / সাইজ)</th>
+            <th>রিটার্ন সংখ্যা</th>
+            <th>একক কেনা (Cost)</th>
+            <th>একক বিক্রি (Price)</th>
+            <th>রিফান্ড টাকা (Sales Loss)</th>
+            <th>রিস্টকড খরচ (Cost Back)</th>
+            <th style="text-align: right;">প্রফিট এডজাস্টমেন্ট</th>
+          </tr>
+        `;
+      }
+
+      const filtered = data.returnedItemsList.filter(i => 
+        !query || 
+        i.name.toLowerCase().includes(query) || 
+        i.variant.toLowerCase().includes(query) ||
+        i.invoiceId.toLowerCase().includes(query)
+      );
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted" style="padding: 1.5rem;">কোনো রিটার্নকৃত প্রফিট ডাটা পাওয়া যায়নি।</td></tr>`;
+      } else {
+        tbody.innerHTML = filtered.map(i => `
+          <tr>
+            <td>
+              <strong style="color: var(--accent-red, #ef4444);">${i.name}</strong>
+              <div style="font-size:0.72rem; color:var(--text-muted); font-family:monospace;">${i.invoiceId} (${i.date})</div>
+            </td>
+            <td>
+              <span class="badge" style="background: rgba(245,158,11,0.15); color: #f59e0b; font-weight:700;">
+                ${i.variant}
+              </span>
+            </td>
+            <td><strong style="color: #ef4444;">${i.returnedQty} টি</strong></td>
+            <td>৳${i.cost.toFixed(2)}</td>
+            <td>৳${i.price.toFixed(2)}</td>
+            <td style="color:#ef4444; font-weight:700;">-৳${i.refundAmount.toFixed(2)}</td>
+            <td style="color:#10b981; font-weight:700;">+৳${i.restockedCost.toFixed(2)}</td>
+            <td style="text-align: right; font-weight: 800; color: #ef4444;">${i.profitAdjustment.toFixed(2)}৳</td>
+          </tr>
+        `).join('');
+      }
+
+    } else if (filterMode === 'gross') {
+      // Gross Profit View
+      if (thead) {
+        thead.innerHTML = `
+          <tr>
+            <th>পণ্যের নাম ও ভেরিয়েন্ট</th>
+            <th>ক্যাটাগরি</th>
+            <th>মোট সেলস (Gross Qty)</th>
+            <th>কেনা দাম (Cost)</th>
+            <th>বিক্রি দাম (Price)</th>
+            <th>গ্রস মোট বিক্রি</th>
+            <th>গ্রস কেনা খরচ</th>
+            <th style="text-align: right;">গ্রস প্রফিট</th>
+          </tr>
+        `;
+      }
+
+      let filtered = data.itemsList.filter(i => 
+        !query || 
+        i.name.toLowerCase().includes(query) || 
+        i.category.toLowerCase().includes(query) ||
+        i.variant.toLowerCase().includes(query)
+      );
+
+      filtered.sort((a, b) => b.grossProfit - a.grossProfit);
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted" style="padding: 1.5rem;">কোনো বিক্রিত প্রফিট ডাটা পাওয়া যায়নি।</td></tr>`;
+      } else {
+        tbody.innerHTML = filtered.map(item => `
+          <tr>
+            <td>
+              <strong>${item.name}</strong><br>
+              <small class="badge" style="background: rgba(245,158,11,0.15); color: #f59e0b; font-size: 0.72rem; margin-top: 2px;">(${item.variant})</small>
+            </td>
+            <td><span class="badge" style="background: rgba(59,130,246,0.15); color: #3b82f6;">${item.category}</span></td>
+            <td>
+              <strong style="color: #3b82f6;">${item.grossQty} টি</strong>
+              <div style="font-size:0.68rem; color:var(--text-muted);">(নিট: ${item.netQty} | রিটার্ন: ${item.returnedQty})</div>
+            </td>
+            <td>৳${item.cost.toFixed(2)}</td>
+            <td>৳${item.price.toFixed(2)}</td>
+            <td>৳${item.grossSales.toFixed(2)}</td>
+            <td>৳${item.grossCost.toFixed(2)}</td>
+            <td style="text-align: right; font-weight: 800; color: #3b82f6;">৳${item.grossProfit.toFixed(2)}</td>
+          </tr>
+        `).join('');
+      }
+
+    } else {
+      // Net Profit View (Default Box 1 - Showing Net Sold Items)
+      if (thead) {
+        thead.innerHTML = `
+          <tr>
+            <th>পণ্যের নাম ও ভেরিয়েন্ট</th>
+            <th>ক্যাটাগরি</th>
+            <th>সক্রিয় বিক্রি (Net Qty)</th>
+            <th>কেনা দাম (Cost)</th>
+            <th>বিক্রি দাম (Price)</th>
+            <th>নিট মোট বিক্রি</th>
+            <th>নিট কেনা খরচ</th>
+            <th style="text-align: right;">নিট লাভ (Net Profit)</th>
+          </tr>
+        `;
+      }
+
+      let filtered = data.itemsList.filter(i => 
+        i.netQty > 0 &&
+        (!query || 
+        i.name.toLowerCase().includes(query) || 
+        i.category.toLowerCase().includes(query) ||
+        i.variant.toLowerCase().includes(query))
+      );
+
+      filtered.sort((a, b) => b.netProfit - a.netProfit);
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted" style="padding: 1.5rem;">কোনো সক্রিয় বিক্রিত প্রফিট ডাটা পাওয়া যায়নি।</td></tr>`;
+      } else {
+        tbody.innerHTML = filtered.map(item => {
+          const retBadge = item.returnedQty > 0 ? `<br><span class="badge" style="background:rgba(239,68,68,0.12); color:#ef4444; font-size:0.68rem;">(${item.returnedQty}টি রিটার্ন বাদ)</span>` : '';
+          return `
+          <tr>
+            <td>
+              <strong>${item.name}</strong><br>
+              <small class="badge" style="background: rgba(245,158,11,0.15); color: #f59e0b; font-size: 0.72rem; margin-top: 2px;">(${item.variant})</small>
+            </td>
+            <td><span class="badge" style="background: rgba(16,185,129,0.15); color: #10b981;">${item.category}</span></td>
+            <td>
+              <strong style="color: #10b981; font-size: 1.05rem;">${item.netQty} টি</strong>
+              ${retBadge}
+            </td>
+            <td>৳${item.cost.toFixed(2)}</td>
+            <td>৳${item.price.toFixed(2)}</td>
+            <td>৳${item.netSales.toFixed(2)}</td>
+            <td>৳${item.netCost.toFixed(2)}</td>
+            <td style="text-align: right; font-weight: 800; color: #10b981; font-size: 1.05rem;">৳${item.netProfit.toFixed(2)}</td>
+          </tr>
+        `;
+        }).join('');
+      }
+    }
   }
 
   playInModalReceiptPrint(receiptPaperId, autoTriggerSystemPrint = false) {
     const paperEl = document.getElementById(receiptPaperId);
-    if (!paperEl) {
-      if (autoTriggerSystemPrint) window.print();
-      return;
-    }
+    if (!paperEl) return;
 
     const container = paperEl.closest('.receipt-feed-container');
     const viewport = paperEl.closest('.receipt-feed-viewport');
@@ -2219,14 +3592,14 @@ class CashierTerminal {
     const statusText = container ? container.querySelector('.slot-status-text') : null;
 
     if (statusIndicator) statusIndicator.classList.add('printing');
-    if (statusText) statusText.innerText = 'Printing...';
+    if (statusText) statusText.innerText = '🖨️ প্রিন্ট হচ্ছে...';
     if (scanline) scanline.style.display = 'block';
 
+    const duration = 2200;
     if (window.printHub && window.printHub.playPrinterAudio) {
-      window.printHub.playPrinterAudio(1600);
+      window.printHub.playPrinterAudio(duration);
     }
 
-    const duration = 1600;
     const startTime = performance.now();
 
     if (viewport) viewport.scrollTop = 0;
@@ -2235,7 +3608,7 @@ class CashierTerminal {
     paperEl.style.transform = 'translateY(60px)';
     paperEl.style.opacity = '0.3';
 
-    function step(now) {
+    const step = (now) => {
       const elapsed = now - startTime;
       const progress = Math.min(1, elapsed / duration);
 
@@ -2262,7 +3635,7 @@ class CashierTerminal {
         if (scanline) scanline.style.display = 'none';
 
         if (statusIndicator) statusIndicator.classList.remove('printing');
-        if (statusText) statusText.innerText = 'Ready';
+        if (statusText) statusText.innerText = '✅ প্রিন্ট সম্পন্ন';
 
         if (viewport) {
           viewport.scrollTop = viewport.scrollHeight;
@@ -2271,16 +3644,14 @@ class CashierTerminal {
         if (window.printHub && window.printHub.playSuccessBeep) {
           window.printHub.playSuccessBeep();
         }
+
+        if (window.confetti) {
+          confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } });
+        }
       }
-    }
+    };
 
     requestAnimationFrame(step);
-
-    if (autoTriggerSystemPrint) {
-      setTimeout(() => {
-        window.print();
-      }, 300);
-    }
   }
 
   downloadReceiptPDF(receiptPaperId) {
@@ -2298,7 +3669,7 @@ class CashierTerminal {
     if (typeof JsBarcode !== 'undefined') {
       try {
         JsBarcode("#rcptBarcodeSvg", invId, {
-          format: "CODE128", width: 1.8, height: 45, displayValue: false, margin: 0,
+          format: "CODE128", width: 1.8, height: 48, displayValue: true, fontSize: 13, fontOptions: "bold", font: "monospace", margin: 8,
           background: "#ffffff", lineColor: "#000000"
         });
       } catch(e) {}
@@ -2580,6 +3951,15 @@ class CashierTerminal {
     };
   }
 
+  isGuestSale(s) {
+    if (!s) return false;
+    if (s.customerId === 'GUEST') return true;
+    if (s.customerPhone && String(s.customerPhone).trim() !== '') return false;
+    const nameLower = (s.customer || s.customerName || '').toLowerCase().trim();
+    if (!nameLower || nameLower === 'walk-in customer' || nameLower === 'walk-in' || nameLower === 'guest' || nameLower === 'n/a') return true;
+    return !s.customerPhone;
+  }
+
   renderCashierCustomers() {
     this.customers = JSON.parse(localStorage.getItem('pos_customers')) || (typeof INITIAL_CUSTOMERS !== 'undefined' ? INITIAL_CUSTOMERS : []);
     this.sales = JSON.parse(localStorage.getItem('pos_sales')) || (typeof INITIAL_SALES !== 'undefined' ? INITIAL_SALES : []);
@@ -2590,12 +3970,19 @@ class CashierTerminal {
     const tbody = document.getElementById('cashierCustomersTableBody');
     const searchVal = (document.getElementById('cashierCustSearchInput')?.value || '').toLowerCase().trim();
 
-    const totalOrdersCount = this.customers.reduce((sum, c) => sum + (c.totalOrders || 0), 0);
-    const totalSpentSum = this.customers.reduce((sum, c) => sum + (c.totalSpent || 0), 0);
+    const guestSales = this.sales.filter(s => this.isGuestSale(s));
+    const guestOrdersCount = guestSales.length;
+    const guestSpentSum = guestSales.reduce((sum, s) => sum + (s.grandTotal || 0), 0);
 
-    if (countEl) countEl.innerText = `${this.customers.length} জন`;
-    if (ordersEl) ordersEl.innerText = `${totalOrdersCount} টি`;
-    if (spentEl) spentEl.innerText = `৳${totalSpentSum.toFixed(2)}`;
+    const registeredOrdersCount = this.customers.reduce((sum, c) => sum + (c.totalOrders || 0), 0);
+    const registeredSpentSum = this.customers.reduce((sum, c) => sum + (c.totalSpent || 0), 0);
+
+    const overallTotalOrders = registeredOrdersCount + guestOrdersCount;
+    const overallTotalSpent = registeredSpentSum + guestSpentSum;
+
+    if (countEl) countEl.innerText = `${this.customers.length + 1} জন (সহ গেস্ট)`;
+    if (ordersEl) ordersEl.innerText = `${overallTotalOrders} টি`;
+    if (spentEl) spentEl.innerText = `৳${overallTotalSpent.toFixed(2)}`;
 
     const filtered = this.customers.filter(c => 
       !searchVal || 
@@ -2605,8 +3992,35 @@ class CashierTerminal {
       (c.email || '').toLowerCase().includes(searchVal)
     );
 
+    const showGuest = !searchVal || 'গেস্ট'.includes(searchVal) || 'guest'.includes(searchVal) || 'walk-in'.includes(searchVal) || 'অনিবন্ধিত'.includes(searchVal);
+
     if (!tbody) return;
-    if (filtered.length === 0) {
+
+    let html = '';
+
+    if (showGuest) {
+      html += `
+        <tr onclick="cashier.viewCustomerOrders('GUEST')" style="cursor: pointer; background: rgba(245, 158, 11, 0.08); border-left: 4px solid #f59e0b;" title="অনিবন্ধিত গেস্ট ও ওয়াক-ইন কাস্টমারদের কেনাকাটার বিস্তারিত দেখুন">
+          <td><strong style="color: #f59e0b;"><i class="fa-solid fa-user-secret"></i> GUEST</strong></td>
+          <td>
+            <strong style="color: var(--text-main);">গেস্ট / ওয়াক-ইন কাস্টমার</strong>
+            <span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #f59e0b; margin-left: 6px; font-weight: 700;"><i class="fa-solid fa-user-tag"></i> সিস্টেম সাধারণ সার্ভিস</span>
+          </td>
+          <td><span class="badge" style="background: rgba(148, 163, 184, 0.15); color: var(--text-muted);"><i class="fa-solid fa-phone-slash"></i> অনিবন্ধিত</span></td>
+          <td><span class="text-muted">N/A</span></td>
+          <td><span class="text-muted">দোকানে আগত সাধারণ ক্রেতা</span></td>
+          <td><span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #f59e0b; font-weight: 700;">${guestOrdersCount} টি অর্ডার</span></td>
+          <td><strong style="color: var(--accent-green);">৳${guestSpentSum.toFixed(2)}</strong></td>
+          <td style="text-align: right;" onclick="event.stopPropagation();">
+            <button type="button" class="btn btn-sm btn-warning" onclick="cashier.viewCustomerOrders('GUEST')" title="গেস্ট ইনভয়েস ও বিবরণী">
+              <i class="fa-solid fa-id-card"></i> গেস্ট বিবরণী
+            </button>
+          </td>
+        </tr>
+      `;
+    }
+
+    if (filtered.length === 0 && !showGuest) {
       tbody.innerHTML = `
         <tr>
           <td colspan="8" class="text-center py-4 text-muted">
@@ -2618,7 +4032,7 @@ class CashierTerminal {
       return;
     }
 
-    tbody.innerHTML = filtered.map(c => {
+    html += filtered.map(c => {
       const isBlocked = c.status === 'blocked';
       const statusBadge = isBlocked 
         ? `<span class="badge" style="background: rgba(239, 68, 68, 0.15); color: #ef4444; margin-left: 6px;"><i class="fa-solid fa-ban"></i> ব্লকড</span>`
@@ -2641,64 +4055,67 @@ class CashierTerminal {
         </tr>
       `;
     }).join('');
+
+    tbody.innerHTML = html;
   }
 
   getCashierFilteredSales() {
     const filter = this.currentDateFilter || 'today';
-    if (filter === 'all') return this.sales;
-
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).getTime();
     const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).getTime();
 
+    let matched = this.sales;
     if (filter === 'custom' && this.customStartDate && this.customEndDate) {
       const startMs = new Date(this.customStartDate + 'T00:00:00').getTime();
       const endMs = new Date(this.customEndDate + 'T23:59:59').getTime();
-      return this.sales.filter(sale => {
+      matched = this.sales.filter(sale => {
         const saleTime = new Date(sale.timestamp).getTime();
         if (isNaN(saleTime)) return true;
         return saleTime >= startMs && saleTime <= endMs;
       });
+    } else if (filter !== 'all') {
+      const currentDayOfWeek = now.getDay();
+      const sundayStart = todayStart - (currentDayOfWeek * 86400000);
+      const lastSundayStart = sundayStart - (7 * 86400000);
+
+      matched = this.sales.filter(sale => {
+        const saleTime = new Date(sale.timestamp).getTime();
+        if (isNaN(saleTime)) return true;
+
+        if (filter === 'today') {
+          return saleTime >= todayStart && saleTime <= todayEnd;
+        } else if (filter === 'yesterday') {
+          const yesterdayStart = todayStart - 86400000;
+          return saleTime >= yesterdayStart && saleTime < todayStart;
+        } else if (filter === 'today_yesterday') {
+          const yesterdayStart = todayStart - 86400000;
+          return saleTime >= yesterdayStart && saleTime <= todayEnd;
+        } else if (filter === '7days') {
+          return saleTime >= todayStart - (6 * 86400000) && saleTime <= todayEnd;
+        } else if (filter === '14days') {
+          return saleTime >= todayStart - (13 * 86400000) && saleTime <= todayEnd;
+        } else if (filter === '28days') {
+          return saleTime >= todayStart - (27 * 86400000) && saleTime <= todayEnd;
+        } else if (filter === '30days') {
+          return saleTime >= todayStart - (29 * 86400000) && saleTime <= todayEnd;
+        } else if (filter === 'thisWeek') {
+          return saleTime >= sundayStart && saleTime <= todayEnd;
+        } else if (filter === 'lastWeek') {
+          return saleTime >= lastSundayStart && saleTime < sundayStart;
+        } else if (filter === 'thisMonth') {
+          const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+          return saleTime >= monthStart && saleTime <= todayEnd;
+        } else if (filter === 'lastMonth') {
+          const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).getTime();
+          const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+          return saleTime >= lastMonthStart && saleTime < thisMonthStart;
+        }
+        return true;
+      });
     }
 
-    const currentDayOfWeek = now.getDay();
-    const sundayStart = todayStart - (currentDayOfWeek * 86400000);
-    const lastSundayStart = sundayStart - (7 * 86400000);
-
-    return this.sales.filter(sale => {
-      const saleTime = new Date(sale.timestamp).getTime();
-      if (isNaN(saleTime)) return true;
-
-      if (filter === 'today') {
-        return saleTime >= todayStart && saleTime <= todayEnd;
-      } else if (filter === 'yesterday') {
-        const yesterdayStart = todayStart - 86400000;
-        return saleTime >= yesterdayStart && saleTime < todayStart;
-      } else if (filter === 'today_yesterday') {
-        const yesterdayStart = todayStart - 86400000;
-        return saleTime >= yesterdayStart && saleTime <= todayEnd;
-      } else if (filter === '7days') {
-        return saleTime >= todayStart - (6 * 86400000) && saleTime <= todayEnd;
-      } else if (filter === '14days') {
-        return saleTime >= todayStart - (13 * 86400000) && saleTime <= todayEnd;
-      } else if (filter === '28days') {
-        return saleTime >= todayStart - (27 * 86400000) && saleTime <= todayEnd;
-      } else if (filter === '30days') {
-        return saleTime >= todayStart - (29 * 86400000) && saleTime <= todayEnd;
-      } else if (filter === 'thisWeek') {
-        return saleTime >= sundayStart && saleTime <= todayEnd;
-      } else if (filter === 'lastWeek') {
-        return saleTime >= lastSundayStart && saleTime < sundayStart;
-      } else if (filter === 'thisMonth') {
-        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
-        return saleTime >= monthStart && saleTime <= todayEnd;
-      } else if (filter === 'lastMonth') {
-        const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).getTime();
-        const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
-        return saleTime >= lastMonthStart && saleTime < thisMonthStart;
-      }
-      return true;
-    });
+    return matched.slice().sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime());
   }
 
   // INTERACTIVE DATE RANGE CALENDAR PICKER ENGINE (CASHIER POS MATCH)
@@ -3150,14 +4567,27 @@ class CashierTerminal {
     this.sales = JSON.parse(localStorage.getItem('pos_sales')) || (typeof INITIAL_SALES !== 'undefined' ? INITIAL_SALES : []);
     this.customers = JSON.parse(localStorage.getItem('pos_customers')) || (typeof INITIAL_CUSTOMERS !== 'undefined' ? INITIAL_CUSTOMERS : []);
 
+    const isGuestQuery = (phoneOrName === 'GUEST' || phoneOrName === 'guest' || phoneOrName === 'CUST-GUEST');
     const cleanInputPhone = this.normalizePhone(phoneOrName);
     let c = null;
 
-    if (phoneOrName) {
-      c = this.customers.find(x => x.id === phoneOrName || x.phone === phoneOrName || x.name === phoneOrName);
-    }
-    if (!c && cleanInputPhone) {
-      c = this.customers.find(x => this.normalizePhone(x.phone) === cleanInputPhone);
+    if (isGuestQuery) {
+      c = {
+        id: 'GUEST',
+        name: 'গেস্ট / ওয়াক-ইন কাস্টমার',
+        phone: 'অনিবন্ধিত কাস্টমার',
+        email: 'N/A',
+        address: 'দোকানে আগত সাধারণ ক্রেতা',
+        status: 'active',
+        createdAt: 'সিস্টেম অটো'
+      };
+    } else {
+      if (phoneOrName) {
+        c = this.customers.find(x => x.id === phoneOrName || x.phone === phoneOrName || x.name === phoneOrName);
+      }
+      if (!c && cleanInputPhone) {
+        c = this.customers.find(x => this.normalizePhone(x.phone) === cleanInputPhone);
+      }
     }
 
     const custName = c ? c.name : phoneOrName;
@@ -3165,6 +4595,12 @@ class CashierTerminal {
 
     // Deep multi-criteria sales matching across ID, phone, and name
     const custSales = this.sales.filter(s => {
+      if (isGuestQuery) {
+        return this.isGuestSale(s);
+      }
+
+      if (this.isGuestSale(s)) return false;
+
       // 1. Exact Customer ID match
       if (c && c.id && s.customerId && s.customerId === c.id) return true;
       if (phoneOrName && s.customerId && s.customerId === phoneOrName) return true;
@@ -3193,8 +4629,10 @@ class CashierTerminal {
       return false;
     });
 
-    // Auto-bind unlinked sales to this customer ID & sync totals
-    if (c && custSales.length > 0) {
+    custSales.sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime());
+
+    // Auto-bind unlinked sales to this customer ID & sync totals (ONLY FOR REGISTERED CUSTOMERS)
+    if (c && c.id !== 'GUEST' && custSales.length > 0) {
       let salesChanged = false;
       custSales.forEach(s => {
         if (!s.customerId || s.customerId !== c.id) {
@@ -3408,6 +4846,397 @@ class CashierTerminal {
     this.closeModal('cashierCustomerFormModal');
     this.renderCashierCustomers();
     alert('কাস্টমার প্রোফাইল সফলভাবে তৈরি হয়েছে!');
+  }
+
+  // --- INVOICE RETURN & EXCHANGE ENGINE ---
+  searchAndOpenInvoiceReturnModal() {
+    const input = document.getElementById('shiftInvoiceSearchInput');
+    const val = input ? input.value.trim() : '';
+    if (!val) {
+      this.showToast('অনুগ্রহ করে ইনভয়েস আইডি নাম্বার লিখুন বা স্ক্যান করুন', 'warning');
+      return;
+    }
+    this.handleBarcodeScan(val);
+    if (input) input.value = '';
+  }
+
+  openInvoiceReturnExchangeModal(saleId) {
+    const sale = this.sales.find(s => s.id === saleId);
+    if (!sale) {
+      this.showToast('ইনভয়েস খুঁজে পাওয়া যায়নি!', 'error');
+      return;
+    }
+
+    this.activeRetExSaleId = saleId;
+    this.retExMode = 'RETURN';
+
+    const idEl = document.getElementById('retExInvId');
+    const badgeEl = document.getElementById('retExStatusBadge');
+    const metaEl = document.getElementById('retExInvMeta');
+    const totalEl = document.getElementById('retExOriginalTotal');
+
+    if (idEl) idEl.innerText = sale.id;
+    if (badgeEl) {
+      const b = this.getPaymentBadge(sale);
+      badgeEl.innerText = b.label;
+      badgeEl.style.background = b.bg;
+      badgeEl.style.color = b.color;
+    }
+    if (metaEl) {
+      const dt = new Date(sale.timestamp).toLocaleString('bn-BD');
+      metaEl.innerText = `তারিখ: ${dt} | কাস্টমার: ${sale.customerName || 'Walk-in'} | পেমেন্ট: ${sale.paymentMethod || 'CASH'}`;
+    }
+    if (totalEl) totalEl.innerText = `৳${(sale.grandTotal || 0).toFixed(2)}`;
+
+    const tbody = document.getElementById('retExItemsTableBody');
+    if (tbody) {
+      if (!sale.items || sale.items.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted p-3">এই ইনভয়েসে কোনো আইটেম পাওয়া যায়নি</td></tr>`;
+      } else {
+        tbody.innerHTML = sale.items.map((item, idx) => {
+          const varText = item.color || item.size ? `(${item.color || ''} / ${item.size || ''})` : '';
+          const returned = item.returnedQuantity || 0;
+          const maxReturnable = Math.max(0, item.quantity - returned);
+          const price = item.price || 0;
+          return `
+            <tr>
+              <td>
+                <strong>${item.name}</strong><br>
+                <small class="text-muted">বারকোড: ${item.barcode || 'N/A'} ${varText}</small>
+              </td>
+              <td>৳${price.toFixed(2)}</td>
+              <td>${item.quantity} টি</td>
+              <td><span class="badge ${returned > 0 ? 'bg-orange' : 'bg-secondary'}" style="padding: 2px 8px; font-weight:700;">${returned} টি</span></td>
+              <td>
+                <input type="number" id="retQtyInput_${idx}" class="form-control form-control-sm ret-qty-input" 
+                       value="0" min="0" max="${maxReturnable}" data-price="${price}" data-index="${idx}"
+                       ${maxReturnable === 0 ? 'disabled' : ''} onchange="cashier.calculateReturnExchangeTotals()">
+              </td>
+              <td style="text-align: right; font-weight: 700;" id="retItemSubtotal_${idx}">৳0.00</td>
+            </tr>
+          `;
+        }).join('');
+      }
+    }
+
+    this.calculateReturnExchangeTotals();
+    this.openModal('invoiceReturnExchangeModal');
+  }
+
+  calculateReturnExchangeTotals() {
+    const sale = this.sales.find(s => s.id === this.activeRetExSaleId);
+    if (!sale || !sale.items) return;
+
+    let totalReturnedVal = 0;
+    sale.items.forEach((item, idx) => {
+      const input = document.getElementById(`retQtyInput_${idx}`);
+      const subEl = document.getElementById(`retItemSubtotal_${idx}`);
+      if (input) {
+        const qty = parseInt(input.value) || 0;
+        const sub = qty * (item.price || 0);
+        totalReturnedVal += sub;
+        if (subEl) subEl.innerText = `৳${sub.toFixed(2)}`;
+      }
+    });
+
+    const labelEl = document.getElementById('retExSummaryLabel');
+    const amountEl = document.getElementById('retExSummaryAmount');
+
+    if (labelEl) labelEl.innerText = 'কাস্টমারকে ফেরতযোগ্য রিফান্ড টাকা (Refund Amount):';
+    if (amountEl) {
+      amountEl.innerText = `৳${totalReturnedVal.toFixed(2)}`;
+      amountEl.style.color = 'var(--accent-red, #ef4444)';
+    }
+  }
+
+  executeReturnOrExchange() {
+    const sale = this.sales.find(s => s.id === this.activeRetExSaleId);
+    if (!sale || !sale.items) {
+      this.showToast('ইনভয়েস খুঁজে পাওয়া যায়নি!', 'error');
+      return;
+    }
+
+    const returnPayload = [];
+    let totalRefundAmount = 0;
+
+    sale.items.forEach((item, idx) => {
+      const input = document.getElementById(`retQtyInput_${idx}`);
+      if (input) {
+        const qtyToReturn = parseInt(input.value) || 0;
+        if (qtyToReturn > 0) {
+          returnPayload.push({
+            itemIndex: idx,
+            itemId: item.id,
+            name: item.name,
+            variantId: item.variantId,
+            color: item.color,
+            size: item.size,
+            unitPrice: item.price,
+            qtyReturned: qtyToReturn,
+            subtotalRefund: qtyToReturn * item.price
+          });
+          totalRefundAmount += qtyToReturn * item.price;
+        }
+      }
+    });
+
+    if (returnPayload.length === 0) {
+      this.showToast('অনুগ্রহ করে অন্তত ১টি আইটেম রিটার্নের জন্য নির্বাচন করুন', 'warning');
+      return;
+    }
+
+    // 1. Restock returned items to shop inventory
+    returnPayload.forEach(ret => {
+      const prod = this.products.find(p => p.id === ret.itemId || p.name === ret.name);
+      if (prod) {
+        prod.stock = (prod.stock || 0) + ret.qtyReturned;
+        if (prod.variants && Array.isArray(prod.variants)) {
+          const v = prod.variants.find(varObj => varObj.variantId === ret.variantId || (varObj.color === ret.color && varObj.size === ret.size));
+          if (v) {
+            v.stock = (v.stock || 0) + ret.qtyReturned;
+          }
+        }
+      }
+
+      const origItem = sale.items[ret.itemIndex];
+      if (origItem) {
+        origItem.returnedQuantity = (origItem.returnedQuantity || 0) + ret.qtyReturned;
+      }
+    });
+
+    sale.refundedAmount = (sale.refundedAmount || 0) + totalRefundAmount;
+    sale.returnHistory = sale.returnHistory || [];
+    sale.returnHistory.push({
+      timestamp: Date.now(),
+      returnedItems: returnPayload,
+      refundAmount: totalRefundAmount
+    });
+
+    const allFullyReturned = sale.items.every(i => (i.returnedQuantity || 0) >= i.quantity);
+    sale.status = allFullyReturned ? 'RETURNED' : 'PARTIALLY_RETURNED';
+
+    this.showToast(`ইনভয়েস ${sale.id} থেকে ৳${totalRefundAmount.toFixed(2)} সফলভাবে রিটার্ন নেওয়া হয়েছে!`);
+
+    localStorage.setItem('pos_products', JSON.stringify(this.products));
+    localStorage.setItem('pos_sales', JSON.stringify(this.sales));
+
+    if (window.posFirebase && typeof window.posFirebase.saveDoc === 'function') {
+      window.posFirebase.saveDoc('pos_products', this.products);
+      window.posFirebase.saveDoc('pos_sales', this.sales);
+    }
+
+    window.dispatchEvent(new CustomEvent('pos_sales_update'));
+
+    this.playAudioBeep('success');
+    this.closeModal('invoiceReturnExchangeModal');
+
+    this.renderProducts();
+    this.renderDashboardView();
+    this.renderAnalyticsView();
+    this.renderShiftSales();
+  }
+
+  // --- RETURN & EXCHANGE BREAKDOWN MODALS ---
+  openCashierReturnsModal() {
+    const targetSales = this.getCashierFilteredSales();
+    const returnedSales = targetSales.filter(s => s.status === 'RETURNED' || s.status === 'PARTIALLY_RETURNED' || (s.returnHistory && s.returnHistory.length > 0));
+
+    let totalRefund = 0;
+    let totalItemQty = 0;
+    let invCount = returnedSales.length;
+
+    const rows = [];
+
+    returnedSales.forEach(s => {
+      const histories = (s.returnHistory && s.returnHistory.length > 0) ? s.returnHistory : [{ timestamp: s.timestamp, returnedItems: [], refundAmount: s.refundedAmount || 0 }];
+      histories.forEach(h => {
+        const refAmt = h.refundAmount || 0;
+        totalRefund += refAmt;
+
+        const itemTexts = (h.returnedItems || []).map(i => {
+          totalItemQty += (i.qtyReturned || 0);
+          return `${i.name} (${i.color || ''}/${i.size || ''}) x${i.qtyReturned}`;
+        }).join(', ') || 'রিটার্নকৃত প্রোডাক্ট';
+
+        const dt = new Date(h.timestamp || s.timestamp).toLocaleString('bn-BD');
+        rows.push(`
+          <tr>
+            <td><strong>${s.id}</strong></td>
+            <td><small>${dt}</small></td>
+            <td>${s.customerName || 'Walk-in Customer'}</td>
+            <td><small>${itemTexts}</small></td>
+            <td style="text-align: center;"><span class="badge bg-orange" style="font-weight:700; padding:3px 8px;">${h.returnedItems && h.returnedItems.length > 0 ? h.returnedItems.reduce((acc, x) => acc + (x.qtyReturned||0), 0) : 1} টি</span></td>
+            <td style="text-align: right; font-weight: 700; color: var(--accent-red, #ef4444);">৳${refAmt.toFixed(2)}</td>
+            <td style="text-align: center;">
+              <button class="btn btn-outline btn-sm" onclick="cashier.openInvoiceReturnExchangeModal('${s.id}')" title="ইনভয়েস বিবরণী">
+                <i class="fa-solid fa-receipt"></i> মেমো
+              </button>
+            </td>
+          </tr>
+        `);
+      });
+    });
+
+    const elRefund = document.getElementById('retModalTotalRefund');
+    const elInvCount = document.getElementById('retModalInvCount');
+    const elItemQty = document.getElementById('retModalItemQty');
+    const tbody = document.getElementById('cashierReturnsTableBody');
+
+    if (elRefund) elRefund.innerText = `৳${totalRefund.toFixed(2)}`;
+    if (elInvCount) elInvCount.innerText = `${invCount} টি`;
+    if (elItemQty) elItemQty.innerText = `${totalItemQty} টি`;
+
+    if (tbody) {
+      if (rows.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted p-3">এখনো কোনো পণ্য রিটার্নের রেকর্ড নেই।</td></tr>`;
+      } else {
+        tbody.innerHTML = rows.join('');
+      }
+    }
+
+    this.openModal('cashierReturnsModal');
+  }
+
+  openVatDiscountModal(tabFilter = 'all') {
+    this.currentVatDiscTab = tabFilter || 'all';
+    const targetSales = this.getCashierFilteredSales();
+
+    let totalVat = 0;
+    let totalCouponDisc = 0;
+    let totalManualDisc = 0;
+    let vatSalesCount = 0;
+    let couponSalesCount = 0;
+    let manualSalesCount = 0;
+
+    targetSales.forEach(s => {
+      const vatAmt = s.tax || 0;
+      const discAmt = s.discount || 0;
+      const hasCoupon = Boolean(s.couponCode || s.coupon || (s.couponDiscount && s.couponDiscount > 0));
+
+      if (vatAmt > 0) {
+        totalVat += vatAmt;
+        vatSalesCount++;
+      }
+
+      if (hasCoupon) {
+        totalCouponDisc += (s.couponDiscount !== undefined ? s.couponDiscount : discAmt);
+        couponSalesCount++;
+      } else if (discAmt > 0) {
+        totalManualDisc += (s.manualDiscount !== undefined ? s.manualDiscount : discAmt);
+        manualSalesCount++;
+      }
+    });
+
+    const elCouponTot = document.getElementById('cashVatDiscModalCouponTotal');
+    const elCouponCnt = document.getElementById('cashVatDiscModalCouponCount');
+    const elManualTot = document.getElementById('cashVatDiscModalManualTotal');
+    const elManualCnt = document.getElementById('cashVatDiscModalManualCount');
+    const elTaxTot = document.getElementById('cashVatDiscModalTaxTotal');
+    const elTaxCnt = document.getElementById('cashVatDiscModalTaxCount');
+    const elNetBal = document.getElementById('cashVatDiscModalNetBalance');
+
+    if (elCouponTot) elCouponTot.innerText = `৳${totalCouponDisc.toFixed(2)}`;
+    if (elCouponCnt) elCouponCnt.innerText = `${couponSalesCount} টি মেমোতে কুপন প্রয়োগ`;
+    if (elManualTot) elManualTot.innerText = `৳${totalManualDisc.toFixed(2)}`;
+    if (elManualCnt) elManualCnt.innerText = `${manualSalesCount} টি মেমোতে সরাসরি ছাড়`;
+    if (elTaxTot) elTaxTot.innerText = `৳${totalVat.toFixed(2)}`;
+    if (elTaxCnt) elTaxCnt.innerText = `${vatSalesCount} টি মেমোতে ভ্যাট যোগ করা হয়েছে`;
+
+    const totalDisc = totalCouponDisc + totalManualDisc;
+    const netBal = totalVat - totalDisc;
+    if (elNetBal) {
+      if (netBal > 0) {
+        elNetBal.innerHTML = `<span style="color: var(--accent-green, #10b981);"><i class="fa-solid fa-arrow-up"></i> +৳${netBal.toFixed(2)} (ভ্যাট কালেকশন বেশি)</span>`;
+      } else if (netBal < 0) {
+        elNetBal.innerHTML = `<span style="color: #ef4444;"><i class="fa-solid fa-arrow-down"></i> -৳${Math.abs(netBal).toFixed(2)} (ডিসকাউন্ট ছাড় বেশি)</span>`;
+      } else {
+        elNetBal.innerHTML = `<span style="color: var(--text-muted);">৳0.00 (সমান ভারসাম্য)</span>`;
+      }
+    }
+
+    this.filterVatDiscountModal(this.currentVatDiscTab);
+    this.openModal('cashierVatDiscountModal');
+  }
+
+  filterVatDiscountModal(tabFilter) {
+    this.currentVatDiscTab = tabFilter || 'all';
+    const targetSales = this.getCashierFilteredSales();
+
+    const allMatchedSales = targetSales.filter(s => (s.tax || 0) > 0 || (s.discount || 0) > 0 || s.couponCode || s.coupon);
+    const couponMatchedSales = targetSales.filter(s => Boolean(s.couponCode || s.coupon || (s.couponDiscount && s.couponDiscount > 0)));
+    const discountMatchedSales = targetSales.filter(s => !s.couponCode && !s.coupon && (!s.couponDiscount || s.couponDiscount === 0) && (s.discount || 0) > 0);
+    const taxMatchedSales = targetSales.filter(s => (s.tax || 0) > 0);
+
+    const cntAll = document.getElementById('cashVatDiscTabCountAll');
+    const cntCoupon = document.getElementById('cashVatDiscTabCountCoupon');
+    const cntDisc = document.getElementById('cashVatDiscTabCountDiscount');
+    const cntTax = document.getElementById('cashVatDiscTabCountTax');
+
+    if (cntAll) cntAll.innerText = allMatchedSales.length;
+    if (cntCoupon) cntCoupon.innerText = couponMatchedSales.length;
+    if (cntDisc) cntDisc.innerText = discountMatchedSales.length;
+    if (cntTax) cntTax.innerText = taxMatchedSales.length;
+
+    const btnAll = document.getElementById('btnCashVatTabAll');
+    const btnCoupon = document.getElementById('btnCashVatTabCoupon');
+    const btnDisc = document.getElementById('btnCashVatTabDiscount');
+    const btnTax = document.getElementById('btnCashVatTabTax');
+
+    if (btnAll) btnAll.classList.toggle('active', tabFilter === 'all');
+    if (btnCoupon) btnCoupon.classList.toggle('active', tabFilter === 'coupon');
+    if (btnDisc) btnDisc.classList.toggle('active', tabFilter === 'discount');
+    if (btnTax) btnTax.classList.toggle('active', tabFilter === 'tax');
+
+    let displaySales = allMatchedSales;
+    if (tabFilter === 'coupon') displaySales = couponMatchedSales;
+    else if (tabFilter === 'discount') displaySales = discountMatchedSales;
+    else if (tabFilter === 'tax') displaySales = taxMatchedSales;
+
+    const tbody = document.getElementById('cashVatDiscModalTableBody');
+    if (tbody) {
+      if (displaySales.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted" style="padding: 1.5rem;">নির্বাচন করা ক্যাটাগরিতে কোনো মেমো পাওয়া যায়নি।</td></tr>`;
+      } else {
+        tbody.innerHTML = displaySales.map(s => {
+          const dtStr = new Date(s.timestamp).toLocaleString('bn-BD');
+          const hasCoupon = Boolean(s.couponCode || s.coupon || (s.couponDiscount && s.couponDiscount > 0));
+          const couponAmt = hasCoupon ? (s.couponDiscount !== undefined ? s.couponDiscount : s.discount || 0) : 0;
+          const manualAmt = !hasCoupon && (s.discount || 0) > 0 ? (s.manualDiscount !== undefined ? s.manualDiscount : s.discount) : 0;
+          const taxAmt = s.tax || 0;
+
+          const couponPill = hasCoupon
+            ? `<span class="badge" style="background: rgba(168,85,247,0.15); color: #c084fc; border: 1px solid rgba(168,85,247,0.3); padding: 0.25rem 0.5rem; border-radius: 6px; font-weight: 600;"><i class="fa-solid fa-ticket"></i> ${s.couponCode || 'COUPON'} (-৳${couponAmt.toFixed(2)})</span>`
+            : `<span class="text-muted">-</span>`;
+
+          const discTypeStr = s.discountType === 'percent' ? `${s.discountValue || ''}%` : (s.discountType === 'flat' ? `৳${s.discountValue || ''}` : 'ছাড়');
+          const manualPill = manualAmt > 0
+            ? `<span class="badge" style="background: rgba(245,158,11,0.15); color: #f59e0b; border: 1px solid rgba(245,158,11,0.3); padding: 0.25rem 0.5rem; border-radius: 6px; font-weight: 600;"><i class="fa-solid fa-tags"></i> ${discTypeStr} (-৳${manualAmt.toFixed(2)})</span>`
+            : `<span class="text-muted">-</span>`;
+
+          const taxTypeStr = s.taxType === 'percent' ? `${s.taxValue || ''}%` : (s.taxType === 'flat' ? `৳${s.taxValue || ''}` : 'ভ্যাট');
+          const taxPill = taxAmt > 0
+            ? `<span class="badge" style="background: rgba(59,130,246,0.15); color: #60a5fa; border: 1px solid rgba(59,130,246,0.3); padding: 0.25rem 0.5rem; border-radius: 6px; font-weight: 600;"><i class="fa-solid fa-file-invoice-dollar"></i> ${taxTypeStr} (+৳${taxAmt.toFixed(2)})</span>`
+            : `<span class="text-muted">-</span>`;
+
+          return `
+            <tr>
+              <td>
+                <strong style="cursor: pointer; color: var(--accent-blue);" onclick="cashier.showReceiptModalById('${s.id}')" title="ইনভয়েস বিবরণী দেখুন">${s.id}</strong>
+              </td>
+              <td><small>${dtStr}</small></td>
+              <td>${s.customer || 'Walk-in Customer'}</td>
+              <td>${couponPill}</td>
+              <td>${manualPill}</td>
+              <td>${taxPill}</td>
+              <td style="font-weight: 700; color: var(--text-main);">৳${(s.grandTotal || 0).toFixed(2)}</td>
+              <td style="text-align: right;">
+                <button class="btn btn-outline btn-sm" onclick="cashier.showReceiptModalById('${s.id}')"><i class="fa-solid fa-receipt"></i> মেমো দেখুন</button>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      }
+    }
   }
 }
 
