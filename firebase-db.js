@@ -36,6 +36,19 @@ class FirebasePOSSync {
       this.initCloudSync();
       this.hookLocalStorage();
     }
+
+    // Auto-Sync offline sales & data when Internet connection is restored
+    window.addEventListener('online', () => {
+      console.log('[Firebase Cloud Sync] Internet reconnected! Syncing offline sales & data to cloud...');
+      if (this.storeId && this.db) {
+        this.keys.forEach(key => {
+          const localVal = localStorage.getItem(key);
+          if (localVal && localVal !== '[]' && localVal !== '{}') {
+            this.pushKeyToCloud(key, localVal);
+          }
+        });
+      }
+    });
   }
 
   // Get tenant-namespaced LocalStorage key to prevent cross-merchant cache pollution
@@ -231,18 +244,39 @@ class FirebasePOSSync {
             return;
           }
 
+          let finalData = remotePayload.data;
+
+          // Smart Sales Merger: Merge remote sales with any un-synced local sales by unique Invoice ID
+          if (key === 'pos_sales' && Array.isArray(remotePayload.data)) {
+            let localSales = [];
+            try { localSales = JSON.parse(currentLocalJson || '[]'); } catch (e) {}
+            if (Array.isArray(localSales) && localSales.length > 0) {
+              const salesMap = new Map();
+              remotePayload.data.forEach(s => { if (s && (s.id || s.timestamp)) salesMap.set(s.id || s.timestamp, s); });
+              localSales.forEach(s => { if (s && (s.id || s.timestamp) && !salesMap.has(s.id || s.timestamp)) salesMap.set(s.id || s.timestamp, s); });
+              finalData = Array.from(salesMap.values()).sort((a,b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
+              
+              if (finalData.length > remotePayload.data.length) {
+                console.log(`[Data Safeguard] Found ${finalData.length - remotePayload.data.length} offline local sales! Pushing merged array to cloud...`);
+                this.pushKeyToCloud('pos_sales', JSON.stringify(finalData));
+              }
+            }
+          }
+
+          const finalJson = JSON.stringify(finalData);
+
           // Update local cache if data has changed remotely
-          if (remoteJson !== currentLocalJson) {
+          if (finalJson !== currentLocalJson) {
             this.isApplyingRemoteChange = true;
             const tenantKey = this.getTenantStorageKey(key);
-            localStorage.setItem(tenantKey, remoteJson);
-            localStorage.setItem(key, remoteJson);
-            localStorage.setItem(`${key}_raw_backup`, remoteJson);
+            localStorage.setItem(tenantKey, finalJson);
+            localStorage.setItem(key, finalJson);
+            localStorage.setItem(`${key}_raw_backup`, finalJson);
             this.isApplyingRemoteChange = false;
 
             // Trigger window storage & custom cloud update events to update UI
             window.dispatchEvent(new Event('storage'));
-            window.dispatchEvent(new CustomEvent('pos_cloud_update', { detail: { key, data: remotePayload.data } }));
+            window.dispatchEvent(new CustomEvent('pos_cloud_update', { detail: { key, data: finalData } }));
             console.log(`[Firebase Cloud] Live update for ${key} in Store [${this.storeId}]`);
           }
         }

@@ -13,7 +13,7 @@ if ('serviceWorker' in navigator) {
 
         // Check if an update is waiting
         if (reg.waiting) {
-          showAppUpdateBanner('v2.6.0');
+          showAppUpdateBanner('v2.7.0');
         }
 
         // Listen for new updates found
@@ -23,7 +23,7 @@ if ('serviceWorker' in navigator) {
             installingWorker.onstatechange = () => {
               if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
                 console.log('[PWA] New version installed and ready for activation!');
-                showAppUpdateBanner('v2.6.0');
+                showAppUpdateBanner('v2.7.0');
               }
             };
           }
@@ -49,7 +49,7 @@ if (typeof BroadcastChannel !== 'undefined') {
     updateChannel.onmessage = (event) => {
       if (event.data && (event.data.type === 'APP_UPDATE_PUBLISHED' || event.data.type === 'global_app_update')) {
         console.log('[PWA] Live app update published by Super Admin!');
-        showAppUpdateBanner(event.data.version || 'v2.6.0');
+        showAppUpdateBanner(event.data.version || 'v2.7.0');
       }
     };
   } catch (e) {}
@@ -162,7 +162,7 @@ function showPWAInstallPromptNotice() {
 }
 
 // Show Glassmorphism App Update Floating Banner
-function showAppUpdateBanner(version = 'v2.6.0') {
+function showAppUpdateBanner(version = 'v2.7.0') {
   if (document.getElementById('pwaAppUpdateBanner')) return;
 
   const banner = document.createElement('div');
@@ -233,13 +233,13 @@ window.checkAppUpdate = async function () {
       if (reg) {
         await reg.update();
         if (reg.waiting || reg.installing) {
-          showAppUpdateBanner('v2.6.0');
+          showAppUpdateBanner('v2.7.0');
           return;
         }
       }
     } catch (e) {}
   }
-  alert('✅ আপনার অ্যাপটি সম্পূর্ণ আপ-টু-ডেট (v2.6.0) রয়েছে! কোনো নতুন আপডেট পেন্ডিং নেই।');
+  alert('✅ আপনার অ্যাপটি সম্পূর্ণ আপ-টু-ডেট (v2.7.0) রয়েছে! কোনো নতুন আপডেট পেন্ডিং নেই।');
 };
 
 // Attach Event Listeners on Page Ready

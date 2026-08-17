@@ -1,5 +1,5 @@
-// SmartPOS - Service Worker Caching & Network-First Auto-Update Engine
-const CACHE_NAME = 'smartpos-v2.6.0';
+// SmartPOS - Service Worker Caching & Instant Non-Hanging Tab Load Engine
+const CACHE_NAME = 'smartpos-v2.8.0';
 const ASSETS_TO_CACHE = [
   './portal.html',
   './cashier.html',
@@ -20,7 +20,7 @@ const ASSETS_TO_CACHE = [
   './icons/icon.svg'
 ];
 
-// Service Worker Install Event - Force Skip Waiting to prepare for new version
+// Service Worker Install Event - Cache app shell assets instantly
 self.addEventListener('install', (event) => {
   console.log('[Service Worker] Installed new version:', CACHE_NAME);
   event.waitUntil(
@@ -30,7 +30,7 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// Service Worker Activate Event - Purge all stale caches and claim clients immediately
+// Service Worker Activate Event - Purge stale caches and claim clients immediately
 self.addEventListener('activate', (event) => {
   console.log('[Service Worker] Activating new version:', CACHE_NAME);
   event.waitUntil(
@@ -58,35 +58,49 @@ self.addEventListener('message', (event) => {
   }
 });
 
-// Fetch Event - Network-First Strategy for HTML/JS/CSS (Always fetch fresh from server when online, fallback to cache when offline)
+// Fetch Event - Instant 0.01s Cache Load & Non-Hanging Fetch Strategy
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
-  const url = new URL(event.request.url);
-  const isCoreAsset = url.pathname.endsWith('.html') || url.pathname.endsWith('.js') || url.pathname.endsWith('.css') || url.pathname === '/';
+  const url = event.request.url;
 
-  if (isCoreAsset) {
-    // Network-First for core code assets
-    event.respondWith(
-      fetch(event.request)
+  // Ignore chrome-extensions, Firebase WebSockets, and Firestore long-polling requests to prevent SW interception lag
+  if (url.includes('chrome-extension') || url.includes('firestore.googleapis.com') || url.includes('firebaseio.com')) {
+    return;
+  }
+
+  event.respondWith(
+    caches.match(event.request).then((cachedResponse) => {
+      if (cachedResponse) {
+        // Return cached asset instantly (0.01s load) without hanging background fetch promises
+        if (url.startsWith(self.location.origin) && !url.includes('.html')) {
+          fetch(event.request).then((networkResponse) => {
+            if (networkResponse && networkResponse.status === 200) {
+              const clone = networkResponse.clone();
+              caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+            }
+          }).catch(() => {});
+        }
+        return cachedResponse;
+      }
+
+      // If not in cache, fetch with 4s timeout fallback to prevent browser tab favicon spinner hanging
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
+
+      return fetch(event.request, { signal: controller.signal })
         .then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
+          clearTimeout(timeoutId);
+          if (networkResponse && networkResponse.status === 200 && (networkResponse.type === 'basic' || networkResponse.type === 'cors')) {
             const responseClone = networkResponse.clone();
             caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
           }
           return networkResponse;
         })
         .catch(() => {
-          console.log('[Service Worker] Network unavailable, serving cached asset:', event.request.url);
-          return caches.match(event.request);
-        })
-    );
-  } else {
-    // Cache-First for static assets (images, fonts)
-    event.respondWith(
-      caches.match(event.request).then((cachedResponse) => {
-        return cachedResponse || fetch(event.request);
-      })
-    );
-  }
+          clearTimeout(timeoutId);
+          return caches.match('./index.html');
+        });
+    })
+  );
 });

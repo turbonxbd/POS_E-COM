@@ -127,11 +127,19 @@ function formatRemainingTime(expiryDateIso) {
   }
 }
 
-// Load Subscribers Data from ALL sources (Stores first, then LocalStorage, and Firestore /subscriptions LAST as ground truth)
+// Load Subscribers Data INSTANTLY from LocalStorage first (0ms), then fetch Firestore in parallel (Promise.all)
 async function loadSubscribers() {
+  // Step 1: Render Local Cached Data INSTANTLY (0ms Delay)
+  let cachedSubs = JSON.parse(localStorage.getItem('pos_subscriptions')) || [];
+  if (Array.isArray(cachedSubs) && cachedSubs.length > 0) {
+    subscribersList = cachedSubs;
+    renderDashboardStats();
+    renderSubscribersMasterTable();
+  }
+
+  // Step 2: Parallel Async Cloud Synchronization
   const mergedMap = new Map();
 
-  // Helper to add/merge merchant into map safely
   const addMerchantToMap = (item) => {
     if (!item) return;
     const storeId = item.storeId || item.id || `store_${Date.now()}`;
@@ -154,7 +162,7 @@ async function loadSubscribers() {
       accountBlocked: item.accountBlocked === true,
       accessBlocked: item.accessBlocked === true,
       accessFeePaid: item.accessFeePaid !== false,
-      trialExpiresAt: item.trialExpiresAt || new Date(Date.now() + 7 * 86400000).toISOString(),
+      trialExpiresAt: item.trialExpiresAt || (item.createdAt ? new Date(new Date(item.createdAt).getTime() + 7 * 86400000).toISOString() : new Date(0).toISOString()),
       paymentMethod: item.paymentMethod || 'bKash Send Money',
       trxId: item.trxId || '',
       senderPhone: item.senderPhone || item.phone || '',
@@ -168,12 +176,22 @@ async function loadSubscribers() {
     }
   };
 
+  // Seed map with cached stores first
+  if (Array.isArray(cachedSubs)) cachedSubs.forEach(addMerchantToMap);
+  let activeSub = JSON.parse(localStorage.getItem('pos_subscription'));
+  if (activeSub) addMerchantToMap(activeSub);
+
   if (window.POS_FIREBASE && window.POS_FIREBASE.db) {
-    // 1. Load from Cloud Firestore /stores collection FIRST to discover all merchant accounts
     try {
-      const storesSnapshot = await window.POS_FIREBASE.db.collection('stores').get();
-      if (!storesSnapshot.empty) {
-        for (const doc of storesSnapshot.docs) {
+      // Parallel Fetch: Fetch /stores and /subscriptions simultaneously
+      const [storesSnapshot, subSnapshot] = await Promise.all([
+        window.POS_FIREBASE.db.collection('stores').get().catch(() => null),
+        window.POS_FIREBASE.db.collection('subscriptions').get().catch(() => null)
+      ]);
+
+      if (storesSnapshot && !storesSnapshot.empty) {
+        // Parallel inner fetching of store settings for all stores at once
+        await Promise.all(storesSnapshot.docs.map(async (doc) => {
           const storeData = doc.data() || {};
           const profile = storeData.profile || storeData;
           try {
@@ -203,30 +221,14 @@ async function loadSubscribers() {
           } catch (e) {
             addMerchantToMap({ storeId: doc.id, id: doc.id, ...profile, ...storeData, isFreshSignup: true });
           }
-        }
+        }));
       }
-    } catch (err) {
-      console.warn('Firestore /stores fetch warning:', err);
-    }
 
-    // 2. Merge from LocalStorage pos_subscriptions array
-    let localSubs = JSON.parse(localStorage.getItem('pos_subscriptions'));
-    if (Array.isArray(localSubs) && localSubs.length > 0) {
-      localSubs.forEach(addMerchantToMap);
-    }
-
-    // 3. Merge from LocalStorage active pos_subscription
-    let activeSub = JSON.parse(localStorage.getItem('pos_subscription'));
-    if (activeSub) addMerchantToMap(activeSub);
-
-    // 4. Load from Cloud Firestore /subscriptions collection LAST (Authoritative Ground Truth)
-    try {
-      const subSnapshot = await window.POS_FIREBASE.db.collection('subscriptions').get();
-      if (!subSnapshot.empty) {
+      if (subSnapshot && !subSnapshot.empty) {
         subSnapshot.forEach(doc => addMerchantToMap({ id: doc.id, ...doc.data() }));
       }
     } catch (err) {
-      console.warn('Firestore /subscriptions fetch warning:', err);
+      console.warn('[Super Admin Cloud Sync Warning]:', err);
     }
   }
 
@@ -236,14 +238,11 @@ async function loadSubscribers() {
     const isGuest = item.storeId === 'store_demo_101' || item.id === 'store_demo_101';
     if (isGuest) return true;
 
-    // Filter out mock test entries from previous test runs
     const name = (item.storeName || '').toLowerCase();
     const phone = (item.phone || item.senderPhone || '');
     if (name.includes('hhhh') || name.includes('bbbb') || name.includes('gggg') || phone.includes('01333333333') || phone.includes('01222222222')) {
       return false;
     }
-
-    // Keep all legitimate store accounts
     return true;
   });
 
@@ -346,7 +345,8 @@ function renderSubscribersMasterTable() {
   masterBody.innerHTML = list.map(s => {
     const expiryIso = s.trialExpiresAt || new Date(Date.now() + 7 * 86400000).toISOString();
     const timeInfo = formatRemainingTime(expiryIso);
-    const isStopped = s.accountBlocked === true || s.status === 'Stopped' || s.status === 'Suspended';
+    const isExpired = timeInfo.expired || (new Date(expiryIso) <= new Date());
+    const isStopped = s.accountBlocked === true || s.status === 'Stopped' || s.status === 'Suspended' || isExpired;
 
     return `
       <tr style="cursor: pointer;" onclick="openMerchantProfileModal('${s.storeId || s.id}')">
@@ -360,13 +360,13 @@ function renderSubscribersMasterTable() {
         </td>
         <td><span class="badge" style="background:rgba(59,130,246,0.15); color:#3b82f6; padding:2px 8px; border-radius:10px;">${s.plan || 'POS Counter + E-Commerce Combo'}</span></td>
         <td>
-          <span style="font-weight: 700; color: ${timeInfo.expired ? '#ef4444' : '#10b981'}; display: block;">
-            <i class="fa-solid fa-hourglass-half"></i> ${timeInfo.text}
+          <span style="font-weight: 700; color: ${isExpired ? '#ef4444' : '#10b981'}; display: block;">
+            <i class="fa-solid ${isExpired ? 'fa-circle-xmark' : 'fa-hourglass-half'}"></i> ${isExpired ? '🔴 000 (০ দিন বাকি / মেয়াদ শেষ)' : timeInfo.text}
           </span>
           <small style="color: #64748b; font-size: 0.78rem;">শেষ তারিখ: ${new Date(expiryIso).toLocaleDateString('bn-BD')}</small>
         </td>
         <td>
-          <span class="badge-status ${isStopped ? 'badge-suspended' : (s.isTrial ? 'badge-pending' : 'badge-active')}">${isStopped ? '⛔ বন্ধ/স্থগিত' : s.status}</span>
+          <span class="badge-status ${isStopped ? 'badge-suspended' : (s.isTrial ? 'badge-pending' : 'badge-active')}">${isExpired ? '🔴 সাবস্ক্রিপশন শেষ' : (isStopped ? '⛔ বন্ধ/স্থগিত' : s.status)}</span>
         </td>
         <td onclick="event.stopPropagation();">
           <div style="display:flex; gap:0.4rem; justify-content:center; flex-wrap:wrap;">
@@ -459,14 +459,15 @@ function renderPendingSubscriptionsTable() {
   body.innerHTML = subscribersList.map(s => {
     const expiryIso = s.trialExpiresAt || new Date(Date.now() + 7 * 86400000).toISOString();
     const timeInfo = formatRemainingTime(expiryIso);
+    const isExpired = timeInfo.expired || (new Date(expiryIso) <= new Date());
     const hasPendingReq = !!(s.trxId || s.requestedMonths);
     const isUnread = s.trxId && s.isRead !== true;
-    const isStopped = s.accountBlocked === true || s.status === 'Stopped' || s.status === 'Suspended';
+    const isStopped = s.accountBlocked === true || s.status === 'Stopped' || s.status === 'Suspended' || isExpired;
     const reqStatus = s.subRequestStatus; // 'Approved', 'Rejected', or undefined
 
     let statusBadgeHTML = `<span class="badge-status badge-active">🟢 সক্রিয়</span>`;
-    if (isStopped) {
-      statusBadgeHTML = `<span class="badge-status badge-suspended">⛔ সাবস্ক্রিপশন বন্ধ</span>`;
+    if (isExpired || isStopped) {
+      statusBadgeHTML = `<span class="badge-status badge-suspended">⛔ সাবস্ক্রিপশন বন্ধ (মেয়াদ শেষ)</span>`;
     } else if (reqStatus === 'Approved') {
       statusBadgeHTML = `<span class="badge" style="background:rgba(16,185,129,0.2); color:#10b981; border:1px solid #10b981; font-weight:700; padding:3px 8px; border-radius:12px;"><i class="fa-solid fa-circle-check"></i> 🟢 অনুমোদিত (Approved)</span>`;
     } else if (reqStatus === 'Rejected') {
@@ -489,8 +490,8 @@ function renderPendingSubscriptionsTable() {
           <small style="color: #94a3b8;">👤 ${s.ownerName} (${s.phone})</small>
         </td>
         <td>
-          <span style="font-weight: 700; color: ${timeInfo.expired ? '#ef4444' : '#10b981'}; display: block;">
-            <i class="fa-solid fa-hourglass-half"></i> ${timeInfo.text}
+          <span style="font-weight: 700; color: ${isExpired ? '#ef4444' : '#10b981'}; display: block;">
+            <i class="fa-solid ${isExpired ? 'fa-lock' : 'fa-hourglass-half'}"></i> ${isExpired ? '🔴 সাবস্ক্রিপশন বন্ধ (মেয়াদ শেষ)' : timeInfo.text}
           </span>
           <small style="color: #64748b; font-size: 0.78rem;">মেয়াদ শেষ: ${new Date(expiryIso).toLocaleDateString('bn-BD')}</small>
         </td>

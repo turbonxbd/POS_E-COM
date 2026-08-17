@@ -1,5 +1,156 @@
 // Smart POS - Cashier Terminal Logic (Restricted Storefront & Variant Sales Interface)
 
+function applyMerchantCustomWallpaper(settingsObj = null) {
+  const settings = settingsObj || JSON.parse(localStorage.getItem('pos_settings')) || {};
+  const deskBg = settings.customDesktopBg || '';
+  const mobBg = settings.customMobileBg || deskBg;
+
+  let bgWrap = document.getElementById('merchantCustomBackgroundWrap');
+  if (!deskBg && !mobBg) {
+    if (bgWrap) bgWrap.style.display = 'none';
+    document.body.classList.remove('has-custom-wallpaper');
+    return;
+  }
+
+  if (!bgWrap) {
+    bgWrap = document.createElement('div');
+    bgWrap.id = 'merchantCustomBackgroundWrap';
+    document.body.prepend(bgWrap);
+  }
+
+  const isMobile = window.innerWidth < 768;
+  const targetBg = (isMobile && mobBg) ? mobBg : (deskBg || mobBg);
+
+  if (targetBg) {
+    bgWrap.style.backgroundImage = `url("${targetBg}")`;
+    bgWrap.style.display = 'block';
+    document.body.classList.add('has-custom-wallpaper');
+  } else {
+    bgWrap.style.display = 'none';
+    document.body.classList.remove('has-custom-wallpaper');
+  }
+}
+
+// Automatic Thermal Receipt Logo Processor: Strips away black/white background boxes & converts logo graphics to solid dark black ink
+function convertLogoToThermalBW(imageSrc, callback) {
+  if (!imageSrc) return callback('');
+
+  const img = new Image();
+  img.crossOrigin = 'Anonymous';
+  img.onload = function() {
+    try {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const w = img.naturalWidth || img.width || 140;
+      const h = img.naturalHeight || img.height || 140;
+      canvas.width = w;
+      canvas.height = h;
+
+      ctx.drawImage(img, 0, 0);
+      const imgData = ctx.getImageData(0, 0, w, h);
+      const data = imgData.data;
+
+      // Sample border pixels to detect dominant outer background (dark vs light)
+      let borderDarkCount = 0;
+      let borderTotal = 0;
+
+      const sampleStepX = Math.max(1, Math.floor(w / 15));
+      const sampleStepY = Math.max(1, Math.floor(h / 15));
+
+      // Top & Bottom edges
+      for (let x = 0; x < w; x += sampleStepX) {
+        let idxTop = (0 * w + x) * 4;
+        if (data[idxTop + 3] > 40) {
+          borderTotal++;
+          if ((data[idxTop] + data[idxTop + 1] + data[idxTop + 2]) / 3 < 110) borderDarkCount++;
+        }
+        let idxBot = ((h - 1) * w + x) * 4;
+        if (data[idxBot + 3] > 40) {
+          borderTotal++;
+          if ((data[idxBot] + data[idxBot + 1] + data[idxBot + 2]) / 3 < 110) borderDarkCount++;
+        }
+      }
+
+      // Left & Right edges
+      for (let y = 0; y < h; y += sampleStepY) {
+        let idxLeft = (y * w + 0) * 4;
+        if (data[idxLeft + 3] > 40) {
+          borderTotal++;
+          if ((data[idxLeft] + data[idxLeft + 1] + data[idxLeft + 2]) / 3 < 110) borderDarkCount++;
+        }
+        let idxRight = (y * w + (w - 1)) * 4;
+        if (data[idxRight + 3] > 40) {
+          borderTotal++;
+          if ((data[idxRight] + data[idxRight + 1] + data[idxRight + 2]) / 3 < 110) borderDarkCount++;
+        }
+      }
+
+      const isDarkBg = borderTotal > 0 && (borderDarkCount / borderTotal > 0.4);
+
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+        const a = data[i + 3];
+
+        if (a < 30) {
+          data[i + 3] = 0;
+          continue;
+        }
+
+        const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+
+        if (isDarkBg) {
+          // Image has a dark/black background box (like dark square box around logo)
+          if (brightness < 75) {
+            // Dark outer background box -> Make 100% transparent (paper-white)!
+            data[i + 3] = 0;
+          } else if (brightness > 220 || (r > 210 && g > 210 && b > 210)) {
+            // White text/highlights inside dark shapes -> Preserve as transparent paper cutout!
+            data[i + 3] = 0;
+          } else {
+            // Logo graphic/lines -> Convert to solid dark black ink!
+            data[i] = 0;
+            data[i + 1] = 0;
+            data[i + 2] = 0;
+            data[i + 3] = 255;
+          }
+        } else {
+          // Image has a light/white/transparent background (like Afia Cosmetics logo!)
+          if (brightness > 210 || (r > 200 && g > 200 && b > 200)) {
+            // Light background paper OR white text inside dark banners -> Preserve as transparent paper cutout!
+            data[i + 3] = 0;
+          } else {
+            // Logo graphic & colored banners -> Convert to solid dark black ink!
+            data[i] = 0;
+            data[i + 1] = 0;
+            data[i + 2] = 0;
+            data[i + 3] = 255;
+          }
+        }
+      }
+
+      ctx.putImageData(imgData, 0, 0);
+      callback(canvas.toDataURL('image/png'));
+    } catch (e) {
+      console.warn('[Thermal Canvas Logo Converter Fallback]:', e);
+      callback(imageSrc);
+    }
+  };
+
+  img.onerror = function() {
+    callback(imageSrc);
+  };
+
+  img.src = imageSrc;
+}
+
+window.addEventListener('resize', () => {
+  if (document.body.classList.contains('has-custom-wallpaper')) {
+    applyMerchantCustomWallpaper();
+  }
+});
+
 class CashierTerminal {
   constructor() {
     const activeStoreId = localStorage.getItem('pos_active_store_id') || 'store_demo_101';
@@ -20,6 +171,7 @@ class CashierTerminal {
     this.products = rawProd && rawProd !== '[]' ? JSON.parse(rawProd) : (isGuestStore && typeof INITIAL_PRODUCTS !== 'undefined' ? INITIAL_PRODUCTS : []);
     this.sales = rawSales && rawSales !== '[]' ? JSON.parse(rawSales) : [];
     this.settings = rawSettings && rawSettings !== '{}' ? JSON.parse(rawSettings) : {};
+    applyMerchantCustomWallpaper(this.settings);
 
     // Pull active merchant profile metadata if settings keys are empty for non-guest stores
     if (!isGuestStore) {
@@ -120,6 +272,7 @@ class CashierTerminal {
       this.products = savedProd && savedProd !== '[]' ? JSON.parse(savedProd) : (isGuestStore && typeof INITIAL_PRODUCTS !== 'undefined' ? INITIAL_PRODUCTS : []);
       this.sales = savedSales && savedSales !== '[]' ? JSON.parse(savedSales) : [];
       this.settings = savedSettings && savedSettings !== '{}' ? JSON.parse(savedSettings) : (typeof DEFAULT_SETTINGS !== 'undefined' ? DEFAULT_SETTINGS : {});
+      applyMerchantCustomWallpaper(this.settings);
       this.customers = savedCusts && savedCusts !== '[]' ? JSON.parse(savedCusts) : [];
 
       this.updateDiscountTaxUI();
@@ -1403,8 +1556,15 @@ class CashierTerminal {
   }
 
   showReceiptModal(saleRecord, isNewSale = false) {
-    const s = this.settings || {};
+    const s = this.settings || JSON.parse(localStorage.getItem('pos_settings')) || {};
+    const sub = JSON.parse(localStorage.getItem('pos_subscription')) || {};
     const sym = s.currencySymbol || '৳';
+
+    const storeNameText = s.storeName || sub.storeName || 'Super Shop Dhaka';
+    const storeAddrText = s.storeAddress || sub.storeAddress || 'Mirpur 10, Dhaka - 1216';
+    const storePhoneText = s.storePhone || sub.phone || sub.storePhone || '+880 1700-000000';
+    const storeEmailText = s.storeEmail || sub.email || '';
+    const logoSrc = s.invoiceLogo || s.storeLogo || sub.invoiceLogo || sub.storeLogo || '';
 
     const logoImg = document.getElementById('rcptStoreLogoImg');
     const storeTitleEl = document.getElementById('rcptStoreTitle');
@@ -1412,40 +1572,39 @@ class CashierTerminal {
     const storePhoneEl = document.getElementById('rcptStorePhone');
     const storeEmailEl = document.getElementById('rcptStoreEmail');
 
-    const logoSrc = s.invoiceLogo || s.storeLogo || '';
-    const showLogo = s.showInvoiceLogo !== false && logoSrc;
-    const showName = s.showInvoiceStoreName !== false;
-    const showAddress = s.showInvoiceAddress !== false;
-    const showPhone = s.showInvoicePhone !== false;
-    const showEmail = s.showInvoiceEmail === true;
-
     if (logoImg) {
-      if (showLogo) {
-        logoImg.src = logoSrc;
-        logoImg.style.display = 'block';
+      if (logoSrc) {
+        convertLogoToThermalBW(logoSrc, (processedDataUrl) => {
+          logoImg.src = processedDataUrl;
+          logoImg.style.display = 'block';
+        });
       } else {
         logoImg.style.display = 'none';
       }
     }
 
     if (storeTitleEl) {
-      storeTitleEl.innerText = s.storeName || 'Super Shop Dhaka';
-      storeTitleEl.style.display = showName ? 'block' : 'none';
+      storeTitleEl.innerText = storeNameText;
+      storeTitleEl.style.display = 'block';
     }
 
     if (storeAddressEl) {
-      storeAddressEl.innerText = s.storeAddress || 'Mirpur 10, Dhaka - 1216';
-      storeAddressEl.style.display = showAddress && s.storeAddress ? 'block' : 'none';
+      storeAddressEl.innerText = storeAddrText;
+      storeAddressEl.style.display = 'block';
     }
 
     if (storePhoneEl) {
-      storePhoneEl.innerText = `Mobile: ${s.storePhone || '+880 1700-000000'}`;
-      storePhoneEl.style.display = showPhone && s.storePhone ? 'block' : 'none';
+      storePhoneEl.innerText = `Mobile: ${storePhoneText}`;
+      storePhoneEl.style.display = 'block';
     }
 
     if (storeEmailEl) {
-      storeEmailEl.innerText = `Email: ${s.storeEmail || ''}`;
-      storeEmailEl.style.display = showEmail && s.storeEmail ? 'block' : 'none';
+      if (storeEmailText && s.showInvoiceEmail !== false) {
+        storeEmailEl.innerText = `Email: ${storeEmailText}`;
+        storeEmailEl.style.display = 'block';
+      } else {
+        storeEmailEl.style.display = 'none';
+      }
     }
 
     const footerNoteEl = document.querySelector('#printableReceipt .receipt-footer .thank-you');

@@ -1,5 +1,42 @@
 // Smart POS - Merchant Admin & Warehouse Manager Logic
 
+function applyMerchantCustomWallpaper(settingsObj = null) {
+  const settings = settingsObj || JSON.parse(localStorage.getItem('pos_settings')) || {};
+  const deskBg = settings.customDesktopBg || '';
+  const mobBg = settings.customMobileBg || deskBg;
+
+  let bgWrap = document.getElementById('merchantCustomBackgroundWrap');
+  if (!deskBg && !mobBg) {
+    if (bgWrap) bgWrap.style.display = 'none';
+    document.body.classList.remove('has-custom-wallpaper');
+    return;
+  }
+
+  if (!bgWrap) {
+    bgWrap = document.createElement('div');
+    bgWrap.id = 'merchantCustomBackgroundWrap';
+    document.body.prepend(bgWrap);
+  }
+
+  const isMobile = window.innerWidth < 768;
+  const targetBg = (isMobile && mobBg) ? mobBg : (deskBg || mobBg);
+
+  if (targetBg) {
+    bgWrap.style.backgroundImage = `url("${targetBg}")`;
+    bgWrap.style.display = 'block';
+    document.body.classList.add('has-custom-wallpaper');
+  } else {
+    bgWrap.style.display = 'none';
+    document.body.classList.remove('has-custom-wallpaper');
+  }
+}
+
+window.addEventListener('resize', () => {
+  if (document.body.classList.contains('has-custom-wallpaper')) {
+    applyMerchantCustomWallpaper();
+  }
+});
+
 class AdminPanel {
   constructor() {
     const activeStoreId = localStorage.getItem('pos_active_store_id') || 'store_demo_101';
@@ -22,6 +59,7 @@ class AdminPanel {
     this.products = rawProd && rawProd !== '[]' ? JSON.parse(rawProd) : (isGuestStore && typeof INITIAL_PRODUCTS !== 'undefined' ? INITIAL_PRODUCTS : []);
     this.sales = rawSales && rawSales !== '[]' ? JSON.parse(rawSales) : [];
     this.settings = rawSettings && rawSettings !== '{}' ? JSON.parse(rawSettings) : {};
+    applyMerchantCustomWallpaper(this.settings);
 
     // Pull active merchant profile metadata if settings keys are empty for non-guest stores
     if (!isGuestStore) {
@@ -137,6 +175,9 @@ class AdminPanel {
       this.populateCategoryDropdowns();
       this.renderCoupons();
       this.renderAdminCustomers();
+      this.renderDashboard();
+      this.renderSalesLog();
+      this.renderInventoryTable();
       this.refreshCurrentView();
     };
 
@@ -714,62 +755,71 @@ class AdminPanel {
 
     const catCanvas = document.getElementById('adminCategoryChart');
     if (catCanvas) {
-      if (this.categoryChart) this.categoryChart.destroy();
-      this.categoryChart = new Chart(catCanvas.getContext('2d'), {
-        type: 'bar',
-        data: {
-          labels: catLabels.length > 0 ? catLabels : ['কোনো ডেটা নেই'],
-          datasets: [{
-            label: 'বিক্রি (৳)',
-            data: catData.length > 0 ? catData : [0],
-            backgroundColor: 'rgba(16, 185, 129, 0.8)',
-            borderColor: '#10b981',
-            borderWidth: 1,
-            borderRadius: 6,
-            maxBarThickness: 36,
-            categoryPercentage: 0.5,
-            barPercentage: 0.7
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          layout: {
-            padding: { top: 10, bottom: 5, left: 5, right: 10 }
-          },
-          plugins: {
-            legend: { display: false },
-            tooltip: {
-              backgroundColor: '#1e293b',
-              titleColor: '#f8fafc',
-              bodyColor: '#cbd5e1',
-              borderColor: 'rgba(255, 255, 255, 0.1)',
+      const labels = catLabels.length > 0 ? catLabels : ['কোনো ডেটা নেই'];
+      const data = catData.length > 0 ? catData : [0];
+
+      if (this.categoryChart && typeof this.categoryChart.update === 'function') {
+        this.categoryChart.data.labels = labels;
+        this.categoryChart.data.datasets[0].data = data;
+        this.categoryChart.update('none');
+      } else {
+        this.categoryChart = new Chart(catCanvas.getContext('2d'), {
+          type: 'bar',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'বিক্রি (৳)',
+              data: data,
+              backgroundColor: 'rgba(16, 185, 129, 0.8)',
+              borderColor: '#10b981',
               borderWidth: 1,
-              callbacks: {
-                label: (ctx) => ` বিক্রি: ৳${(ctx.parsed.y || 0).toFixed(2)}`
-              }
-            }
+              borderRadius: 6,
+              maxBarThickness: 36,
+              categoryPercentage: 0.5,
+              barPercentage: 0.7
+            }]
           },
-          scales: {
-            y: {
-              beginAtZero: true,
-              grid: { color: 'rgba(255, 255, 255, 0.05)' },
-              ticks: {
-                color: '#9ca3af',
-                font: { family: "'Inter', sans-serif", size: 11 },
-                callback: (v) => '৳' + v
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: { duration: 300, easing: 'easeOutQuart' },
+            layout: {
+              padding: { top: 10, bottom: 5, left: 5, right: 10 }
+            },
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                backgroundColor: '#1e293b',
+                titleColor: '#f8fafc',
+                bodyColor: '#cbd5e1',
+                borderColor: 'rgba(255, 255, 255, 0.1)',
+                borderWidth: 1,
+                callbacks: {
+                  label: (ctx) => ` বিক্রি: ৳${(ctx.parsed.y || 0).toFixed(2)}`
+                }
               }
             },
-            x: {
-              grid: { display: false },
-              ticks: {
-                color: '#cbd5e1',
-                font: { family: "'Inter', sans-serif", size: 11, weight: '500' }
+            scales: {
+              y: {
+                beginAtZero: true,
+                grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                ticks: {
+                  color: '#9ca3af',
+                  font: { family: "'Inter', sans-serif", size: 11 },
+                  callback: (v) => '৳' + v
+                }
+              },
+              x: {
+                grid: { display: false },
+                ticks: {
+                  color: '#cbd5e1',
+                  font: { family: "'Inter', sans-serif", size: 11, weight: '500' }
+                }
               }
             }
           }
-        }
-      });
+        });
+      }
     }
 
     let cashTotal = 0;
@@ -788,54 +838,63 @@ class AdminPanel {
 
     const payCanvas = document.getElementById('adminPaymentChart');
     if (payCanvas) {
-      if (this.paymentChart) this.paymentChart.destroy();
-      this.paymentChart = new Chart(payCanvas.getContext('2d'), {
-        type: 'doughnut',
-        data: {
-          labels: ['ক্যাশ পেমেন্ট', 'ডিজিটাল ই-পে'],
-          datasets: [{
-            data: [cashTotal, epayTotal],
-            backgroundColor: ['#10b981', '#3b82f6'],
-            hoverBackgroundColor: ['#059669', '#2563eb'],
-            borderWidth: 0
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          cutout: '68%',
-          layout: {
-            padding: { top: 10, bottom: 15, left: 10, right: 10 }
+      const pData = [cashTotal, epayTotal];
+
+      if (this.paymentChart && typeof this.paymentChart.update === 'function') {
+        this.paymentChart.data.datasets[0].data = pData;
+        this.paymentChart.update('none');
+      } else {
+        this.paymentChart = new Chart(payCanvas.getContext('2d'), {
+          type: 'doughnut',
+          data: {
+            labels: ['ক্যাশ পেমেন্ট', 'ডিজিটাল ই-পে'],
+            datasets: [{
+              data: pData,
+              backgroundColor: ['#10b981', '#3b82f6'],
+              hoverBackgroundColor: ['#059669', '#2563eb'],
+              borderWidth: 0
+            }]
           },
-          plugins: {
-            legend: {
-              position: 'bottom',
-              labels: {
-                color: '#cbd5e1',
-                font: { family: "'Inter', sans-serif", size: 12, weight: '500' },
-                padding: 14,
-                usePointStyle: true,
-                pointStyle: 'circle'
-              }
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: { duration: 300, easing: 'easeOutQuart' },
+            cutout: '68%',
+            layout: {
+              padding: { top: 10, bottom: 15, left: 10, right: 10 }
             },
-            tooltip: {
-              backgroundColor: '#1e293b',
-              titleColor: '#f8fafc',
-              bodyColor: '#cbd5e1',
-              borderColor: 'rgba(255, 255, 255, 0.1)',
-              borderWidth: 1,
-              callbacks: {
-                label: function(ctx) {
-                  const val = ctx.parsed || 0;
-                  const total = cashTotal + epayTotal;
-                  const pct = total > 0 ? ((val / total) * 100).toFixed(1) : '0.0';
-                  return ` ${ctx.label}: ৳${val.toFixed(2)} (${pct}%)`;
+            plugins: {
+              legend: {
+                position: 'bottom',
+                labels: {
+                  color: '#cbd5e1',
+                  font: { family: "'Inter', sans-serif", size: 12, weight: '500' },
+                  padding: 14,
+                  usePointStyle: true,
+                  pointStyle: 'circle',
+                  boxWidth: 10,
+                  boxHeight: 10
+                }
+              },
+              tooltip: {
+                backgroundColor: '#1e293b',
+                titleColor: '#f8fafc',
+                bodyColor: '#cbd5e1',
+                borderColor: 'rgba(255, 255, 255, 0.1)',
+                borderWidth: 1,
+                callbacks: {
+                  label: function(ctx) {
+                    const val = ctx.parsed || 0;
+                    const total = cashTotal + epayTotal;
+                    const pct = total > 0 ? ((val / total) * 100).toFixed(1) : '0.0';
+                    return ` ${ctx.label}: ৳${val.toFixed(2)} (${pct}%)`;
+                  }
                 }
               }
             }
           }
-        }
-      });
+        });
+      }
     }
   }
 
@@ -1798,15 +1857,15 @@ class AdminPanel {
     switch (paperFormat) {
       case 'sticker_38x25':
         cardWidth = '160px';
-        cardMinHeight = '110px';
-        cardPadding = '5px 4px';
-        titleFontSize = '0.66rem';
-        variantFontSize = '0.58rem';
-        priceFontSize = '0.76rem';
-        bcWidth = 1.2;
-        bcHeight = 42;
-        bcFontSize = 9.5;
-        bcMargin = 1;
+        cardMinHeight = '105px';
+        cardPadding = '4px 3px';
+        titleFontSize = '0.62rem';
+        variantFontSize = '0.54rem';
+        priceFontSize = '0.72rem';
+        bcWidth = 1.05;
+        bcHeight = 26;
+        bcFontSize = 8.5;
+        bcMargin = 0;
         break;
       case 'sticker_50x30':
         cardWidth = '205px';
@@ -1900,7 +1959,13 @@ class AdminPanel {
 
     targetVariants.forEach(v => {
       const copyCount = getCopyCount(v);
-      const mrpText = (v.mrp && v.mrp > v.price) ? `<del style="font-size:0.68rem; color:#666;">৳${v.mrp}</del> ` : '';
+      let priceFormatted = '';
+      if (v.mrp && parseFloat(v.mrp) > parseFloat(v.price)) {
+        priceFormatted = `Price:&nbsp;<span style="position: relative; display: inline-block; vertical-align: baseline; color: #333333 !important; font-weight: 700; font-size: 0.88em; margin-right: 5px; line-height: 1.1;">৳${parseFloat(v.mrp).toFixed(0)}<span style="position: absolute; left: -2px; right: -2px; top: 52%; height: 1.2px; background: #000000 !important; background-color: #000000 !important; display: block; transform: translateY(-50%) rotate(-7deg); transform-origin: center; pointer-events: none; z-index: 10;"></span></span>&nbsp;<strong style="color: #000000 !important; font-weight: 900; font-size: 1.05em; display: inline-block; vertical-align: baseline; line-height: 1.1;">৳${parseFloat(v.price).toFixed(0)}</strong>`;
+      } else {
+        priceFormatted = `Price:&nbsp;<strong style="color: #000000 !important; font-weight: 900; font-size: 1.05em; display: inline-block; vertical-align: baseline; line-height: 1.1;">৳${parseFloat(v.price).toFixed(0)}</strong>`;
+      }
+
       const nameStr = prod.name || '';
       const len = nameStr.trim().length;
 
@@ -1917,10 +1982,10 @@ class AdminPanel {
             <div style="${dynamicTitleStyle} width:100%; text-align:center; color:#000; display:-webkit-box; -webkit-line-clamp:${titleLineClamp}; -webkit-box-orient:vertical; overflow:hidden; word-break:break-word;">${prod.name}</div>
             <div style="font-size:${variantFontSize}; font-weight:600; color:#4b5563; margin-top:1px; margin-bottom:2px; line-height:1.1;">${v.color || ''} ${v.size ? '| ' + v.size : ''}</div>
             <div style="width:100%; overflow:hidden; display:flex; justify-content:center; margin:2px 0;">
-              <svg id="bcSvg_${svgIndex}" style="max-width:100%; height:auto; display:block; margin:0 auto; shape-rendering:crispEdges;"></svg>
+              <svg id="bcSvg_${svgIndex}" style="max-width:100%; height:auto; display:block; margin:0 auto; shape-rendering:crispEdges; image-rendering:pixelated;"></svg>
             </div>
             <div style="font-size:${priceFontSize}; font-weight:800; color:#000; margin-top:1px; line-height:1.1;">
-              মূল্য: ${mrpText}৳${v.price}
+              ${priceFormatted}
             </div>
           </div>
         `;
@@ -1948,6 +2013,8 @@ class AdminPanel {
               lineColor: "#000000",
               displayValue: true
             });
+            const svgNode = document.getElementById(`bcSvg_${idx}`);
+            if (svgNode) svgNode.setAttribute('shape-rendering', 'crispEdges');
           } catch(e) {
             console.error("Barcode render error:", e);
           }
@@ -2301,6 +2368,71 @@ class AdminPanel {
         }
       });
     }
+
+    // Desktop Background Wallpaper File Upload Listener
+    const deskBgBtn = document.getElementById('settingDesktopBgBtn');
+    const deskBgFileInput = document.getElementById('settingDesktopBgFileInput');
+    const deskBgPreview = document.getElementById('settingDesktopBgPreview');
+    const deskBgFileName = document.getElementById('settingDesktopBgFileName');
+
+    if (deskBgBtn && deskBgFileInput) {
+      deskBgBtn.addEventListener('click', () => deskBgFileInput.click());
+      if (deskBgPreview) deskBgPreview.addEventListener('click', () => deskBgFileInput.click());
+
+      deskBgFileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          compressGalleryImage(file, 1920, 0.82, (dataUrl) => {
+            const hiddenVal = document.getElementById('settingDesktopBg');
+            if (hiddenVal) hiddenVal.value = dataUrl;
+            if (deskBgPreview) deskBgPreview.src = dataUrl;
+            if (deskBgFileName) deskBgFileName.innerText = file.name;
+          });
+        }
+      });
+    }
+
+    // Mobile Background Wallpaper File Upload Listener
+    const mobBgBtn = document.getElementById('settingMobileBgBtn');
+    const mobBgFileInput = document.getElementById('settingMobileBgFileInput');
+    const mobBgPreview = document.getElementById('settingMobileBgPreview');
+    const mobBgFileName = document.getElementById('settingMobileBgFileName');
+
+    if (mobBgBtn && mobBgFileInput) {
+      mobBgBtn.addEventListener('click', () => mobBgFileInput.click());
+      if (mobBgPreview) mobBgPreview.addEventListener('click', () => mobBgFileInput.click());
+
+      mobBgFileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          compressGalleryImage(file, 1080, 0.82, (dataUrl) => {
+            const hiddenVal = document.getElementById('settingMobileBg');
+            if (hiddenVal) hiddenVal.value = dataUrl;
+            if (mobBgPreview) mobBgPreview.src = dataUrl;
+            if (mobBgFileName) mobBgFileName.innerText = file.name;
+          });
+        }
+      });
+    }
+
+    // Remove Custom Wallpapers Handler
+    document.getElementById('btnRemoveCustomWallpapers')?.addEventListener('click', () => {
+      if (confirm('আপনি কি নিশ্চিত যে কাস্টম ব্যাকগ্রাউন্ড রিমুভ করে ডিফল্ট থিমে ফেরত যেতে চান?')) {
+        const setD = document.getElementById('settingDesktopBg');
+        const setM = document.getElementById('settingMobileBg');
+        if (setD) setD.value = '';
+        if (setM) setM.value = '';
+        if (deskBgPreview) deskBgPreview.src = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='70' viewBox='0 0 120 70'><rect width='120' height='70' fill='%231e293b'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='%2394a3b8' font-family='sans-serif' font-size='10'>Desktop Wall</text></svg>";
+        if (mobBgPreview) mobBgPreview.src = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='70' height='100' viewBox='0 0 70 100'><rect width='70' height='100' fill='%231e293b'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='%2394a3b8' font-family='sans-serif' font-size='10'>Mobile Wall</text></svg>";
+        if (this.settings) {
+          this.settings.customDesktopBg = '';
+          this.settings.customMobileBg = '';
+        }
+        localStorage.setItem('pos_settings', JSON.stringify(this.settings));
+        applyMerchantCustomWallpaper(this.settings);
+        this.showToast('কাস্টম ব্যাকগ্রাউন্ড রিমুভ করা হয়েছে!');
+      }
+    });
 
     // Product Image Device/Gallery File Upload Listener
     const prodUploadBtn = document.getElementById('prodFormUploadBtn');
@@ -4113,6 +4245,16 @@ class AdminPanel {
     setVal('settingAdminPin', s.adminPin || '1234');
     setVal('settingDefaultTheme', s.defaultTheme || 'dark');
 
+    // Load Custom Background Wallpaper Settings
+    setVal('settingDesktopBg', s.customDesktopBg || '');
+    setVal('settingMobileBg', s.customMobileBg || '');
+    if (s.customDesktopBg && document.getElementById('settingDesktopBgPreview')) {
+      document.getElementById('settingDesktopBgPreview').src = s.customDesktopBg;
+    }
+    if (s.customMobileBg && document.getElementById('settingMobileBgPreview')) {
+      document.getElementById('settingMobileBgPreview').src = s.customMobileBg;
+    }
+
     // Load payment gateways settings
     const gateways = JSON.parse(localStorage.getItem('pos_payment_gateways')) || (typeof DEFAULT_PAYMENT_GATEWAYS !== 'undefined' ? DEFAULT_PAYMENT_GATEWAYS : {});
 
@@ -4158,19 +4300,21 @@ class AdminPanel {
       tradeLicense: getVal('settingTradeLicense'),
       storeLogo: getVal('settingStoreLogo'),
       invoiceLogo: getVal('settingInvoiceLogo') || getVal('settingStoreLogo'),
-      showInvoiceLogo: getChk('settingShowInvoiceLogo'),
-      showInvoiceStoreName: getChk('settingShowInvoiceStoreName'),
-      showInvoicePhone: getChk('settingShowInvoicePhone'),
+      customDesktopBg: getVal('settingDesktopBg'),
+      customMobileBg: getVal('settingMobileBg'),
+      showInvoiceLogo: true,
+      showInvoiceStoreName: true,
+      showInvoicePhone: true,
       showInvoiceEmail: getChk('settingShowInvoiceEmail'),
-      showInvoiceAddress: getChk('settingShowInvoiceAddress'),
-      showInvoiceFooter: getChk('settingShowInvoiceFooter'),
+      showInvoiceAddress: true,
+      showInvoiceFooter: true,
       receiptHeaderNote: getVal('settingInvoiceHeaderNote') || getVal('settingReceiptHeader'),
       receiptFooterNote: getVal('settingInvoiceFooterNote') || getVal('settingReceiptFooter') || 'Thank you! Come again.',
       barcodePaperFormat: getVal('settingBarcodePaperFormat') || 'sticker_38x25',
       barcodeScale: getVal('settingBarcodeScale') || 'normal',
-      barcodeShowName: getChk('settingBarcodeShowName'),
-      barcodeShowVariant: getChk('settingBarcodeShowVariant'),
-      barcodeShowPrice: getChk('settingBarcodeShowPrice'),
+      barcodeShowName: true,
+      barcodeShowVariant: true,
+      barcodeShowPrice: true,
       defaultDiscountMode: getVal('settingDefaultDiscountMode') || 'percent',
       defaultDiscountValue: parseFloat(getVal('settingDefaultDiscountValue')) || 0,
       defaultTaxMode: getVal('settingDefaultTaxMode') || 'percent',
@@ -4185,6 +4329,7 @@ class AdminPanel {
     localStorage.setItem('pos_settings', JSON.stringify(updatedSettings));
     localStorage.setItem('pos_theme', updatedSettings.defaultTheme);
     document.documentElement.setAttribute('data-theme', updatedSettings.defaultTheme);
+    applyMerchantCustomWallpaper(updatedSettings);
 
     const paymentGateways = {
       bKash: {

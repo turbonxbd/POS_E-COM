@@ -39,11 +39,12 @@
 
   // Calculate detailed remaining time: Days + Minutes
   function formatRemainingTime(expiryDateIso) {
+    if (!expiryDateIso) return { expired: true, text: '🔴 000 (০ দিন বাকি / মেয়াদ শেষ)', days: 0, months: 0, minutes: 0, badgeText: 'মেয়াদ শেষ!' };
     const expiry = new Date(expiryDateIso);
     const now = new Date();
     const diffMs = expiry - now;
 
-    if (diffMs <= 0) return { expired: true, text: 'মেয়াদ শেষ হয়ে গেছে!', days: 0, months: 0, minutes: 0, badgeText: 'মেয়াদ শেষ!' };
+    if (diffMs <= 0) return { expired: true, text: '🔴 000 (০ দিন বাকি / মেয়াদ শেষ)', days: 0, months: 0, minutes: 0, badgeText: 'মেয়াদ শেষ!' };
 
     const diffMinsTotal = Math.floor(diffMs / (1000 * 60));
     const days = Math.floor(diffMinsTotal / (60 * 24));
@@ -472,7 +473,7 @@
       }
     }
 
-    const expiryIso = subscription.trialExpiresAt || new Date(Date.now() + 7 * 86400000).toISOString();
+    const expiryIso = subscription.trialExpiresAt || (subscription.createdAt ? new Date(new Date(subscription.createdAt).getTime() + 7 * 86400000).toISOString() : new Date(0).toISOString());
     const timeInfo = formatRemainingTime(expiryIso);
 
     if (exactRemEl) {
@@ -682,8 +683,7 @@
     const subscription = getActiveSubscriptionState();
     const isBlocked = subscription.accountBlocked === true || subscription.status === 'Suspended' || subscription.status === 'Stopped';
     const isExpired = subscription.trialExpiresAt ? (new Date(subscription.trialExpiresAt) <= new Date()) : false;
-    const expiryIso = subscription.trialExpiresAt || new Date(Date.now() + 7 * 86400000).toISOString();
-    
+    const expiryIso = subscription.trialExpiresAt || (subscription.createdAt ? new Date(new Date(subscription.createdAt).getTime() + 7 * 86400000).toISOString() : new Date(0).toISOString());
     const timeInfo = formatRemainingTime(expiryIso);
 
     const adminBtn = document.getElementById('btnOpenSubscriptionModalAdmin');

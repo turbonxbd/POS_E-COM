@@ -668,6 +668,9 @@
                     <div class="form-group col-6">
                       <label style="font-weight: 600;"><i class="fa-solid fa-at"></i> বিজনেসের অফিশিয়াল ইমেইল</label>
                       <input type="email" id="settingStoreEmail" class="form-control" placeholder="info@supershop.com">
+                      <label style="display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; cursor: pointer; font-size: 0.82rem; color: #a855f7; font-weight: 600;">
+                        <input type="checkbox" id="settingShowInvoiceEmail" checked> <span>📧 ইনভয়েস / ক্যাশ মেমোতে ইমেইল প্রদর্শন করুন</span>
+                      </label>
                     </div>
                   </div>
 
@@ -719,6 +722,58 @@
                           <small id="settingInvoiceLogoFileName" class="text-muted" style="font-size: 0.78rem;">গ্যালারি থেকে মেমো লোগো সিলেক্ট করুন</small>
                         </div>
                       </div>
+                    </div>
+                  </div>
+
+                  <!-- CUSTOM BACKGROUND WALLPAPER THEME SETTINGS (DESKTOP & MOBILE) -->
+                  <div class="form-group mb-3" style="background: var(--bg-sidebar); padding: 1.25rem; border-radius: 16px; border: 1px dashed #10b981;">
+                    <label style="font-weight: 700; color: #10b981; font-size: 1.05rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 0.5rem;">
+                      <span><i class="fa-solid fa-image"></i> কাস্টম ব্যাকগ্রাউন্ড ওয়ালপেপার থিম (Custom Wallpaper Theme)</span>
+                      <small class="text-muted"><i class="fa-solid fa-sparkles"></i> মার্চেন্ট এডমিন ও ক্যাশিয়ার প্যানেলের ব্যাকগ্রাউন্ডে কাস্টম ওয়ালপেপার সেট করুন</small>
+                    </label>
+
+                    <p style="color: var(--text-muted); font-size: 0.88rem; margin-bottom: 1rem; line-height: 1.5;">
+                      এখানে মোবাইল ও পিসির জন্য ২টি কাস্টম ব্যাকগ্রাউন্ড ছবি আপলোড করতে পারবেন। আপলোড করার পর <strong>"সেটিংস সেভ করুন"</strong> এ চাপ দিলে এডমিন ও ক্যাশিয়ার প্যানেলের ব্যাকগ্রাউন্ডে গ্লাসমোরফিজম (Glassmorphism & Transparent) থিমে ছবিগুলো স্বয়ংক্রিয়ভাবে একটিভ হয়ে যাবে।
+                    </p>
+
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.25rem;">
+                      <!-- Desktop Background Upload -->
+                      <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-color); border-radius: 14px; padding: 1rem;">
+                        <label style="font-weight: 700; font-size: 0.92rem; color: #3b82f6; display: flex; align-items: center; gap: 6px; margin-bottom: 0.6rem;">
+                          <i class="fa-solid fa-desktop"></i> ১. ডেস্কটপ ব্যাকগ্রাউন্ড ছবি (Landscape / Wide)
+                        </label>
+                        <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+                          <button type="button" class="btn btn-primary btn-sm" id="settingDesktopBgBtn">
+                            <i class="fa-solid fa-cloud-arrow-up"></i> ডেস্কটপ ছবি আপলোড
+                          </button>
+                          <input type="file" id="settingDesktopBgFileInput" accept="image/*" style="display: none;">
+                          <input type="hidden" id="settingDesktopBg">
+                          <img id="settingDesktopBgPreview" src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='70' viewBox='0 0 120 70'><rect width='120' height='70' fill='%231e293b'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='%2394a3b8' font-family='sans-serif' font-size='10'>Desktop Wall</text></svg>" style="width: 70px; height: 42px; border-radius: 8px; object-fit: cover; border: 2px solid #3b82f6; background: #000; cursor: pointer;" title="ক্লিক করে ডেস্কটপ ব্যাকগ্রাউন্ড নির্বাচন করুন">
+                        </div>
+                        <small id="settingDesktopBgFileName" class="text-muted" style="display: block; margin-top: 6px; font-size: 0.78rem;">কম্পিউটার/ডেস্কটপ স্ক্রিনের জন্য চওড়া ছবি</small>
+                      </div>
+
+                      <!-- Mobile Background Upload -->
+                      <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-color); border-radius: 14px; padding: 1rem;">
+                        <label style="font-weight: 700; font-size: 0.92rem; color: #a855f7; display: flex; align-items: center; gap: 6px; margin-bottom: 0.6rem;">
+                          <i class="fa-solid fa-mobile-screen-button"></i> ২. মোবাইল ব্যাকগ্রাউন্ড ছবি (Portrait / Tall)
+                        </label>
+                        <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+                          <button type="button" class="btn btn-purple btn-sm" id="settingMobileBgBtn" style="background: linear-gradient(135deg, #8b5cf6, #a855f7); color: #fff; border: none;">
+                            <i class="fa-solid fa-cloud-arrow-up"></i> মোবাইল ছবি আপলোড
+                          </button>
+                          <input type="file" id="settingMobileBgFileInput" accept="image/*" style="display: none;">
+                          <input type="hidden" id="settingMobileBg">
+                          <img id="settingMobileBgPreview" src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='70' height='100' viewBox='0 0 70 100'><rect width='70' height='100' fill='%231e293b'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='%2394a3b8' font-family='sans-serif' font-size='10'>Mobile Wall</text></svg>" style="width: 32px; height: 50px; border-radius: 8px; object-fit: cover; border: 2px solid #a855f7; background: #000; cursor: pointer;" title="ক্লিক করে মোবাইল ব্যাকগ্রাউন্ড নির্বাচন করুন">
+                        </div>
+                        <small id="settingMobileBgFileName" class="text-muted" style="display: block; margin-top: 6px; font-size: 0.78rem;">মোবাইল বা ফোনের জন্য লম্বা ছবি</small>
+                      </div>
+                    </div>
+
+                    <div style="margin-top: 1rem; display: flex; gap: 10px; flex-wrap: wrap;">
+                      <button type="button" class="btn btn-outline btn-sm" id="btnRemoveCustomWallpapers" style="color: #ef4444; border-color: rgba(239, 68, 68, 0.4); border-radius: 10px;">
+                        <i class="fa-solid fa-trash-can"></i> 🗑️ ব্যাকগ্রাউন্ড ছবি রিমুভ / ডিলিট করুন
+                      </button>
                     </div>
                   </div>
 

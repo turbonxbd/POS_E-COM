@@ -4340,6 +4340,60 @@ body.is-standalone-app .portal-hero {
   padding-top: 3.5rem;
 }
 
+/* ==========================================================================
+   CUSTOM MERCHANT BACKGROUND WALLPAPER THEME & GLASSMORPHISM ENGINE
+   ========================================================================== */
+#merchantCustomBackgroundWrap {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-size: cover;
+  background-position: center center;
+  background-repeat: no-repeat;
+  filter: blur(1.5px) brightness(0.85);
+  opacity: 0.88;
+  transition: opacity 0.5s ease, background-image 0.5s ease;
+}
+
+body.has-custom-wallpaper {
+  background-color: transparent !important;
+}
+
+body.has-custom-wallpaper .panel-card,
+body.has-custom-wallpaper .stat-card,
+body.has-custom-wallpaper .sidebar,
+body.has-custom-wallpaper .top-header,
+body.has-custom-wallpaper .table-responsive,
+body.has-custom-wallpaper .cart-panel,
+body.has-custom-wallpaper .billing-section,
+body.has-custom-wallpaper .cashier-counter-panel,
+body.has-custom-wallpaper .categories-bar,
+body.has-custom-wallpaper .cms-card,
+body.has-custom-wallpaper .products-grid,
+body.has-custom-wallpaper .product-card {
+  background: rgba(15, 23, 42, 0.82) !important;
+  backdrop-filter: blur(16px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4) !important;
+}
+
+body.has-custom-wallpaper .custom-table th,
+body.has-custom-wallpaper .custom-table td {
+  background: transparent !important;
+}
+
+body.has-custom-wallpaper .custom-table tbody tr:hover {
+  background: rgba(16, 185, 129, 0.15) !important;
+}
+
+body.has-custom-wallpaper .sidebar-brand,
+body.has-custom-wallpaper .nav-item.active {
+  background: rgba(16, 185, 129, 0.22) !important;
+  border-color: var(--accent-green) !important;
+}
+
 /* End of SmartPOS Style Sheet */
 
 
