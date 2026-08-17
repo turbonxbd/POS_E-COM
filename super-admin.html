@@ -374,8 +374,9 @@
         <li class="master-menu-item" data-tab="tabAccessFees">
           <i class="fa-solid fa-key" style="color:#3b82f6;"></i> <span>৩. এক্সেস ফি (Setup Fees)</span>
         </li>
-        <li class="master-menu-item" data-tab="tabMonthlySubscriptions">
+        <li class="master-menu-item" data-tab="tabMonthlySubscriptions" style="display:flex; align-items:center;">
           <i class="fa-solid fa-credit-card" style="color:#e11d48;"></i> <span>৪. মাসিক সাবস্ক্রিপশন (Monthly)</span>
+          <span id="tab4UnreadBadge" class="badge" style="display:none; background:#ef4444; color:#fff; margin-left:auto; font-size:0.72rem; padding:2px 7px; border-radius:10px; font-weight:700; box-shadow:0 0 10px rgba(239,68,68,0.5);">0</span>
         </li>
         <li class="master-menu-item" data-tab="tabConsoleCMS">
           <i class="fa-solid fa-laptop-code"></i> <span>৫. কনসোল CMS (Landing)</span>
@@ -514,7 +515,7 @@
                   <th>দোকান ও ব্র্যান্ড</th>
                   <th>মালিকের নাম ও ফোন</th>
                   <th>এক্সেস প্যাকেজ (Setup)</th>
-                  <th>মাসিক ফি (Monthly)</th>
+                  <th>অবশিষ্ট মেয়াদের সময় (Duration)</th>
                   <th>স্ট্যাটাস</th>
                   <th style="text-align: center;">মাস্টার কন্ট্রোল (Actions)</th>
                 </tr>
@@ -571,12 +572,12 @@
             <table class="custom-table">
               <thead>
                 <tr>
-                  <th>মার্চেন্ট শপ</th>
-                  <th>মালিক ও ফোন</th>
-                  <th>অনুরোধকৃত মেয়াদের সময়</th>
-                  <th>প্রেরক ফোন ও TrxID</th>
-                  <th>জমা দেওয়ার সময়</th>
-                  <th style="text-align: center;">ভেরিফিকেশন অ্যাকশন</th>
+                  <th>মার্চেন্ট শপ & প্রোফাইল</th>
+                  <th>বর্তমান মেয়াদ (Current Sub)</th>
+                  <th>নতুন রিকোয়েস্ট (Requested)</th>
+                  <th>পেমেন্ট মেথড & TrxID</th>
+                  <th>স্ট্যাটাস</th>
+                  <th style="text-align: center;">মাস্টার ভেরিফিকেশন অ্যাকশনস</th>
                 </tr>
               </thead>
               <tbody id="pendingSubscriptionsTableBody">
@@ -759,14 +760,21 @@
               </div>
             </div>
 
-            <div style="margin-bottom:1.5rem;">
-              <label class="form-label">মেয়াদ শেষ হওয়ার পুশ নোটিফিকেশন মেসেজ (Push Notification Text)</label>
-              <textarea id="cmsPushNotificationMsg" class="form-control" rows="2" placeholder="আপনার স্টোরের সাবস্ক্রিপশনের মেয়াদের সময় প্রায় শেষ! নিরবচ্ছিন্ন সেবা পেতে এখনই রিনিউ করুন।"></textarea>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1.25rem; margin-bottom:1.5rem;">
+              <div>
+                <label class="form-label" style="color:#25D366; font-weight:700;"><i class="fa-brands fa-whatsapp"></i> সাবস্ক্রিপশন হেল্পলাইন হোয়াটসঅ্যাপ নাম্বার (WhatsApp Number)</label>
+                <input type="text" id="cmsWhatsappNumber" class="form-control" placeholder="01700000000 বা 8801700000000" value="8801700000000">
+                <small style="color:#94a3b8; font-size:0.78rem;">মার্চেন্ট ও ক্যাশিয়ার প্যানেল লক হলে লক স্ক্রিনে সরাসরি যোগাযোগের জন্য এই হোয়াটসঅ্যাপ বাটন থাকবে</small>
+              </div>
+              <div>
+                <label class="form-label">মেয়াদ শেষ হওয়ার পুশ নোটিফিকেশন মেসেজ (Push Notification Text)</label>
+                <textarea id="cmsPushNotificationMsg" class="form-control" rows="2" placeholder="আপনার স্টোরের সাবস্ক্রিপশনের মেয়াদের সময় প্রায় শেষ! নিরবচ্ছিন্ন সেবা পেতে এখনই রিনিউ করুন।"></textarea>
+              </div>
             </div>
 
             <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
               <button type="submit" class="btn-submit">
-                <i class="fa-solid fa-floppy-disk"></i> পেমেন্ট সেটিংস সেভ করুন
+                <i class="fa-solid fa-floppy-disk"></i> পেমেন্ট ও হোয়াটসঅ্যাপ সেটিংস সেভ করুন
               </button>
               <button type="button" id="btnSendGlobalPushAlert" class="btn-submit" style="background: linear-gradient(135deg, #e11d48, #be123c); width: auto;">
                 📢 সকল মার্চেন্টকে লাইভ পুশ নোটিফিকেশন এলার্ট পাঠান

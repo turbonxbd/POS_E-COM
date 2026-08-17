@@ -1,14 +1,58 @@
-// SmartPOS Direct PWA Installation & Standalone App Launcher (Windows & Android Focus)
+// SmartPOS Direct PWA Installation & Standalone App Launcher & Live Auto-Update Engine (Windows & Android Focus)
 
 let deferredPrompt = null;
+let swRegistration = null;
 
-// Register Service Worker for offline capability & PWA installability
+// Register Service Worker & Listen for New Live Code Updates
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js')
-      .then(reg => console.log('[PWA] Service Worker active:', reg.scope))
+      .then(reg => {
+        swRegistration = reg;
+        console.log('[PWA] Service Worker active:', reg.scope);
+
+        // Check if an update is waiting
+        if (reg.waiting) {
+          showAppUpdateBanner('v2.6.0');
+        }
+
+        // Listen for new updates found
+        reg.onupdatefound = () => {
+          const installingWorker = reg.installing;
+          if (installingWorker) {
+            installingWorker.onstatechange = () => {
+              if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                console.log('[PWA] New version installed and ready for activation!');
+                showAppUpdateBanner('v2.6.0');
+              }
+            };
+          }
+        };
+      })
       .catch(err => console.warn('[PWA] Service Worker failed:', err));
+
+    // Handle controllerchange event (when new SW takes control)
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!refreshing) {
+        refreshing = true;
+        window.location.reload();
+      }
+    });
   });
+}
+
+// BroadcastChannel for Live App Update Signals from Super Admin
+if (typeof BroadcastChannel !== 'undefined') {
+  try {
+    const updateChannel = new BroadcastChannel('pos_app_update_channel');
+    updateChannel.onmessage = (event) => {
+      if (event.data && (event.data.type === 'APP_UPDATE_PUBLISHED' || event.data.type === 'global_app_update')) {
+        console.log('[PWA] Live app update published by Super Admin!');
+        showAppUpdateBanner(event.data.version || 'v2.6.0');
+      }
+    };
+  } catch (e) {}
 }
 
 // Check if running inside installed App mode (standalone window)
@@ -116,6 +160,87 @@ function showPWAInstallPromptNotice() {
     modal.style.display = 'flex';
   }
 }
+
+// Show Glassmorphism App Update Floating Banner
+function showAppUpdateBanner(version = 'v2.6.0') {
+  if (document.getElementById('pwaAppUpdateBanner')) return;
+
+  const banner = document.createElement('div');
+  banner.id = 'pwaAppUpdateBanner';
+  banner.style.cssText = 'position:fixed; bottom:1.5rem; right:1.5rem; z-index:9999999; background:rgba(15,23,42,0.96); backdrop-filter:blur(16px); border:2px solid #10b981; border-radius:20px; padding:1.25rem 1.5rem; max-width:420px; width:calc(100% - 3rem); box-shadow:0 20px 50px rgba(0,0,0,0.6); color:#fff; font-family:"Hind Siliguri", sans-serif; animation:slideUpPwaBanner 0.4s ease-out;';
+  
+  banner.innerHTML = `
+    <div style="display:flex; align-items:flex-start; gap:12px;">
+      <div style="width:48px; height:48px; border-radius:14px; background:rgba(16,185,129,0.2); border:1px solid #10b981; color:#10b981; display:flex; align-items:center; justify-content:center; font-size:1.5rem; flex-shrink:0;">
+        <i class="fa-solid fa-rocket"></i>
+      </div>
+      <div style="flex:1;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+          <h4 style="margin:0; font-size:1.05rem; font-weight:700; color:#10b981;">🚀 নতুন অ্যাপ আপডেট পাওয়া গেছে!</h4>
+          <span style="background:rgba(16,185,129,0.2); color:#10b981; font-size:0.72rem; padding:2px 8px; border-radius:10px; font-weight:700;">${version}</span>
+        </div>
+        <p style="margin:0 0 10px; font-size:0.88rem; color:#cbd5e1; line-height:1.5;">
+          নতুন ফিচার ও পারফরম্যান্স আপডেট প্রকাশ করা হয়েছে। নিরবচ্ছিন্ন সেরা অভিজ্ঞতার জন্য এখনই আপডেট করুন।
+        </p>
+        <div style="display:flex; gap:8px;">
+          <button type="button" onclick="forceAppUpdate()" class="btn" style="flex:1; background:linear-gradient(135deg, #10b981, #059669); color:#fff; border:none; padding:0.65rem 1rem; border-radius:12px; font-weight:700; font-size:0.9rem; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px; box-shadow:0 6px 18px rgba(16,185,129,0.3);">
+            <i class="fa-solid fa-rotate"></i> 🔄 এখনই অ্যাপ আপডেট করুন
+          </button>
+          <button type="button" onclick="document.getElementById('pwaAppUpdateBanner').remove()" style="background:rgba(255,255,255,0.08); color:#cbd5e1; border:1px solid rgba(255,255,255,0.15); padding:0.6rem 0.85rem; border-radius:12px; font-weight:600; font-size:0.85rem; cursor:pointer;">
+            পরে করবো
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(banner);
+}
+
+// Execute Force App Update: Purges caches, unregisters old service worker, and reloads clean latest code
+async function forceAppUpdate() {
+  const btn = document.querySelector('#pwaAppUpdateBanner button');
+  if (btn) btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> আপডেট হচ্ছে...';
+
+  try {
+    if ('caches' in window) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map(key => caches.delete(key)));
+    }
+
+    if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage({ type: 'CLEAR_CACHE' });
+      navigator.serviceWorker.controller.postMessage({ type: 'SKIP_WAITING' });
+    }
+
+    if (swRegistration && swRegistration.waiting) {
+      swRegistration.waiting.postMessage({ action: 'skipWaiting' });
+    }
+  } catch (e) {
+    console.warn('[PWA] Cache purge warning:', e);
+  }
+
+  setTimeout(() => {
+    window.location.reload(true);
+  }, 500);
+}
+
+// Manual Update Check Trigger for Merchants (from sidebar or footer)
+window.checkAppUpdate = async function () {
+  if ('serviceWorker' in navigator) {
+    try {
+      const reg = await navigator.serviceWorker.getRegistration();
+      if (reg) {
+        await reg.update();
+        if (reg.waiting || reg.installing) {
+          showAppUpdateBanner('v2.6.0');
+          return;
+        }
+      }
+    } catch (e) {}
+  }
+  alert('✅ আপনার অ্যাপটি সম্পূর্ণ আপ-টু-ডেট (v2.6.0) রয়েছে! কোনো নতুন আপডেট পেন্ডিং নেই।');
+};
 
 // Attach Event Listeners on Page Ready
 document.addEventListener('DOMContentLoaded', () => {

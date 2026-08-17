@@ -347,12 +347,25 @@
           if (pinInput === expectedPin || pinInput === '1234' || (matchedSub && pinInput === '1234')) {
             localStorage.setItem('pos_session_logged_in', 'true');
             if (matchedSub) {
+              const owner = matchedSub.ownerName || matchedSub.storeOwner || savedSettings.storeOwner || '';
+              const phone = matchedSub.phone || matchedSub.storePhone || savedSettings.storePhone || '';
+              const email = matchedSub.email || matchedSub.storeEmail || savedSettings.storeEmail || '';
               savedSettings.storeName = matchedSub.storeName || savedSettings.storeName;
-              savedSettings.storeOwner = matchedSub.ownerName || savedSettings.storeOwner;
-              savedSettings.storePhone = matchedSub.phone || savedSettings.storePhone;
-              savedSettings.storeEmail = matchedSub.email || savedSettings.storeEmail;
+              savedSettings.storeOwner = owner;
+              savedSettings.ownerName = owner;
+              savedSettings.storePhone = phone;
+              savedSettings.phone = phone;
+              savedSettings.personalPhone = phone;
+              savedSettings.storeEmail = email;
+              savedSettings.email = email;
+              savedSettings.personalEmail = email;
               savedSettings.storeAddress = matchedSub.storeAddress || savedSettings.storeAddress;
               localStorage.setItem('pos_settings', JSON.stringify(savedSettings));
+              const activeStoreId = matchedSub.storeId || matchedSub.id || localStorage.getItem('pos_active_store_id');
+              if (activeStoreId) {
+                localStorage.setItem('pos_active_store_id', activeStoreId);
+                localStorage.setItem(`pos_tenant_${activeStoreId}_pos_settings`, JSON.stringify(savedSettings));
+              }
             }
             refreshPortalState();
             if (authModal) authModal.classList.remove('active');

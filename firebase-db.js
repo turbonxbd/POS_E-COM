@@ -199,7 +199,7 @@ class FirebasePOSSync {
     }
   }
 
-  // Listen to live Cloud changes via Firestore onSnapshot for active store
+  // Listen to live Cloud changes via Firestore onSnapshot for active store & global CMS
   initCloudSync() {
     if (!this.db || !this.storeId) return;
 
@@ -252,6 +252,60 @@ class FirebasePOSSync {
 
       this.unsubscribers.push(unsub);
     });
+
+    // Synchronize Super Admin CMS Pricing & Content in Realtime
+    try {
+      const cmsDocRef = this.db.collection('landing_cms').doc('content');
+      const cmsUnsub = cmsDocRef.onSnapshot(doc => {
+        if (doc.exists && doc.data()) {
+          const cloudCMS = doc.data();
+          const existingCMS = JSON.parse(localStorage.getItem('pos_landing_cms')) || {};
+          const mergedCMS = { ...existingCMS, ...cloudCMS };
+          localStorage.setItem('pos_landing_cms', JSON.stringify(mergedCMS));
+          window.dispatchEvent(new CustomEvent('pos_cms_cloud_update', { detail: mergedCMS }));
+        }
+      }, err => {
+        console.warn('[Firebase Cloud Listener Warning] landing_cms:', err);
+      });
+      this.unsubscribers.push(cmsUnsub);
+    } catch (e) {}
+
+    // Synchronize All Subscriptions in Realtime across Cashier, Merchant Admin, and Super Admin
+    try {
+      const activeStoreId = this.storeId || localStorage.getItem('pos_active_store_id');
+      const settings = JSON.parse(localStorage.getItem('pos_settings')) || {};
+
+      const subUnsub = this.db.collection('subscriptions').onSnapshot(snapshot => {
+        if (!snapshot.empty) {
+          let allSubs = JSON.parse(localStorage.getItem('pos_subscriptions')) || [];
+          snapshot.forEach(doc => {
+            const data = { id: doc.id, storeId: doc.id, ...doc.data() };
+            const idx = allSubs.findIndex(s => s.storeId === doc.id || s.id === doc.id);
+            if (idx !== -1) {
+              allSubs[idx] = { ...allSubs[idx], ...data };
+            } else {
+              allSubs.push(data);
+            }
+
+            // Check if this doc matches active merchant
+            if (doc.id === activeStoreId || doc.id === this.storeId || (settings.storeName && data.storeName === settings.storeName)) {
+              let activeSub = JSON.parse(localStorage.getItem('pos_subscription')) || {};
+              activeSub = { ...activeSub, ...data };
+              localStorage.setItem('pos_subscription', JSON.stringify(activeSub));
+            }
+          });
+          localStorage.setItem('pos_subscriptions', JSON.stringify(allSubs));
+          window.dispatchEvent(new Event('storage'));
+
+          if (window.location.pathname.includes('super-admin') && typeof window.loadSubscribers === 'function') {
+            window.loadSubscribers();
+          }
+        }
+      }, err => {
+        console.warn('[Firebase Cloud Listener Warning] subscriptions collection:', err);
+      });
+      this.unsubscribers.push(subUnsub);
+    } catch (e) {}
   }
 
   // Create automated cloud backup snapshot of current store data
@@ -281,14 +335,25 @@ class FirebasePOSSync {
   async initializeFreshStore(storeId, storeProfile) {
     if (!this.db) return;
 
+    const ownerName = storeProfile.ownerName || storeProfile.storeOwner || '';
+    const phone = storeProfile.phone || storeProfile.storePhone || storeProfile.senderPhone || '';
+    const email = storeProfile.email || storeProfile.storeEmail || '';
+    const storeAddress = storeProfile.storeAddress || 'Dhaka, Bangladesh';
+
     const freshSettings = {
       storeName: storeProfile.storeName || 'My New Shop',
-      ownerName: storeProfile.ownerName || '',
-      phone: storeProfile.phone || '',
-      email: storeProfile.email || '',
-      storeAddress: storeProfile.storeAddress || 'Dhaka, Bangladesh',
+      ownerName: ownerName,
+      storeOwner: ownerName,
+      phone: phone,
+      storePhone: phone,
+      personalPhone: phone,
+      email: email,
+      storeEmail: email,
+      personalEmail: email,
+      storeAddress: storeAddress,
       storeLogo: storeProfile.storeLogo || '',
       adminPin: storeProfile.adminPin || '1234',
+      receiptHeaderNote: `${storeAddress} | Mobile: ${phone}`,
       receiptFooterNote: storeProfile.receiptFooterNote || 'ধন্যবাদ! আবার আসবেন।',
       defaultTaxMode: 'percent',
       defaultTax: 0,
@@ -305,9 +370,24 @@ class FirebasePOSSync {
       pos_settings: freshSettings
     };
 
+    const fullProfile = {
+      ...storeProfile,
+      storeId,
+      ownerName,
+      phone,
+      email,
+      isFreshSignup: true
+    };
+
     // Save profile to master stores directory
     await this.db.collection('stores').doc(storeId).set({
-      profile: storeProfile,
+      profile: fullProfile,
+      storeId: storeId,
+      storeName: storeProfile.storeName,
+      ownerName: ownerName,
+      phone: phone,
+      email: email,
+      isFreshSignup: true,
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     }, { merge: true });
 
@@ -326,7 +406,7 @@ class FirebasePOSSync {
     
     this.storeId = storeId;
     this.keys.forEach(key => {
-      const val = JSON.stringify(freshDataMap[key] !== undefined ? freshDataMap[key] : []);
+      const val = JSON.stringify(freshDataMap[key] !== undefined ? freshDataMap[key] : (key === 'pos_settings' ? freshSettings : []));
       const tenantKey = this.getTenantStorageKey(key);
       localStorage.setItem(tenantKey, val);
       localStorage.setItem(key, val);

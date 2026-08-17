@@ -127,7 +127,7 @@ function formatRemainingTime(expiryDateIso) {
   }
 }
 
-// Load Subscribers Data from ALL sources (LocalStorage, Firestore /subscriptions, Firestore /stores)
+// Load Subscribers Data from ALL sources (Stores first, then LocalStorage, and Firestore /subscriptions LAST as ground truth)
 async function loadSubscribers() {
   const mergedMap = new Map();
 
@@ -148,6 +148,8 @@ async function loadSubscribers() {
       amountPaid: item.amountPaid || 150,
       requestedMonths: item.requestedMonths || 1,
       status: item.status || 'Active Paid',
+      subRequestStatus: item.subRequestStatus || undefined,
+      isRead: item.isRead === true,
       isTrial: item.isTrial !== false,
       accountBlocked: item.accountBlocked === true,
       accessBlocked: item.accessBlocked === true,
@@ -166,20 +168,58 @@ async function loadSubscribers() {
     }
   };
 
-  // 1. Load from LocalStorage pos_subscriptions array
-  let localSubs = JSON.parse(localStorage.getItem('pos_subscriptions'));
-  const isPurgedState = localStorage.getItem('pos_merchants_purged') === 'true';
+  if (window.POS_FIREBASE && window.POS_FIREBASE.db) {
+    // 1. Load from Cloud Firestore /stores collection FIRST to discover all merchant accounts
+    try {
+      const storesSnapshot = await window.POS_FIREBASE.db.collection('stores').get();
+      if (!storesSnapshot.empty) {
+        for (const doc of storesSnapshot.docs) {
+          const storeData = doc.data() || {};
+          const profile = storeData.profile || storeData;
+          try {
+            const settingsDoc = await window.POS_FIREBASE.db.collection('stores').doc(doc.id).collection('pos_data').doc('pos_settings').get();
+            const settings = settingsDoc.exists ? (settingsDoc.data().data || {}) : {};
 
-  if (Array.isArray(localSubs) && localSubs.length > 0) {
-    localSubs.forEach(addMerchantToMap);
-  }
+            const ownerName = settings.ownerName || settings.storeOwner || profile.ownerName || profile.storeOwner || storeData.ownerName || 'Merchant Owner';
+            const phone = settings.phone || settings.storePhone || settings.personalPhone || profile.phone || profile.storePhone || profile.senderPhone || storeData.phone || '';
+            const email = settings.email || settings.storeEmail || settings.personalEmail || profile.email || profile.storeEmail || storeData.email || '';
+            const storeAddress = settings.storeAddress || profile.storeAddress || storeData.storeAddress || 'Dhaka, Bangladesh';
 
-  // 2. Load from LocalStorage active pos_subscription if present and not purged
-  let activeSub = JSON.parse(localStorage.getItem('pos_subscription'));
-  if (activeSub && !isPurgedState) addMerchantToMap(activeSub);
+            addMerchantToMap({
+              storeId: doc.id,
+              id: doc.id,
+              ...profile,
+              ...storeData,
+              storeName: settings.storeName || profile.storeName || storeData.storeName || doc.id,
+              ownerName,
+              phone,
+              email,
+              storeAddress,
+              plan: profile.plan || storeData.plan || 'SmartPOS Counter + E-Commerce Combo',
+              setupFee: profile.setupFee || storeData.setupFee || 14999,
+              status: profile.status || storeData.status || 'Active Paid',
+              isFreshSignup: true
+            });
+          } catch (e) {
+            addMerchantToMap({ storeId: doc.id, id: doc.id, ...profile, ...storeData, isFreshSignup: true });
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Firestore /stores fetch warning:', err);
+    }
 
-  // 3. Load from Cloud Firestore /subscriptions collection if not purged
-  if (!isPurgedState && window.POS_FIREBASE && window.POS_FIREBASE.db) {
+    // 2. Merge from LocalStorage pos_subscriptions array
+    let localSubs = JSON.parse(localStorage.getItem('pos_subscriptions'));
+    if (Array.isArray(localSubs) && localSubs.length > 0) {
+      localSubs.forEach(addMerchantToMap);
+    }
+
+    // 3. Merge from LocalStorage active pos_subscription
+    let activeSub = JSON.parse(localStorage.getItem('pos_subscription'));
+    if (activeSub) addMerchantToMap(activeSub);
+
+    // 4. Load from Cloud Firestore /subscriptions collection LAST (Authoritative Ground Truth)
     try {
       const subSnapshot = await window.POS_FIREBASE.db.collection('subscriptions').get();
       if (!subSnapshot.empty) {
@@ -188,49 +228,13 @@ async function loadSubscribers() {
     } catch (err) {
       console.warn('Firestore /subscriptions fetch warning:', err);
     }
-
-    // 4. Load from Cloud Firestore /stores collection (All registered store accounts!)
-    try {
-      const storesSnapshot = await window.POS_FIREBASE.db.collection('stores').get();
-      if (!storesSnapshot.empty) {
-        for (const doc of storesSnapshot.docs) {
-          const storeData = doc.data() || {};
-          try {
-            const settingsDoc = await window.POS_FIREBASE.db.collection('stores').doc(doc.id).collection('pos_data').doc('pos_settings').get();
-            if (settingsDoc.exists) {
-              const settings = settingsDoc.data().data || {};
-              addMerchantToMap({
-                storeId: doc.id,
-                storeName: settings.storeName || storeData.storeName || doc.id,
-                ownerName: settings.ownerName || settings.storeOwner || 'Merchant Owner',
-                phone: settings.phone || settings.storePhone || '01700000000',
-                email: settings.email || settings.storeEmail || '',
-                storeAddress: settings.storeAddress || 'Dhaka, Bangladesh',
-                plan: storeData.plan || 'SmartPOS Counter + E-Commerce Combo',
-                setupFee: storeData.setupFee || 14999,
-                status: storeData.status || 'Active Paid'
-              });
-            } else {
-              addMerchantToMap({ storeId: doc.id, storeName: storeData.storeName || doc.id, ...storeData });
-            }
-          } catch (e) {
-            addMerchantToMap({ storeId: doc.id, storeName: storeData.storeName || doc.id, ...storeData });
-          }
-        }
-      }
-    } catch (err) {
-      console.warn('Firestore /stores fetch warning:', err);
-    }
   }
 
-  // Filter out any legacy test stores (hhhhhhhh, bbbbbbbb, gggggggg, etc.)
+  // Filter out mock test entries from legacy test runs
   const allLoaded = Array.from(mergedMap.values());
   let validStores = allLoaded.filter(item => {
     const isGuest = item.storeId === 'store_demo_101' || item.id === 'store_demo_101';
     if (isGuest) return true;
-
-    // Keep fresh signups created from now on
-    if (item.isFreshSignup) return true;
 
     // Filter out mock test entries from previous test runs
     const name = (item.storeName || '').toLowerCase();
@@ -239,8 +243,8 @@ async function loadSubscribers() {
       return false;
     }
 
-    // By default, purge all legacy pre-reset test stores unless specifically registered fresh
-    return false;
+    // Keep all legitimate store accounts
+    return true;
   });
 
   if (validStores.length === 0) {
@@ -269,7 +273,6 @@ async function loadSubscribers() {
 
   subscribersList = validStores;
   localStorage.setItem('pos_subscriptions', JSON.stringify(subscribersList));
-  localStorage.setItem('pos_merchants_purged', 'true');
 
   renderDashboardStats();
   renderSubscribersMasterTable();
@@ -333,49 +336,60 @@ function filterSubscribers(filterType) {
   renderSubscribersMasterTable();
 }
 
-// Render Master Merchant Directory Table (With separate Merchant Admin & Cashier POS Inspection Buttons)
+// Render Master Merchant Directory Table (With Active Duration & Direct +/- Days Edit Controls)
 function renderSubscribersMasterTable() {
   const masterBody = document.getElementById('subscribersMasterTableBody');
   const list = filteredSubscribers.length > 0 || activeSubFilter !== 'all' ? filteredSubscribers : subscribersList;
 
   if (!masterBody) return;
 
-  masterBody.innerHTML = list.map(s => `
-    <tr style="cursor: pointer;" onclick="openMerchantProfileModal('${s.storeId || s.id}')">
-      <td>
-        <strong style="font-size:0.95rem; color:#fff; display:block;">${s.storeName}</strong>
-        <small style="color:#94a3b8;"><i class="fa-solid fa-location-dot"></i> ${s.storeAddress || 'ঢাকা, বাংলাদেশ'}</small>
-      </td>
-      <td>
-        <strong style="color:#a855f7; display:block;">${s.ownerName}</strong>
-        <small style="color:#94a3b8;"><i class="fa-solid fa-phone"></i> ${s.phone}</small>
-      </td>
-      <td><span class="badge" style="background:rgba(59,130,246,0.15); color:#3b82f6; padding:2px 8px; border-radius:10px;">${s.plan || 'POS Counter + E-Commerce Combo'}</span></td>
-      <td>
-        <div>৳${toBnNum(s.amountPaid || 150)}/মাস</div>
-        ${s.trxId ? `<small style="color:#10b981; font-weight:700; font-family:monospace; display:block;">TrxID: ${s.trxId}</small>` : ''}
-      </td>
-      <td>
-        <span class="badge-status ${s.accountBlocked ? 'badge-suspended' : (s.isTrial ? 'badge-pending' : 'badge-active')}">${s.accountBlocked ? '⛔ অ্যাকাউন্ট ব্লকড' : s.status}</span>
-      </td>
-      <td onclick="event.stopPropagation();">
-        <div style="display:flex; gap:0.4rem; justify-content:center; flex-wrap:wrap;">
-          <button onclick="openMerchantProfileModal('${s.storeId || s.id}')" class="btn-submit" style="padding:0.35rem 0.55rem; font-size:0.75rem; background:linear-gradient(135deg, #a855f7, #7c3aed);" title="প্রোফাইল ডিটেইলস">
-            <i class="fa-solid fa-id-card"></i> প্রোফাইল
-          </button>
-          <button onclick="loginAsMerchant('${s.storeId || s.id}')" class="btn-submit" style="padding:0.35rem 0.55rem; font-size:0.75rem; background:linear-gradient(135deg, #3b82f6, #2563eb);" title="মার্চেন্ট এডমিন প্যানেলে ঢুকুন">
-            <i class="fa-solid fa-user-gear"></i> এডমিন
-          </button>
-          <button onclick="loginAsCashier('${s.storeId || s.id}')" class="btn-submit" style="padding:0.35rem 0.55rem; font-size:0.75rem; background:linear-gradient(135deg, #10b981, #059669);" title="ক্যাশিয়ার POS প্যানেলে ঢুকুন">
-            <i class="fa-solid fa-cash-register"></i> POS
-          </button>
-          <button onclick="toggleMerchantAccountBlock('${s.storeId || s.id}')" class="btn-submit" style="padding:0.35rem 0.55rem; font-size:0.75rem; background:${s.accountBlocked ? '#10b981' : '#e11d48'};" title="${s.accountBlocked ? 'অ্যাকাউন্ট আনব্লক' : 'অ্যাকাউন্ট ব্লক'}">
-            <i class="fa-solid ${s.accountBlocked ? 'fa-lock-open' : 'fa-lock'}"></i> ${s.accountBlocked ? 'আনব্লক' : 'ব্লক'}
-          </button>
-        </div>
-      </td>
-    </tr>
-  `).join('') || `<tr><td colspan="6" class="text-center p-3 text-muted">কোনো সাবস্ক্রাইবার মার্চেন্ট পাওয়া যায়নি</td></tr>`;
+  masterBody.innerHTML = list.map(s => {
+    const expiryIso = s.trialExpiresAt || new Date(Date.now() + 7 * 86400000).toISOString();
+    const timeInfo = formatRemainingTime(expiryIso);
+    const isStopped = s.accountBlocked === true || s.status === 'Stopped' || s.status === 'Suspended';
+
+    return `
+      <tr style="cursor: pointer;" onclick="openMerchantProfileModal('${s.storeId || s.id}')">
+        <td>
+          <strong style="font-size:0.95rem; color:#fff; display:block;">${s.storeName}</strong>
+          <small style="color:#94a3b8;"><i class="fa-solid fa-location-dot"></i> ${s.storeAddress || 'ঢাকা, বাংলাদেশ'}</small>
+        </td>
+        <td>
+          <strong style="color:#a855f7; display:block;">${s.ownerName}</strong>
+          <small style="color:#94a3b8;"><i class="fa-solid fa-phone"></i> ${s.phone}</small>
+        </td>
+        <td><span class="badge" style="background:rgba(59,130,246,0.15); color:#3b82f6; padding:2px 8px; border-radius:10px;">${s.plan || 'POS Counter + E-Commerce Combo'}</span></td>
+        <td>
+          <span style="font-weight: 700; color: ${timeInfo.expired ? '#ef4444' : '#10b981'}; display: block;">
+            <i class="fa-solid fa-hourglass-half"></i> ${timeInfo.text}
+          </span>
+          <small style="color: #64748b; font-size: 0.78rem;">শেষ তারিখ: ${new Date(expiryIso).toLocaleDateString('bn-BD')}</small>
+        </td>
+        <td>
+          <span class="badge-status ${isStopped ? 'badge-suspended' : (s.isTrial ? 'badge-pending' : 'badge-active')}">${isStopped ? '⛔ বন্ধ/স্থগিত' : s.status}</span>
+        </td>
+        <td onclick="event.stopPropagation();">
+          <div style="display:flex; gap:0.4rem; justify-content:center; flex-wrap:wrap;">
+            <button onclick="openMerchantProfileModal('${s.storeId || s.id}')" class="btn-submit" style="padding:0.35rem 0.55rem; font-size:0.75rem; background:linear-gradient(135deg, #a855f7, #7c3aed);" title="প্রোফাইল ডিটেইলস">
+              <i class="fa-solid fa-id-card"></i> প্রোফাইল
+            </button>
+            <button onclick="extendMerchantSubscription('${s.storeId || s.id}')" class="btn-submit" style="padding:0.35rem 0.55rem; font-size:0.75rem; background:#8b5cf6;" title="সাবস্ক্রিপশন মেয়াদ দিন বাড়ান বা কমান (+/-)">
+              <i class="fa-solid fa-calendar-plus"></i> মেয়াদ +/-
+            </button>
+            <button onclick="loginAsMerchant('${s.storeId || s.id}')" class="btn-submit" style="padding:0.35rem 0.55rem; font-size:0.75rem; background:linear-gradient(135deg, #3b82f6, #2563eb);" title="মার্চেন্ট এডমিন প্যানেলে ঢুকুন">
+              <i class="fa-solid fa-user-gear"></i> এডমিন
+            </button>
+            <button onclick="loginAsCashier('${s.storeId || s.id}')" class="btn-submit" style="padding:0.35rem 0.55rem; font-size:0.75rem; background:linear-gradient(135deg, #10b981, #059669);" title="ক্যাশিয়ার POS প্যানেলে ঢুকুন">
+              <i class="fa-solid fa-cash-register"></i> POS
+            </button>
+            <button onclick="toggleMonthlySubscriptionStatus('${s.storeId || s.id}')" class="btn-submit" style="padding:0.35rem 0.55rem; font-size:0.75rem; background:${isStopped ? '#10b981' : '#e11d48'};" title="${isStopped ? 'অ্যাকাউন্ট চালু' : 'অ্যাকাউন্ট বন্ধ'}">
+              <i class="fa-solid ${isStopped ? 'fa-play' : 'fa-pause'}"></i> ${isStopped ? 'চালু' : 'বন্ধ'}
+            </button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('') || `<tr><td colspan="6" class="text-center p-3 text-muted">কোনো সাবস্ক্রাইবার মার্চেন্ট পাওয়া যায়নি</td></tr>`;
 }
 
 // Render Dedicated Access Setup Fees Table (Tab 3 - With Access Block vs Approve)
@@ -408,39 +422,124 @@ function renderAccessFeesTable() {
   `).join('');
 }
 
-// Render Dedicated Monthly Recurring Subscriptions Table (Tab 4 - With Requested Months & Verification Actions)
+// Mark subscription request as read/reviewed by Super Admin
+function markSubscriptionAsRead(storeId) {
+  const sub = subscribersList.find(s => s.storeId === storeId || s.id === storeId);
+  if (!sub) return;
+
+  if (sub.isRead !== true) {
+    sub.isRead = true;
+    localStorage.setItem('pos_subscriptions', JSON.stringify(subscribersList));
+    if (window.POS_FIREBASE && window.POS_FIREBASE.db) {
+      try {
+        window.POS_FIREBASE.db.collection('subscriptions').doc(storeId).set({ isRead: true }, { merge: true });
+      } catch (e) {}
+    }
+    renderPendingSubscriptionsTable();
+  }
+}
+
+// Render Dedicated Monthly Recurring Subscriptions Table (Tab 4 - Full Subscriber List & Verification Actions)
 function renderPendingSubscriptionsTable() {
   const body = document.getElementById('pendingSubscriptionsTableBody');
   if (!body) return;
 
-  const pendingList = subscribersList.filter(s => s.trxId || s.status === 'Active Paid (Pending Verification)' || s.isTrial);
+  // Update Sidebar Unread Badge Counter
+  const unreadCount = subscribersList.filter(s => s.trxId && s.isRead !== true).length;
+  const unreadBadgeEl = document.getElementById('tab4UnreadBadge');
+  if (unreadBadgeEl) {
+    if (unreadCount > 0) {
+      unreadBadgeEl.textContent = unreadCount;
+      unreadBadgeEl.style.display = 'inline-block';
+    } else {
+      unreadBadgeEl.style.display = 'none';
+    }
+  }
 
-  body.innerHTML = pendingList.map(s => `
-    <tr>
-      <td><strong>${s.storeName}</strong></td>
-      <td>${s.ownerName} (${s.phone})</td>
-      <td><strong style="color:#a855f7;">${toBnNum(s.requestedMonths || 1)} মাস</strong> (${toBnNum(s.amountPaid || 150)} ৳)</td>
-      <td>
-        <strong style="color:#10b981; font-family:monospace; display:block;">TrxID: ${s.trxId || 'N/A'}</strong>
-        <small style="color:#94a3b8;">Sender: ${s.senderPhone || s.phone}</small>
-      </td>
-      <td>${s.submittedAt ? new Date(s.submittedAt).toLocaleTimeString('bn-BD') : 'আজকে'}</td>
-      <td style="text-align: center;">
-        <div style="display:flex; gap:0.4rem; justify-content:center;">
-          <button onclick="approveMerchantSubscription('${s.storeId || s.id}')" class="btn-submit" style="padding:0.35rem 0.75rem; font-size:0.8rem; background:#10b981;">
-            <i class="fa-solid fa-check"></i> অনুমোদন দিন
-          </button>
-          <button onclick="rejectMerchantSubscription('${s.storeId || s.id}')" class="btn-submit" style="padding:0.35rem 0.75rem; font-size:0.8rem; background:#e11d48;">
-            <i class="fa-solid fa-xmark"></i> বাতিল ও দিন মাইনাস
-          </button>
-        </div>
-      </td>
-    </tr>
-  `).join('') || `<tr><td colspan="6" class="text-center p-3 text-muted">কোনো পেন্ডিং রিনিউ আবেদন পাওয়া যায়নি</td></tr>`;
+  body.innerHTML = subscribersList.map(s => {
+    const expiryIso = s.trialExpiresAt || new Date(Date.now() + 7 * 86400000).toISOString();
+    const timeInfo = formatRemainingTime(expiryIso);
+    const hasPendingReq = !!(s.trxId || s.requestedMonths);
+    const isUnread = s.trxId && s.isRead !== true;
+    const isStopped = s.accountBlocked === true || s.status === 'Stopped' || s.status === 'Suspended';
+    const reqStatus = s.subRequestStatus; // 'Approved', 'Rejected', or undefined
+
+    let statusBadgeHTML = `<span class="badge-status badge-active">🟢 সক্রিয়</span>`;
+    if (isStopped) {
+      statusBadgeHTML = `<span class="badge-status badge-suspended">⛔ সাবস্ক্রিপশন বন্ধ</span>`;
+    } else if (reqStatus === 'Approved') {
+      statusBadgeHTML = `<span class="badge" style="background:rgba(16,185,129,0.2); color:#10b981; border:1px solid #10b981; font-weight:700; padding:3px 8px; border-radius:12px;"><i class="fa-solid fa-circle-check"></i> 🟢 অনুমোদিত (Approved)</span>`;
+    } else if (reqStatus === 'Rejected') {
+      statusBadgeHTML = `<span class="badge" style="background:rgba(225,29,72,0.2); color:#e11d48; border:1px solid #e11d48; font-weight:700; padding:3px 8px; border-radius:12px;"><i class="fa-solid fa-circle-xmark"></i> 🔴 বাতিল করা হয়েছে (Rejected)</span>`;
+    } else if (hasPendingReq) {
+      statusBadgeHTML = `<span class="badge-status badge-pending">🟡 আবেদন পেন্ডিং</span>`;
+    }
+
+    return `
+      <tr style="${isUnread ? 'background: rgba(239, 68, 68, 0.12); border-left: 4px solid #ef4444;' : (hasPendingReq ? 'background: rgba(168, 85, 247, 0.08); border-left: 4px solid #a855f7;' : '')}" onclick="markSubscriptionAsRead('${s.storeId || s.id}')">
+        <td>
+          <div style="display:flex; align-items:center; gap:6px;">
+            ${isUnread ? `
+              <span class="badge" style="background:#ef4444; color:#fff; font-size:0.72rem; padding:2px 8px; border-radius:12px; font-weight:700; display:inline-flex; align-items:center; gap:4px; box-shadow:0 0 10px rgba(239,68,68,0.5);">
+                <i class="fa-solid fa-bell"></i> 🔴 NEW
+              </span>
+            ` : ''}
+            <strong style="font-size: 0.98rem; color: var(--text-color);">${s.storeName}</strong>
+          </div>
+          <small style="color: #94a3b8;">👤 ${s.ownerName} (${s.phone})</small>
+        </td>
+        <td>
+          <span style="font-weight: 700; color: ${timeInfo.expired ? '#ef4444' : '#10b981'}; display: block;">
+            <i class="fa-solid fa-hourglass-half"></i> ${timeInfo.text}
+          </span>
+          <small style="color: #64748b; font-size: 0.78rem;">মেয়াদ শেষ: ${new Date(expiryIso).toLocaleDateString('bn-BD')}</small>
+        </td>
+        <td>
+          ${hasPendingReq ? `
+            <strong style="color:#a855f7; display:block;"><i class="fa-solid fa-gem"></i> ${toBnNum(s.requestedMonths || 1)} মাস</strong>
+            <small style="color:#10b981; font-weight:700;">৳${toBnNum(s.amountPaid || 150)} BDT</small>
+          ` : `<span class="text-muted" style="font-size:0.85rem;">কোনো পেন্ডিং আবেদন নেই</span>`}
+        </td>
+        <td>
+          ${s.trxId ? `
+            <span class="badge" style="background:rgba(59,130,246,0.15); color:#3b82f6; font-size:0.75rem; margin-bottom:2px; display:inline-block;">
+              ${s.paymentMethod || 'bKash Send Money'}
+            </span>
+            <strong style="color:#10b981; font-family:monospace; display:block; font-size:0.92rem;">TrxID: ${s.trxId}</strong>
+            <small style="color:#94a3b8;">প্রেরক: ${s.senderPhone || s.phone}</small>
+          ` : `<span class="text-muted" style="font-size:0.85rem;">-</span>`}
+        </td>
+        <td>
+          ${statusBadgeHTML}
+        </td>
+        <td style="text-align: center;" onclick="event.stopPropagation();">
+          <div style="display:flex; gap:0.4rem; justify-content:center; flex-wrap:wrap;">
+            <button onclick="markSubscriptionAsRead('${s.storeId || s.id}'); openMerchantProfileModal('${s.storeId || s.id}')" class="btn-submit" style="padding:0.35rem 0.6rem; font-size:0.78rem; background:#3b82f6;" title="বিস্তারিত ও রিভিউ">
+              <i class="fa-solid fa-eye"></i> রিভিউ
+            </button>
+
+            ${hasPendingReq ? `
+              <button onclick="approveMerchantSubscription('${s.storeId || s.id}')" class="btn-submit" style="padding:0.35rem 0.65rem; font-size:0.78rem; background:#10b981;" title="সাবস্ক্রিপশন রিকোয়েস্ট অনুমোদন করুন">
+                <i class="fa-solid fa-check"></i> অনুমোদন
+              </button>
+              <button onclick="rejectMerchantSubscription('${s.storeId || s.id}')" class="btn-submit" style="padding:0.35rem 0.65rem; font-size:0.78rem; background:#e11d48;" title="ভুয়া TrxID রিকোয়েস্ট বাতিল করুন">
+                <i class="fa-solid fa-xmark"></i> বাতিল
+              </button>
+            ` : ''}
+
+            <button onclick="toggleMonthlySubscriptionStatus('${s.storeId || s.id}')" class="btn-submit" style="padding:0.35rem 0.65rem; font-size:0.78rem; background:${isStopped ? '#10b981' : '#f59e0b'};" title="সাবস্ক্রিপশন বন্ধ বা চালু করুন">
+              <i class="fa-solid ${isStopped ? 'fa-play' : 'fa-pause'}"></i> ${isStopped ? 'চালু' : 'বন্ধ'}
+            </button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('') || `<tr><td colspan="6" class="text-center p-3 text-muted">কোনো মার্চেন্ট অ্যাকাউন্ট পাওয়া যায়নি</td></tr>`;
 }
 
 // Open Clickable Merchant Profile Modal with Deep-Dive Details
 function openMerchantProfileModal(storeId) {
+  markSubscriptionAsRead(storeId);
   const sub = subscribersList.find(s => s.storeId === storeId || s.id === storeId);
   if (!sub) return;
 
@@ -449,12 +548,13 @@ function openMerchantProfileModal(storeId) {
 
   const expiryIso = sub.trialExpiresAt || new Date(Date.now() + 7 * 86400000).toISOString();
   const timeInfo = formatRemainingTime(expiryIso);
+  const isStopped = sub.accountBlocked === true || sub.status === 'Stopped' || sub.status === 'Suspended';
 
   container.innerHTML = `
     <!-- PROFILE HEADER CARD -->
     <div style="background: linear-gradient(135deg, rgba(168, 85, 247, 0.15), rgba(59, 130, 246, 0.1)); border: 1px solid rgba(168, 85, 247, 0.3); border-radius: 18px; padding: 1.25rem; margin-bottom: 1.25rem;">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-        <span class="badge-status ${sub.accountBlocked ? 'badge-suspended' : (sub.isTrial ? 'badge-pending' : 'badge-active')}">${sub.accountBlocked ? '⛔ অ্যাকাউন্ট ব্লকড' : sub.status}</span>
+        <span class="badge-status ${isStopped ? 'badge-suspended' : (sub.trxId ? 'badge-pending' : 'badge-active')}">${isStopped ? '🔴 বন্ধ/স্থগিত' : sub.status}</span>
         <small style="color: #94a3b8;">Store ID: <code>${sub.storeId || storeId}</code></small>
       </div>
       <h3 style="color: #fff; font-size: 1.3rem; margin-bottom: 0.2rem;">${sub.storeName}</h3>
@@ -470,6 +570,29 @@ function openMerchantProfileModal(storeId) {
       <div style="font-size: 2rem; color: #10b981;"><i class="fa-solid fa-hourglass-half"></i></div>
     </div>
 
+    <!-- PENDING RENEWAL REQUEST HIGHLIGHT IF PRESENT -->
+    ${sub.trxId ? `
+      <div style="background: rgba(168, 85, 247, 0.15); border: 2px solid #a855f7; border-radius: 14px; padding: 1rem; margin-bottom: 1.25rem;">
+        <strong style="color: #a855f7; font-size: 1.05rem; display: block; margin-bottom: 0.4rem;">
+          <i class="fa-solid fa-bell"></i> নতুন সাবস্ক্রিপশন রিন্যুয়াল আবেদন (Pending Verification)
+        </strong>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.9rem; color: #fff;">
+          <div>মেয়াদ: <strong style="color:#a855f7;">${toBnNum(sub.requestedMonths || 1)} মাস (৳${toBnNum(sub.amountPaid || 150)})</strong></div>
+          <div>মেথড: <strong>${sub.paymentMethod || 'bKash Send Money'}</strong></div>
+          <div>TrxID: <strong style="color:#10b981; font-family:monospace;">${sub.trxId}</strong></div>
+          <div>প্রেরক ফোন: <strong>${sub.senderPhone || sub.phone}</strong></div>
+        </div>
+        <div style="display: flex; gap: 10px; margin-top: 0.85rem;">
+          <button onclick="approveMerchantSubscription('${sub.storeId || storeId}')" class="btn-submit" style="background: #10b981; flex: 1;">
+            <i class="fa-solid fa-check"></i> এই পেমেন্ট অনুমোদন দিন
+          </button>
+          <button onclick="rejectMerchantSubscription('${sub.storeId || storeId}')" class="btn-submit" style="background: #e11d48; flex: 1;">
+            <i class="fa-solid fa-xmark"></i> ভুয়া TrxID বাতিল করুন
+          </button>
+        </div>
+      </div>
+    ` : ''}
+
     <!-- DETAILS GRID -->
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.25rem; font-size: 0.9rem;">
       <div style="background: rgba(30,41,59,0.5); padding: 1rem; border-radius: 12px; border: 1px solid var(--border-color);">
@@ -482,7 +605,7 @@ function openMerchantProfileModal(storeId) {
       <div style="background: rgba(30,41,59,0.5); padding: 1rem; border-radius: 12px; border: 1px solid var(--border-color);">
         <strong style="color: #3b82f6; display: block; margin-bottom: 0.5rem;"><i class="fa-solid fa-building"></i> বিজনেস ও পেমেন্ট তথ্য</strong>
         <div>এক্সেস সেটআপ ফি: <strong style="color:#10b981;">৳${toBnNum(sub.setupFee || 14999)}</strong></div>
-        <div>মাসিক ফি: <strong>৳${toBnNum(sub.amountPaid || 150)}/মাস (${toBnNum(sub.requestedMonths || 1)} মাস)</strong></div>
+        <div>সর্বশেষ প্যাকেজ: <strong>${toBnNum(sub.requestedMonths || 1)} মাস</strong></div>
         <div>TrxID: <strong style="color:#10b981; font-family:monospace;">${sub.trxId || 'N/A'}</strong></div>
       </div>
     </div>
@@ -496,10 +619,10 @@ function openMerchantProfileModal(storeId) {
         <i class="fa-solid fa-cash-register"></i> POS
       </button>
       <button onclick="extendMerchantSubscription('${sub.storeId || storeId}')" class="btn-submit" style="background: #8b5cf6; flex: 1;">
-        <i class="fa-solid fa-calendar-plus"></i> মেয়াদ বাড়ান
+        <i class="fa-solid fa-calendar-plus"></i> দিন বাড়ান/কমান (+/-)
       </button>
-      <button onclick="toggleMerchantAccountBlock('${sub.storeId || storeId}')" class="btn-submit" style="background: ${sub.accountBlocked ? '#10b981' : '#e11d48'}; flex: 1;">
-        <i class="fa-solid ${sub.accountBlocked ? 'fa-lock-open' : 'fa-lock'}"></i> ${sub.accountBlocked ? 'আনব্লক' : 'ব্লক'}
+      <button onclick="toggleMonthlySubscriptionStatus('${sub.storeId || storeId}')" class="btn-submit" style="background: ${isStopped ? '#10b981' : '#e11d48'}; flex: 1;">
+        <i class="fa-solid ${isStopped ? 'fa-play' : 'fa-pause'}"></i> ${isStopped ? 'সাবস্ক্রিপশন চালু' : 'সাবস্ক্রিপশন বন্ধ'}
       </button>
       <button onclick="deleteMerchantAccount('${sub.storeId || storeId}')" class="btn-submit" style="background: rgba(239,68,68,0.2); border: 1px solid #ef4444; color: #ef4444;">
         <i class="fa-solid fa-trash"></i>
@@ -515,82 +638,115 @@ function closeMerchantProfileModal() {
   if (modal) modal.style.display = 'none';
 }
 
-// Approve Monthly Subscription Request
+// Centralized Subscriber Sync Helper: updates pos_subscriptions array, pos_subscription singular key, and Firestore collections
+function saveAndSyncSubscriberState(storeId, sub) {
+  if (!sub) return;
+  const targetId = storeId || sub.storeId || sub.id;
+
+  const idx = subscribersList.findIndex(s => s.storeId === targetId || s.id === targetId);
+  if (idx !== -1) {
+    subscribersList[idx] = { ...subscribersList[idx], ...sub };
+  } else {
+    subscribersList.push(sub);
+  }
+  localStorage.setItem('pos_subscriptions', JSON.stringify(subscribersList));
+
+  const activeStoreId = localStorage.getItem('pos_active_store_id');
+  if (activeStoreId === targetId || !activeStoreId) {
+    let activeSub = JSON.parse(localStorage.getItem('pos_subscription')) || {};
+    activeSub = { ...activeSub, ...sub };
+    localStorage.setItem('pos_subscription', JSON.stringify(activeSub));
+  }
+
+  if (window.POS_FIREBASE && window.POS_FIREBASE.db) {
+    try {
+      window.POS_FIREBASE.db.collection('subscriptions').doc(targetId).set(sub, { merge: true });
+      window.POS_FIREBASE.db.collection('stores').doc(targetId).set({ profile: sub }, { merge: true });
+    } catch (e) {
+      console.warn('[Cloud Sync Warning]:', e);
+    }
+  }
+
+  window.dispatchEvent(new Event('storage'));
+}
+
+// Approve Monthly Subscription Request & Extend Exact Requested Duration
 function approveMerchantSubscription(storeId) {
   const sub = subscribersList.find(s => s.storeId === storeId || s.id === storeId);
   if (!sub) return;
 
+  const reqMonths = parseInt(sub.requestedMonths) || 1;
+  let addDays = 30;
+  if (reqMonths === 6) addDays = 180;
+  else if (reqMonths === 12) addDays = 365;
+  else addDays = reqMonths * 30;
+
+  const currentExpiry = sub.trialExpiresAt ? new Date(sub.trialExpiresAt) : new Date();
+  const baseDate = currentExpiry > new Date() ? currentExpiry : new Date();
+  baseDate.setDate(baseDate.getDate() + addDays);
+
+  sub.trialExpiresAt = baseDate.toISOString();
   sub.status = 'Active Paid';
+  sub.subRequestStatus = 'Approved';
+  sub.isRead = true;
   sub.isTrial = false;
   sub.accountBlocked = false;
+  sub.accessBlocked = false;
+  sub.trxId = '';
 
-  localStorage.setItem('pos_subscriptions', JSON.stringify(subscribersList));
+  saveAndSyncSubscriberState(storeId, sub);
 
-  if (window.POS_FIREBASE && window.POS_FIREBASE.db) {
-    window.POS_FIREBASE.db.collection('subscriptions').doc(storeId).set(sub, { merge: true });
-  }
-
-  alert(`✅ '${sub.storeName}' এর সাবস্ক্রিপশন সফলভাবে অনুমোদন করা হয়েছে!`);
+  alert(`✅ '${sub.storeName}' এর ${toBnNum(reqMonths)} মাসের সাবস্ক্রিপশন সফলভাবে অনুমোদন করা হয়েছে!\n\nনতুন শেষ মেয়াদ: ${baseDate.toLocaleDateString('bn-BD')}`);
   loadSubscribers();
   renderPendingSubscriptionsTable();
+  closeMerchantProfileModal();
 }
 
-// Reject Monthly Subscription Request & DEDUCT Exact Duration (30 Days for 1m, 180 Days for 6m, 365 Days for 12m)
+// Reject Fake TrxID Monthly Subscription Request Without Adding Extra Days (Retains Existing Valid Days)
 function rejectMerchantSubscription(storeId) {
   const sub = subscribersList.find(s => s.storeId === storeId || s.id === storeId);
   if (!sub) return;
 
   const reqMonths = parseInt(sub.requestedMonths) || 1;
-  let deductDays = 30;
-  if (reqMonths === 6) deductDays = 180;
-  else if (reqMonths === 12) deductDays = 365;
-  else deductDays = reqMonths * 30;
 
-  if (confirm(`⚠️ ট্রানজ্যাকশন আইডি ভুল/ভুয়া চিহ্নিত করে '${sub.storeName}' এর ${toBnNum(reqMonths)} মাসের সাবস্ক্রিপশন বাতিল করতে চান?\n\nএটি মার্চেন্টের অ্যাকাউন্ট থেকে সর্বমোট ${deductDays} দিন মেয়াদী সাবস্ক্রিপশন মাইনাস (Deduct) করবে!`)) {
-    const currentExpiry = sub.trialExpiresAt ? new Date(sub.trialExpiresAt) : new Date();
-    currentExpiry.setDate(currentExpiry.getDate() - deductDays);
-
-    sub.trialExpiresAt = currentExpiry.toISOString();
-    sub.status = 'Suspended (Transaction Rejected)';
+  if (confirm(`⚠️ পেমেন্ট না আসায়/ভুয়া TrxID প্রদান করায় '${sub.storeName}' এর ${toBnNum(reqMonths)} মাসের সাবস্ক্রিপশন আবেদনটি বাতিল করতে চান?\n\nআবেদনটি বাতিল করলে নতুন কোনো দিন যোগ হবে না। মার্চেন্টের আগের অবশিষ্ট মেয়াদের সময় বজায় থাকবে।`)) {
     sub.trxId = '';
+    sub.subRequestStatus = 'Rejected';
+    sub.isRead = true;
 
-    localStorage.setItem('pos_subscriptions', JSON.stringify(subscribersList));
-
-    if (window.POS_FIREBASE && window.POS_FIREBASE.db) {
-      try {
-        window.POS_FIREBASE.db.collection('subscriptions').doc(storeId).set(sub, { merge: true });
-      } catch (err) {}
+    const currentExpiry = sub.trialExpiresAt ? new Date(sub.trialExpiresAt) : new Date(0);
+    if (currentExpiry > new Date()) {
+      sub.status = 'Active Paid';
+    } else {
+      sub.status = 'Expired';
     }
 
-    alert(`🔴 '${sub.storeName}' এর ${toBnNum(reqMonths)} মাসের সাবস্ক্রিপশন বাতিল করা হয়েছে এবং অ্যাকাউন্ট থেকে ${toBnNum(deductDays)} দিন মাইনাস করা হয়েছে!`);
+    saveAndSyncSubscriberState(storeId, sub);
+
+    alert(`🔴 '${sub.storeName}' এর রিনিউ আবেদনটি সফলভাবে বাতিল করা হয়েছে! মার্চেন্টের আগের অবশিষ্ট মেয়াদ বহাল রয়েছে।`);
     loadSubscribers();
     renderPendingSubscriptionsTable();
     closeMerchantProfileModal();
   }
 }
 
-// Block / Unblock Full Merchant Account (From All Merchants)
-function toggleMerchantAccountBlock(storeId) {
+// Toggle Merchant Subscription Stop / Resume Status
+function toggleMonthlySubscriptionStatus(storeId) {
   const sub = subscribersList.find(s => s.storeId === storeId || s.id === storeId);
   if (!sub) return;
 
-  const willBlock = !sub.accountBlocked;
-  const actionText = willBlock ? 'ব্লক ও অ্যাকাউন্ট স্থগিত' : 'আনব্লক ও অ্যাকাউন্ট পুনরুজ্জীবিত';
+  const isStopped = sub.accountBlocked === true || sub.status === 'Stopped' || sub.status === 'Suspended';
+  const newStatus = isStopped ? 'Active Paid' : 'Stopped';
 
-  if (confirm(`'${sub.storeName}' অ্যাকাউন্টটি ${actionText} করতে চান?`)) {
-    sub.accountBlocked = willBlock;
-    sub.status = willBlock ? 'Suspended' : 'Active Paid';
+  if (confirm(`'${sub.storeName}' এর সাবস্ক্রিপশন ${isStopped ? 'চালু ও পুনরুজ্জীবিত' : 'বন্ধ ও স্থগিত'} করতে চান?`)) {
+    sub.accountBlocked = !isStopped;
+    sub.status = newStatus;
 
-    localStorage.setItem('pos_subscriptions', JSON.stringify(subscribersList));
+    saveAndSyncSubscriberState(storeId, sub);
 
-    if (window.POS_FIREBASE && window.POS_FIREBASE.db) {
-      try {
-        window.POS_FIREBASE.db.collection('subscriptions').doc(storeId).set(sub, { merge: true });
-      } catch (err) {}
-    }
-
-    alert(`🎉 '${sub.storeName}' অ্যাকাউন্টটি সফলভাবে ${willBlock ? 'ব্লক' : 'আনব্লক'} করা হয়েছে!`);
+    alert(`🎉 '${sub.storeName}' এর সাবস্ক্রিপশন ${isStopped ? 'সফলভাবে চালু করা হয়েছে' : 'বন্ধ করা হয়েছে'}!`);
     loadSubscribers();
+    renderPendingSubscriptionsTable();
     closeMerchantProfileModal();
   }
 }
@@ -684,6 +840,7 @@ function populateCMSForms() {
   if (document.getElementById('cmsNagadNumber')) document.getElementById('cmsNagadNumber').value = currentCMS.nagadNumber || '01800000000';
   if (document.getElementById('cmsRocketNumber')) document.getElementById('cmsRocketNumber').value = currentCMS.rocketNumber || '01900000000-7';
   if (document.getElementById('cmsBankDetails')) document.getElementById('cmsBankDetails').value = currentCMS.bankDetails || 'Dutch Bangla Bank - A/C: 123456789 - Branch: Gulshan';
+  if (document.getElementById('cmsWhatsappNumber')) document.getElementById('cmsWhatsappNumber').value = currentCMS.whatsappNumber || '8801700000000';
   if (document.getElementById('cmsPushNotificationMsg')) document.getElementById('cmsPushNotificationMsg').value = currentCMS.pushNotificationMsg || 'আপনার স্টোরের সাবস্ক্রিপশনের মেয়াদের সময় প্রায় শেষ! নিরবচ্ছিন্ন সেবা পেতে এখনই রিনিউ করুন।';
 
   const gw = currentCMS.gateways || { bkash: true, nagad: true, rocket: false, bank: false };
@@ -751,6 +908,7 @@ function initCMSForms() {
     currentCMS.nagadNumber = document.getElementById('cmsNagadNumber')?.value.trim() || '01800000000';
     currentCMS.rocketNumber = document.getElementById('cmsRocketNumber')?.value.trim() || '01900000000-7';
     currentCMS.bankDetails = document.getElementById('cmsBankDetails')?.value.trim() || 'Dutch Bangla Bank - A/C: 123456789 - Branch: Gulshan';
+    currentCMS.whatsappNumber = document.getElementById('cmsWhatsappNumber')?.value.trim() || '8801700000000';
     currentCMS.pushNotificationMsg = document.getElementById('cmsPushNotificationMsg')?.value.trim() || 'আপনার স্টোরের সাবস্ক্রিপশনের মেয়াদের সময় প্রায় শেষ! নিরবচ্ছিন্ন সেবা পেতে এখনই রিনিউ করুন।';
 
     saveCMSDataToCloud();
@@ -770,6 +928,18 @@ function initCMSForms() {
     } catch (e) {}
 
     alert('📢 সকল সক্রিয় মার্চেন্ট ও ক্যাশিয়ার টার্মিনালে সাবস্ক্রিপশন পুশ নোটিফিকেশন পাঠানো হয়েছে!');
+  });
+
+  document.getElementById('btnPublishAppUpdate')?.addEventListener('click', () => {
+    currentCMS.appVersion = 'v2.6.0';
+    saveCMSDataToCloud();
+
+    try {
+      const bc = new BroadcastChannel('pos_app_update_channel');
+      bc.postMessage({ type: 'APP_UPDATE_PUBLISHED', version: 'v2.6.0' });
+    } catch (e) {}
+
+    alert('🚀 সকল মার্চেন্ট ও ক্যাশিয়ার অ্যাপে নতুন অ্যাপ আপডেট সিগন্যাল প্রকাশ করা হয়েছে! ইউজারের ইনস্টল করা অ্যাপে "🚀 নতুন আপডেট পাওয়া গেছে!" পপআপ ব্যানার দেখা যাবে।');
   });
 }
 
@@ -825,32 +995,35 @@ function loginAsCashier(storeId) {
   window.open('cashier.html', '_blank');
 }
 
-// Extend Merchant Subscription
+// Extend or Reduce Merchant Subscription Duration (+/- Days)
 function extendMerchantSubscription(storeId) {
   const sub = subscribersList.find(s => s.storeId === storeId || s.id === storeId);
   if (!sub) return;
 
-  const daysStr = prompt(`'${sub.storeName}' এর সাবস্ক্রিপশন কত দিন বাড়াতে চান?`, "30");
+  const currentExpiry = sub.trialExpiresAt ? new Date(sub.trialExpiresAt) : new Date();
+  const daysStr = prompt(`'${sub.storeName}' এর সাবস্ক্রিপশন কত দিন বাড়াতে (+) বা কমাতে (-) চান?\n\n(উদাহরণ: 30 লিখলে ৩০ দিন বাড়বে, -15 লিখলে ১৫ দিন কমবে)`, "30");
   if (!daysStr) return;
 
-  const addDays = parseInt(daysStr) || 30;
-
-  const currentExpiry = sub.trialExpiresAt ? new Date(sub.trialExpiresAt) : new Date();
-  const baseDate = currentExpiry > new Date() ? currentExpiry : new Date();
-  baseDate.setDate(baseDate.getDate() + addDays);
-
-  sub.trialExpiresAt = baseDate.toISOString();
-  sub.isTrial = false;
-  sub.status = 'Active Paid';
-  sub.accountBlocked = false;
-
-  localStorage.setItem('pos_subscriptions', JSON.stringify(subscribersList));
-
-  if (window.POS_FIREBASE && window.POS_FIREBASE.db) {
-    window.POS_FIREBASE.db.collection('subscriptions').doc(storeId).set(sub, { merge: true });
+  const deltaDays = parseInt(daysStr);
+  if (isNaN(deltaDays)) {
+    alert('অনুগ্রহ করে সঠিক সংখ্যা লিখুন (যেমন: 30 বা -15)');
+    return;
   }
 
-  alert(`🎉 '${sub.storeName}' এর সাবস্ক্রিপশন মেয়াদ ${addDays} দিন বাড়ানো হয়েছে!`);
+  currentExpiry.setDate(currentExpiry.getDate() + deltaDays);
+  sub.trialExpiresAt = currentExpiry.toISOString();
+
+  if (currentExpiry > new Date()) {
+    sub.status = 'Active Paid';
+    sub.accountBlocked = false;
+    sub.accessBlocked = false;
+  } else {
+    sub.status = 'Expired';
+  }
+
+  saveAndSyncSubscriberState(storeId, sub);
+
+  alert(`🎉 '${sub.storeName}' এর মেয়াদের সময় সফলভাবে ${deltaDays >= 0 ? `${deltaDays} দিন বাড়ানো` : `${Math.abs(deltaDays)} দিন কমানো`} হয়েছে!\n\nনতুন শেষ মেয়াদ: ${currentExpiry.toLocaleDateString('bn-BD')}`);
   loadSubscribers();
   closeMerchantProfileModal();
 }

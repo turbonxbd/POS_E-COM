@@ -80,7 +80,7 @@
     const r = cms.rates;
 
     const modalHTML = `
-      <div class="modal notranslate" id="subscriptionRenewModal" translate="no" style="font-family: 'Hind Siliguri', 'Inter', sans-serif;">
+      <div class="modal notranslate" id="subscriptionRenewModal" translate="no" style="font-family: 'Hind Siliguri', 'Inter', sans-serif; z-index: 9999999;">
         <div class="modal-content modal-md" style="border-radius: 24px; border: 1px solid var(--border-color); background: var(--bg-card); max-width: 600px; max-height: 94vh; overflow-y: auto; box-shadow: 0 20px 50px rgba(0,0,0,0.35);">
           
           <div class="modal-header" style="border-bottom: 1px solid var(--border-color); padding-bottom: 0.85rem;">
@@ -94,15 +94,6 @@
             
             <!-- 1. TOP ACTIVE SUBSCRIPTION PROFILE STATUS CARD -->
             <div style="background: linear-gradient(135deg, rgba(168, 85, 247, 0.12), rgba(59, 130, 246, 0.08)); border: 1px solid rgba(168, 85, 247, 0.3); border-radius: 18px; padding: 1rem; margin-bottom: 1.25rem;">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
-                <span class="badge" style="background: #a855f7; color: #fff; padding: 0.35rem 0.85rem; border-radius: 20px; font-weight: 700; font-style: normal;" id="subModalPlanBadge">
-                  <i class="fa-solid fa-bolt"></i> SmartPOS Standard
-                </span>
-                <span class="badge" style="background: rgba(16,185,129,0.2); color: #10b981; border: 1px solid #10b981; padding: 0.35rem 0.75rem; border-radius: 20px; font-weight: 700; font-style: normal;" id="subModalStatusBadge">
-                  🟢 সক্রিয়
-                </span>
-              </div>
-              
               <h4 id="subModalStoreName" style="font-weight: 700; color: var(--text-color); font-size: 1.15rem; margin-bottom: 0.4rem; font-style: normal;">-</h4>
               
               <!-- EXACT REMAINING TIME COUNTER (DAYS + MINS IN BENGALI) -->
@@ -424,13 +415,33 @@
     calculateSubscriptionPrice(selectedMonths);
   }
 
+  function getActiveSubscriptionState() {
+    const activeStoreId = localStorage.getItem('pos_active_store_id') || 'store_demo_101';
+    const settings = JSON.parse(localStorage.getItem('pos_settings')) || {};
+    const allSubs = JSON.parse(localStorage.getItem('pos_subscriptions')) || [];
+    let subscription = JSON.parse(localStorage.getItem('pos_subscription')) || {};
+
+    if (allSubs.length > 0) {
+      const match = allSubs.find(s => 
+        (s.storeId && s.storeId === activeStoreId) || 
+        (s.id && s.id === activeStoreId) ||
+        (settings.storeName && s.storeName === settings.storeName) ||
+        (settings.ownerName && (s.ownerName === settings.ownerName || s.ownerName === settings.storeOwner))
+      );
+      if (match) subscription = { ...subscription, ...match };
+    }
+    return subscription;
+  }
+
   function loadSubscriptionModalState() {
     const settings = JSON.parse(localStorage.getItem('pos_settings')) || {};
-    const subscription = JSON.parse(localStorage.getItem('pos_subscription')) || {};
+    const subscription = getActiveSubscriptionState();
 
     const storeName = settings.storeName || subscription.storeName || 'আমার শপ';
     const planName = subscription.plan || 'SmartPOS Standard';
     const isTrial = subscription.isTrial !== false;
+    const isBlocked = subscription.accountBlocked === true || subscription.status === 'Suspended' || subscription.status === 'Stopped';
+    const isExpired = subscription.trialExpiresAt ? (new Date(subscription.trialExpiresAt) <= new Date()) : false;
 
     const storeNameEl = document.getElementById('subModalStoreName');
     const planBadgeEl = document.getElementById('subModalPlanBadge');
@@ -442,18 +453,36 @@
     if (storeNameEl) storeNameEl.textContent = storeName;
     if (planBadgeEl) planBadgeEl.innerHTML = `<i class="fa-solid fa-bolt"></i> ${planName}`;
     if (statusBadgeEl) {
-      statusBadgeEl.textContent = isTrial ? '🟡 7-Day Free Trial' : '🟢 Active Paid';
-      statusBadgeEl.style.background = isTrial ? 'rgba(245,158,11,0.2)' : 'rgba(16,185,129,0.2)';
-      statusBadgeEl.style.color = isTrial ? '#f59e0b' : '#10b981';
-      statusBadgeEl.style.borderColor = isTrial ? '#f59e0b' : '#10b981';
+      if (isBlocked) {
+        statusBadgeEl.textContent = '⛔ সাবস্ক্রিপশন স্থগিত';
+        statusBadgeEl.style.background = 'rgba(239,68,68,0.2)';
+        statusBadgeEl.style.color = '#ef4444';
+        statusBadgeEl.style.borderColor = '#ef4444';
+      } else if (isExpired) {
+        statusBadgeHTML = '🔴 মেয়াদ শেষ';
+        statusBadgeEl.textContent = '🔴 মেয়াদ শেষ';
+        statusBadgeEl.style.background = 'rgba(239,68,68,0.2)';
+        statusBadgeEl.style.color = '#ef4444';
+        statusBadgeEl.style.borderColor = '#ef4444';
+      } else {
+        statusBadgeEl.textContent = isTrial ? '🟡 7-Day Free Trial' : '🟢 Active Paid';
+        statusBadgeEl.style.background = isTrial ? 'rgba(245,158,11,0.2)' : 'rgba(16,185,129,0.2)';
+        statusBadgeEl.style.color = isTrial ? '#f59e0b' : '#10b981';
+        statusBadgeEl.style.borderColor = isTrial ? '#f59e0b' : '#10b981';
+      }
     }
 
     const expiryIso = subscription.trialExpiresAt || new Date(Date.now() + 7 * 86400000).toISOString();
     const timeInfo = formatRemainingTime(expiryIso);
 
     if (exactRemEl) {
-      exactRemEl.textContent = timeInfo.text;
-      exactRemEl.style.color = timeInfo.expired || timeInfo.days <= 7 ? '#ef4444' : '#10b981';
+      if (isExpired || isBlocked || timeInfo.expired) {
+        exactRemEl.textContent = 'মেয়াদ শেষ হয়ে গেছে!';
+        exactRemEl.style.color = '#ef4444';
+      } else {
+        exactRemEl.textContent = timeInfo.text;
+        exactRemEl.style.color = timeInfo.days <= 7 ? '#ef4444' : '#10b981';
+      }
     }
 
     const lastSubDate = subscription.submittedAt ? new Date(subscription.submittedAt).toLocaleDateString('bn-BD') : 'আজকে';
@@ -586,9 +615,7 @@
 
         // Calculate extended expiry date
         const currentExpiry = currentSub.trialExpiresAt ? new Date(currentSub.trialExpiresAt) : new Date();
-        const baseDate = currentExpiry > new Date() ? currentExpiry : new Date();
-        baseDate.setMonth(baseDate.getMonth() + selectedMonths);
-        const newExpiryIso = baseDate.toISOString();
+        const existingExpiryIso = currentSub.trialExpiresAt || new Date().toISOString();
 
         const renewalPayload = {
           id: storeId,
@@ -603,13 +630,14 @@
           trxId: trxId,
           receiptImage: receiptBase64,
           status: 'Active Paid (Pending Verification)',
+          subRequestStatus: 'Pending',
           isTrial: false,
-          trialExpiresAt: newExpiryIso,
+          trialExpiresAt: existingExpiryIso,
           paymentMethod: selectedGateway === 'bkash' ? 'bKash Send Money' : 'Nagad Send Money',
           submittedAt: new Date().toISOString()
         };
 
-        // 1. Instantly update active merchant local subscription so they get IMMEDIATE access!
+        // 1. Update active merchant local subscription state with pending request
         localStorage.setItem('pos_subscription', JSON.stringify(renewalPayload));
 
         // Update local registry array
@@ -644,14 +672,16 @@
         updateSidebarSubscriptionBadge();
 
         if (modal) modal.classList.remove('active');
-        alert(`🎉 স্বাগতম! আপনার ${toBnNum(selectedMonths)} মাসের সাবস্ক্রিপশন সফলভাবে জমা দেওয়া হয়েছে এবং তাৎক্ষণিক সক্রিয় করা হয়েছে!\n\nপেমেন্ট TrxID: ${trxId}\nমেয়াদের শেষ তারিখ: ${baseDate.toLocaleDateString('bn-BD')}\n\n(সুপার এডমিন আপনার পেমেন্ট ট্রানজেকশন আইটেমটি ভেরিফাই করবে)`);
+        alert(`🎉 আপনার ${toBnNum(selectedMonths)} মাসের সাবস্ক্রিপশন আবেদন সফলভাবে জমা দেওয়া হয়েছে!\n\nপেমেন্ট TrxID: ${trxId}\nপেমেন্ট গেটওয়ে: ${selectedGateway === 'bkash' ? 'bKash Send Money' : 'Nagad Send Money'}\n\n(সুপার এডমিন আপনার ট্রানজেকশন আইটেমটি ভেরিফাই করে অনুমোদন করলে মেয়াদ বাড়িয়ে দেওয়া হবে)`);
       });
     }
   }
 
   // Update Sidebar remaining time badge & trigger push notification if expiring
   function updateSidebarSubscriptionBadge() {
-    const subscription = JSON.parse(localStorage.getItem('pos_subscription')) || {};
+    const subscription = getActiveSubscriptionState();
+    const isBlocked = subscription.accountBlocked === true || subscription.status === 'Suspended' || subscription.status === 'Stopped';
+    const isExpired = subscription.trialExpiresAt ? (new Date(subscription.trialExpiresAt) <= new Date()) : false;
     const expiryIso = subscription.trialExpiresAt || new Date(Date.now() + 7 * 86400000).toISOString();
     
     const timeInfo = formatRemainingTime(expiryIso);
@@ -669,7 +699,7 @@
         btn.appendChild(badge);
       }
 
-      if (timeInfo.expired) {
+      if (isBlocked || isExpired || timeInfo.expired) {
         badge.textContent = 'মেয়াদ শেষ!';
         badge.style.background = '#ef4444';
         badge.style.color = '#fff';
@@ -685,7 +715,7 @@
     });
 
     // Check if Push Notification Banner should be shown (if <= 7 days or expired)
-    if (timeInfo.expired || timeInfo.days <= 7) {
+    if (isBlocked || isExpired || timeInfo.expired || timeInfo.days <= 7) {
       showSubscriptionPushNotification(timeInfo);
     }
   }

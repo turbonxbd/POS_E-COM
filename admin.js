@@ -21,7 +21,29 @@ class AdminPanel {
 
     this.products = rawProd && rawProd !== '[]' ? JSON.parse(rawProd) : (isGuestStore && typeof INITIAL_PRODUCTS !== 'undefined' ? INITIAL_PRODUCTS : []);
     this.sales = rawSales && rawSales !== '[]' ? JSON.parse(rawSales) : [];
-    this.settings = rawSettings && rawSettings !== '{}' ? JSON.parse(rawSettings) : (typeof DEFAULT_SETTINGS !== 'undefined' ? DEFAULT_SETTINGS : {});
+    this.settings = rawSettings && rawSettings !== '{}' ? JSON.parse(rawSettings) : {};
+
+    // Pull active merchant profile metadata if settings keys are empty for non-guest stores
+    if (!isGuestStore) {
+      const activeSub = JSON.parse(localStorage.getItem('pos_subscription')) || {};
+      const allSubs = JSON.parse(localStorage.getItem('pos_subscriptions')) || [];
+      const matchSub = (activeSub.storeId === activeStoreId ? activeSub : null) || allSubs.find(s => s.storeId === activeStoreId || s.id === activeStoreId);
+      if (matchSub) {
+        this.settings.storeName = this.settings.storeName || matchSub.storeName || 'My Shop';
+        this.settings.storeOwner = this.settings.storeOwner || this.settings.ownerName || matchSub.ownerName || matchSub.storeOwner || '';
+        this.settings.ownerName = this.settings.ownerName || this.settings.storeOwner;
+        this.settings.storePhone = this.settings.storePhone || this.settings.phone || this.settings.personalPhone || matchSub.phone || matchSub.storePhone || '';
+        this.settings.phone = this.settings.phone || this.settings.storePhone;
+        this.settings.personalPhone = this.settings.personalPhone || this.settings.storePhone;
+        this.settings.storeEmail = this.settings.storeEmail || this.settings.email || this.settings.personalEmail || matchSub.email || matchSub.storeEmail || '';
+        this.settings.email = this.settings.email || this.settings.storeEmail;
+        this.settings.personalEmail = this.settings.personalEmail || this.settings.storeEmail;
+        this.settings.storeAddress = this.settings.storeAddress || matchSub.storeAddress || 'Dhaka, Bangladesh';
+      }
+    } else if (typeof DEFAULT_SETTINGS !== 'undefined' && (!this.settings || !this.settings.storeName)) {
+      this.settings = { ...DEFAULT_SETTINGS, ...this.settings };
+    }
+
     if (this.settings) {
       if (!this.settings.storeName) this.settings.storeName = isGuestStore ? 'গেস্ট ডেমো সুপারশপ' : 'My Shop';
       if (!this.settings.storeAddress) this.settings.storeAddress = 'Dhaka, Bangladesh';
@@ -51,6 +73,8 @@ class AdminPanel {
 
   init() {
     this.checkAccountStatusSecurityGuard();
+    setInterval(() => this.checkAccountStatusSecurityGuard(), 3000);
+    window.addEventListener('storage', () => this.checkAccountStatusSecurityGuard());
     this.initEventListeners();
     this.initClock();
     this.initDatePicker();
@@ -171,39 +195,64 @@ class AdminPanel {
   }
 
   checkAccountStatusSecurityGuard() {
-    const activeStoreId = localStorage.getItem('pos_active_store_id');
+    const activeStoreId = localStorage.getItem('pos_active_store_id') || 'store_demo_101';
+    const settings = JSON.parse(localStorage.getItem('pos_settings')) || {};
     const allSubs = JSON.parse(localStorage.getItem('pos_subscriptions')) || [];
     let sub = JSON.parse(localStorage.getItem('pos_subscription')) || {};
-    if (activeStoreId && allSubs.length > 0) {
-      const match = allSubs.find(s => s.storeId === activeStoreId || s.id === activeStoreId);
+
+    if (allSubs.length > 0) {
+      const match = allSubs.find(s => 
+        (s.storeId && s.storeId === activeStoreId) || 
+        (s.id && s.id === activeStoreId) ||
+        (settings.storeName && s.storeName === settings.storeName) ||
+        (settings.ownerName && (s.ownerName === settings.ownerName || s.ownerName === settings.storeOwner))
+      );
       if (match) sub = { ...sub, ...match };
     }
 
-    // 1. Full Merchant Account Block Check
-    if (sub.accountBlocked === true || sub.status === 'Suspended' || sub.status === 'Suspended (Transaction Rejected)') {
+    const isBlocked = sub.accountBlocked === true || sub.status === 'Suspended' || sub.status === 'Stopped' || sub.status === 'Suspended (Transaction Rejected)';
+    const isExpired = sub.trialExpiresAt ? (new Date(sub.trialExpiresAt) <= new Date()) : false;
+
+    // 1. Full Lock Check (Blocked OR Expired)
+    if (isBlocked || isExpired) {
+      const cms = JSON.parse(localStorage.getItem('pos_landing_cms')) || {};
+      let rawWa = cms.whatsappNumber || cms.phone || '8801700000000';
+      let waNum = rawWa.replace(/[^0-9]/g, '');
+      if (waNum.length === 11 && waNum.startsWith('01')) waNum = '88' + waNum;
+      const storeName = settings.storeName || sub.storeName || 'Merchant Store';
+
       let overlay = document.getElementById('accountBlockedOverlayGate');
       if (!overlay) {
         overlay = document.createElement('div');
         overlay.id = 'accountBlockedOverlayGate';
-        overlay.style.cssText = 'position:fixed; inset:0; background:rgba(15,23,42,0.98); backdrop-filter:blur(15px); z-index:999999; display:flex; align-items:center; justify-content:center; padding:1.5rem; color:#fff; text-align:center; font-family:"Hind Siliguri", sans-serif;';
+        overlay.style.cssText = 'position:fixed; inset:0; background:rgba(15,23,42,0.96); backdrop-filter:blur(16px); z-index:999998; display:flex; align-items:center; justify-content:center; padding:1.5rem; color:#fff; text-align:center; font-family:"Hind Siliguri", sans-serif;';
         overlay.innerHTML = `
-          <div style="background:#1e293b; border:2px solid #ef4444; border-radius:24px; padding:2.5rem 2rem; max-width:480px; width:100%; box-shadow:0 25px 60px rgba(239,68,68,0.3);">
-            <div style="width:70px; height:70px; border-radius:50%; background:rgba(239,68,68,0.2); color:#ef4444; display:flex; align-items:center; justify-content:center; font-size:2.5rem; margin:0 auto 1.25rem;">
-              <i class="fa-solid fa-user-slash"></i>
+          <div style="background:#1e293b; border:2px solid ${isBlocked ? '#ef4444' : '#f59e0b'}; border-radius:24px; padding:2.2rem 1.8rem; max-width:500px; width:100%; box-shadow:0 25px 60px rgba(0,0,0,0.5);">
+            <div style="width:70px; height:70px; border-radius:50%; background:${isBlocked ? 'rgba(239,68,68,0.2)' : 'rgba(245,158,11,0.2)'}; color:${isBlocked ? '#ef4444' : '#f59e0b'}; display:flex; align-items:center; justify-content:center; font-size:2.5rem; margin:0 auto 1.25rem;">
+              <i class="fa-solid ${isBlocked ? 'fa-user-slash' : 'fa-hourglass-end'}"></i>
             </div>
-            <h2 style="color:#ef4444; font-size:1.6rem; margin-bottom:0.75rem;">⛔ অ্যাকাউন্ট স্থগিত (Suspended)</h2>
+            <h2 style="color:${isBlocked ? '#ef4444' : '#f59e0b'}; font-size:1.5rem; margin-bottom:0.75rem; font-weight:700;">
+              ${isBlocked ? '⛔ সাবস্ক্রিপশন স্থগিত (Suspended)' : '⚠️ সাবস্ক্রিপশনের মেয়াদ শেষ (Subscription Expired)'}
+            </h2>
             <p style="color:#cbd5e1; font-size:0.95rem; line-height:1.6; margin-bottom:1.5rem;">
-              আপনার মার্চেন্ট অ্যাকাউন্টটি সুপার এডমিন দ্বারা স্থগিত বা ব্লক করা হয়েছে। বিস্তারিত জানতে বা অ্যাকাউন্ট পুনরায় সক্রিয় করতে কর্তৃপক্ষের সাথে যোগাযোগ করুন।
+              ${isBlocked ? 'আপনার মার্চেন্ট অ্যাকাউন্টটি সুপার এডমিন দ্বারা স্থগিত বা বন্ধ রাখা হয়েছে।' : 'আপনার মার্চেন্ট এডমিন প্যানেল সাবস্ক্রিপশনের মেয়াদের সময় শেষ হয়ে গেছে। নিরবচ্ছিন্ন সেবা পেতে এখনই প্যাকেজ রিনিউ করুন।'}
             </p>
-            <div style="display:flex; gap:10px; justify-content:center;">
-              <a href="portal.html" class="btn" style="background:#334155; color:#fff; padding:0.75rem 1.25rem; border-radius:12px; text-decoration:none; font-weight:700;"><i class="fa-solid fa-arrow-left"></i> পোর্টালে যান</a>
-              <a href="https://wa.me/8801XXXXXXXXX" target="_blank" class="btn" style="background:#10b981; color:#fff; padding:0.75rem 1.25rem; border-radius:12px; text-decoration:none; font-weight:700;"><i class="fa-brands fa-whatsapp"></i> সাপোর্ট টিম</a>
+            <div style="display:flex; flex-direction:column; gap:12px;">
+              <button type="button" onclick="if(typeof window.openSubscriptionRenewModal==='function') window.openSubscriptionRenewModal()" class="btn" style="background:linear-gradient(135deg, #a855f7, #9333ea); color:#fff; padding:0.85rem 1.25rem; border-radius:14px; font-weight:700; font-size:1rem; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; box-shadow:0 10px 25px rgba(168,85,247,0.4);">
+                <i class="fa-solid fa-credit-card"></i> 💳 এখনই সাবস্ক্রিপশন রিনিউ করুন
+              </button>
+              <a href="https://wa.me/${waNum}?text=${encodeURIComponent('হ্যালো, আমার স্টোরের (' + storeName + ') সাবস্ক্রিপশন সংক্রান্ত সাহায্য প্রয়োজন।')}" target="_blank" class="btn" style="background:linear-gradient(135deg, #25D366, #128C7E); color:#fff; padding:0.8rem 1.25rem; border-radius:14px; text-decoration:none; font-weight:700; font-size:0.95rem; display:flex; align-items:center; justify-content:center; gap:8px; box-shadow:0 8px 20px rgba(37,211,102,0.3);">
+                <i class="fa-brands fa-whatsapp" style="font-size:1.3rem;"></i> 💬 হেল্প ও সহায়তার জন্য হোয়াটসঅ্যাপে মেসেজ দিন
+              </a>
             </div>
           </div>
         `;
         document.body.appendChild(overlay);
       }
       return;
+    } else {
+      const existingOverlay = document.getElementById('accountBlockedOverlayGate');
+      if (existingOverlay) existingOverlay.remove();
     }
 
     // 2. Access Fee Block Check

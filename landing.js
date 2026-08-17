@@ -126,10 +126,13 @@ async function initCMSData() {
       if (doc.exists && doc.data()) {
         const cloudCMS = doc.data();
         cmsData = {
+          ...cmsData,
+          ...cloudCMS,
           hero: cloudCMS.hero || cmsData.hero,
           showcase: cloudCMS.showcase || cmsData.showcase,
           plans: cloudCMS.plans || cmsData.plans
         };
+        localStorage.setItem('pos_landing_cms', JSON.stringify(cmsData));
       }
     } catch (e) {
       console.warn('[CMS Engine] Using local/default content layout:', e);
@@ -138,19 +141,32 @@ async function initCMSData() {
 
   renderHeroCMS(cmsData.hero);
   renderShowcaseCMS(cmsData.showcase);
-  renderPricingCMS(cmsData.plans);
+  renderPricingCMS(cmsData);
 
+  // BroadcastChannel Sync
   try {
     const bc = new BroadcastChannel('pos_cms_sync');
     bc.onmessage = (event) => {
       if (event.data?.type === 'cms_updated' && event.data.cms) {
         const fresh = event.data.cms;
-        if (fresh.hero) renderHeroCMS(fresh.hero);
-        if (fresh.showcase) renderShowcaseCMS(fresh.showcase);
-        if (fresh.plans) renderPricingCMS(fresh.plans);
+        const currentLocal = JSON.parse(localStorage.getItem('pos_landing_cms')) || {};
+        const merged = { ...currentLocal, ...fresh };
+        localStorage.setItem('pos_landing_cms', JSON.stringify(merged));
+        if (merged.hero) renderHeroCMS(merged.hero);
+        if (merged.showcase) renderShowcaseCMS(merged.showcase);
+        renderPricingCMS(merged);
       }
     };
   } catch (e) {}
+
+  // Firebase Live Cloud Sync Event
+  window.addEventListener('pos_cms_cloud_update', (e) => {
+    if (e.detail) {
+      if (e.detail.hero) renderHeroCMS(e.detail.hero);
+      if (e.detail.showcase) renderShowcaseCMS(e.detail.showcase);
+      renderPricingCMS(e.detail);
+    }
+  });
 }
 
 function renderHeroCMS(hero) {
@@ -190,12 +206,14 @@ function renderShowcaseCMS(showcaseList) {
   `).join('');
 }
 
-function renderPricingCMS(plans) {
+function renderPricingCMS(cmsObj) {
   const container = document.getElementById('pricingGridContainer');
-  if (!container || !plans || !plans.length) return;
+  if (!container) return;
 
-  const cms = JSON.parse(localStorage.getItem('pos_landing_cms')) || {};
-  const rates = cms.rates || {};
+  const cms = cmsObj || JSON.parse(localStorage.getItem('pos_landing_cms')) || {};
+  const plans = cms.plans || DEFAULT_CMS.plans;
+  if (!plans || !plans.length) return;
+
   const pkg = cms.packageRates || {
     card1: { setup: 9999, monthly: 150 },
     card2: { setup: 14999, monthly: 999 },
@@ -207,11 +225,11 @@ function renderPricingCMS(plans) {
     let mPrice = p.monthlyPrice;
 
     if (p.id === 'pos_standalone' || idx === 0) {
-      if (pkg.card1) { sPrice = pkg.card1.setup; mPrice = pkg.card1.monthly; }
+      if (pkg.card1 && pkg.card1.setup !== undefined) { sPrice = pkg.card1.setup; mPrice = pkg.card1.monthly; }
     } else if (p.id === 'pos_ecommerce_combo' || idx === 1) {
-      if (pkg.card2) { sPrice = pkg.card2.setup; mPrice = pkg.card2.monthly; }
+      if (pkg.card2 && pkg.card2.setup !== undefined) { sPrice = pkg.card2.setup; mPrice = pkg.card2.monthly; }
     } else if (p.id === 'ecommerce_only' || idx === 2) {
-      if (pkg.card3) { sPrice = pkg.card3.setup; mPrice = pkg.card3.monthly; }
+      if (pkg.card3 && pkg.card3.setup !== undefined) { sPrice = pkg.card3.setup; mPrice = pkg.card3.monthly; }
     }
 
     return `
