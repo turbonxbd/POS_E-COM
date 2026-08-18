@@ -216,7 +216,7 @@
                   <label id="lblSubTrxId" style="font-weight: 700; font-style: normal; color: #0f172a; font-size: 0.92rem; display: block; margin-bottom: 0.4rem;">
                     ট্রানজ্যাকশন আইডি (TrxID):
                   </label>
-                  <input type="text" id="subTrxId" class="form-control" placeholder="ENTER TRANSACTION ID" style="border-radius: 12px; border: 1px solid #f472b6; padding: 0.75rem 1rem; font-weight: 700; font-style: normal; font-size: 0.95rem; text-transform: uppercase; letter-spacing: 2px; width: 100%; background: #ffffff; color: #0f172a;" required>
+                  <input type="text" id="subTrxId" class="form-control" placeholder="যেমন: BK98765432 বা Zzz..." style="border-radius: 12px; border: 1px solid #f472b6; padding: 0.75rem 1rem; font-weight: 700; font-style: normal; font-size: 0.95rem; letter-spacing: 1px; width: 100%; background: #ffffff; color: #0f172a;" required>
                 </div>
 
                 <div style="margin-bottom: 0.85rem;">
