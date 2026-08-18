@@ -1,5 +1,5 @@
-// SmartPOS - Service Worker Caching & Instant Non-Hanging Tab Load Engine
-const CACHE_NAME = 'smartpos-v2.8.0';
+// SmartPOS - Service Worker Caching & Instant Automatic Background Update Engine
+const CACHE_NAME = 'smartpos-v3.0.0';
 const ASSETS_TO_CACHE = [
   './portal.html',
   './cashier.html',
@@ -58,14 +58,30 @@ self.addEventListener('message', (event) => {
   }
 });
 
-// Fetch Event - Instant 0.01s Cache Load & Non-Hanging Fetch Strategy
+// Fetch Event - Instant Automatic PWA App Live Update Strategy
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
   const url = event.request.url;
 
-  // Ignore chrome-extensions, Firebase WebSockets, and Firestore long-polling requests to prevent SW interception lag
+  // Ignore chrome-extensions, Firebase WebSockets, and Firestore long-polling requests
   if (url.includes('chrome-extension') || url.includes('firestore.googleapis.com') || url.includes('firebaseio.com')) {
+    return;
+  }
+
+  // HTML Pages: Network-First so merchants automatically receive live GitHub updates on app launch
+  if (url.includes('.html') || url.endsWith('/') || url === self.location.origin) {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const responseClone = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
+          }
+          return networkResponse;
+        })
+        .catch(() => caches.match(event.request))
+    );
     return;
   }
 

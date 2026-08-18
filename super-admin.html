@@ -562,15 +562,29 @@
       <div id="tabMonthlySubscriptions" class="tab-view" style="display: none;">
         <div class="cms-card">
           <div class="cms-card-title">
-            <i class="fa-solid fa-credit-card" style="color:#e11d48;"></i> মাসিক সাবস্ক্রিপশন ফি ও রিনিউাল হাব
+            <i class="fa-solid fa-credit-card" style="color:#e11d48;"></i> মাসিক সাবস্ক্রিপশন ফি ও রিনিউয়াল হাব
           </div>
           <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:1.25rem;">
-            প্রতি মাসের মেইনটেন্যান্স ফি (৳১৫০/মাস base rate, ৫ মাস ৳৬৭৫, ১২ মাস ৳১,৪৪০) ও বিকাশ/নগদ TrxID পেন্ডিং আবেদন ভেরিফাই করুন।
+            প্রতি মাসের মেইনটেন্যান্স ফি (৳১৫০/মাস base rate, ৫ মাস ৳৬৭৫, ১২ মাস ৳১,৪১৪) ও ট্রানজ্যাকশন TrxID আবেদনগুলো সহজেই ভেরিফাই ও ফিল্টার করুন।
           </p>
+
+          <!-- Tab 4 Sub-Navigation Pills -->
+          <div style="display: flex; gap: 0.6rem; margin-bottom: 1.25rem; flex-wrap: wrap; align-items: center; background: rgba(30,41,59,0.5); padding: 0.85rem; border-radius: 12px; border: 1px solid var(--border-color);" id="monthlySubTabPills">
+            <button type="button" class="btn-submit monthly-sub-pill active" id="pillMerchantAccounts" onclick="switchMonthlySubTab('merchant')" style="width: auto; padding: 0.5rem 1.1rem; font-size: 0.85rem; background: rgba(168,85,247,0.25); border: 1px solid #a855f7; color: #fff; font-weight: 700;">
+              <i class="fa-solid fa-users"></i> 🏪 মার্চেন্ট অ্যাকাউন্টস
+            </button>
+            <button type="button" class="btn-submit monthly-sub-pill" id="pillPendingRequests" onclick="switchMonthlySubTab('pending')" style="width: auto; padding: 0.5rem 1.1rem; font-size: 0.85rem; background: rgba(245,158,11,0.15); border: 1px solid #f59e0b; color: #f59e0b; font-weight: 700;">
+              <i class="fa-solid fa-inbox"></i> 📥 সাবস্ক্রিপশন রিকোয়েস্ট (পেন্ডিং)
+              <span id="pendingSubRequestsBadge" class="badge" style="background:#ef4444; color:#fff; font-size:0.75rem; padding:1px 6px; border-radius:10px; margin-left:4px; display:none;">0</span>
+            </button>
+            <button type="button" class="btn-submit monthly-sub-pill" id="pillAllRequests" onclick="switchMonthlySubTab('all')" style="width: auto; padding: 0.5rem 1.1rem; font-size: 0.85rem; background: rgba(59,130,246,0.15); border: 1px solid #3b82f6; color: #3b82f6; font-weight: 700;">
+              <i class="fa-solid fa-list-check"></i> 📜 অল রিকোয়েস্ট হিস্ট্রি
+            </button>
+          </div>
 
           <div style="overflow-x:auto;">
             <table class="custom-table">
-              <thead>
+              <thead id="pendingSubscriptionsTableHead">
                 <tr>
                   <th>মার্চেন্ট শপ & প্রোফাইল</th>
                   <th>বর্তমান মেয়াদ (Current Sub)</th>

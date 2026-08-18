@@ -613,12 +613,13 @@
         const settings = JSON.parse(localStorage.getItem('pos_settings')) || {};
         const currentSub = JSON.parse(localStorage.getItem('pos_subscription')) || {};
         const storeId = localStorage.getItem('pos_active_store_id') || `store_${Date.now()}`;
+        const reqId = `req_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
 
         // Calculate extended expiry date
-        const currentExpiry = currentSub.trialExpiresAt ? new Date(currentSub.trialExpiresAt) : new Date();
         const existingExpiryIso = currentSub.trialExpiresAt || new Date().toISOString();
 
         const renewalPayload = {
+          reqId: reqId,
           id: storeId,
           storeId: storeId,
           storeName: settings.storeName || currentSub.storeName || 'Merchant Store',
@@ -632,16 +633,22 @@
           receiptImage: receiptBase64,
           status: 'Active Paid (Pending Verification)',
           subRequestStatus: 'Pending',
+          isRead: false,
           isTrial: false,
           trialExpiresAt: existingExpiryIso,
-          paymentMethod: selectedGateway === 'bkash' ? 'bKash Send Money' : 'Nagad Send Money',
+          paymentMethod: selectedGateway === 'bkash' ? 'bKash Send Money' : (selectedGateway === 'nagad' ? 'Nagad Send Money' : (selectedGateway === 'rocket' ? 'Rocket Send Money' : 'Bank Transfer')),
           submittedAt: new Date().toISOString()
         };
 
         // 1. Update active merchant local subscription state with pending request
         localStorage.setItem('pos_subscription', JSON.stringify(renewalPayload));
 
-        // Update local registry array
+        // 2. Save individual request to pos_subscription_requests array in LocalStorage
+        let allReqs = JSON.parse(localStorage.getItem('pos_subscription_requests')) || [];
+        allReqs.unshift(renewalPayload);
+        localStorage.setItem('pos_subscription_requests', JSON.stringify(allReqs));
+
+        // 3. Update local registry array
         let allSubs = JSON.parse(localStorage.getItem('pos_subscriptions')) || [];
         const existingIdx = allSubs.findIndex(s => s.storeId === storeId || s.id === storeId);
         if (existingIdx >= 0) {
@@ -651,9 +658,10 @@
         }
         localStorage.setItem('pos_subscriptions', JSON.stringify(allSubs));
 
-        // 2. Save renewal request to Cloud Firestore
+        // 4. Save renewal request to Cloud Firestore (/subscription_requests and /subscriptions)
         if (window.POS_FIREBASE && window.POS_FIREBASE.db) {
           try {
+            await window.POS_FIREBASE.db.collection('subscription_requests').doc(reqId).set(renewalPayload);
             await window.POS_FIREBASE.db.collection('subscriptions').doc(storeId).set(renewalPayload, { merge: true });
           } catch (err) {
             console.warn('[Firestore] Renewal save error:', err);

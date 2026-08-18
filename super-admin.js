@@ -138,10 +138,37 @@ async function loadSubscribers() {
   }
 
   // Step 2: Parallel Async Cloud Synchronization
+  // Step 2: Unique Merchant Deduplication Engine: Groups multi-request renewals by unique Phone Number / Store Name
   const mergedMap = new Map();
+
+  const getDedupeKey = (item) => {
+    if (!item) return null;
+
+    let phone = (item.phone || item.senderPhone || item.storePhone || '').replace(/[^0-9]/g, '');
+    if (phone.startsWith('88')) phone = phone.substring(2);
+
+    const storeName = (item.storeName || item.name || '').trim().toLowerCase();
+    const ownerName = (item.ownerName || item.storeOwner || '').trim().toLowerCase();
+
+    // 1. Primary Deduplication Key: Phone Number (if valid 10-11 digits)
+    if (phone.length >= 10) {
+      return `phone_${phone}`;
+    }
+
+    // 2. Secondary Deduplication Key: Normalized Store Name + Owner Name
+    if (storeName && storeName !== 'merchant shop') {
+      return `name_${storeName}_${ownerName}`;
+    }
+
+    // 3. Fallback Key: Store ID
+    return item.storeId || item.id || `store_${Date.now()}`;
+  };
 
   const addMerchantToMap = (item) => {
     if (!item) return;
+    const key = getDedupeKey(item);
+    if (!key) return;
+
     const storeId = item.storeId || item.id || `store_${Date.now()}`;
     const normalizedItem = {
       id: storeId,
@@ -169,10 +196,46 @@ async function loadSubscribers() {
       createdAt: item.createdAt || item.submittedAt || new Date().toISOString()
     };
 
-    if (mergedMap.has(storeId)) {
-      mergedMap.set(storeId, { ...mergedMap.get(storeId), ...normalizedItem });
+    if (mergedMap.has(key)) {
+      const existing = mergedMap.get(key);
+
+      // Intelligently merge: Keep the one-time setupFee paid on registration!
+      const mergedTrialExpiresAt = (new Date(normalizedItem.trialExpiresAt) > new Date(existing.trialExpiresAt)) 
+        ? normalizedItem.trialExpiresAt 
+        : existing.trialExpiresAt;
+
+      const mergedSetupFee = existing.setupFee || normalizedItem.setupFee || 14999;
+      
+      // CRITICAL FIX: If existing item is ALREADY Approved or Rejected, DO NOT let legacy cloud sync docs revert status to 'Pending'!
+      const existingStatus = existing.subRequestStatus;
+      const isAlreadyResolved = existingStatus === 'Approved' || existingStatus === 'Rejected';
+
+      const incomingStatus = normalizedItem.subRequestStatus;
+      const incomingIsResolved = incomingStatus === 'Approved' || incomingStatus === 'Rejected';
+
+      let finalStatus = existingStatus;
+      if (incomingIsResolved || (!isAlreadyResolved && incomingStatus)) {
+        finalStatus = incomingStatus;
+      }
+
+      let finalTrxId = normalizedItem.trxId || existing.trxId || normalizedItem.transactionId || existing.transactionId || normalizedItem.trx || existing.trx || '';
+
+      mergedMap.set(key, {
+        ...existing,
+        ...normalizedItem,
+        id: existing.id || normalizedItem.id,
+        storeId: existing.storeId || normalizedItem.storeId,
+        setupFee: mergedSetupFee,
+        trialExpiresAt: mergedTrialExpiresAt,
+        subRequestStatus: finalStatus,
+        trxId: finalTrxId,
+        isRead: (finalStatus === 'Approved' || finalStatus === 'Rejected') ? true : (existing.isRead || normalizedItem.isRead)
+      });
     } else {
-      mergedMap.set(storeId, normalizedItem);
+      if (normalizedItem.subRequestStatus === 'Approved' || normalizedItem.subRequestStatus === 'Rejected') {
+        normalizedItem.isRead = true;
+      }
+      mergedMap.set(key, normalizedItem);
     }
   };
 
@@ -275,6 +338,7 @@ async function loadSubscribers() {
 
   renderDashboardStats();
   renderSubscribersMasterTable();
+  await loadSubscriptionRequests();
 }
 
 // Render Dashboard Analytics Overview (Separated Setup Fees & Monthly Subscriptions)
@@ -422,30 +486,149 @@ function renderAccessFeesTable() {
   `).join('');
 }
 
-// Mark subscription request as read/reviewed by Super Admin
-function markSubscriptionAsRead(storeId) {
-  const sub = subscribersList.find(s => s.storeId === storeId || s.id === storeId);
-  if (!sub) return;
+let subscriptionRequestsList = []; // Complete collection of all individual renewal requests
+let currentMonthlySubTab = 'merchant'; // Options: 'merchant', 'pending', 'all'
 
-  if (sub.isRead !== true) {
-    sub.isRead = true;
-    localStorage.setItem('pos_subscriptions', JSON.stringify(subscribersList));
+async function loadSubscriptionRequests() {
+  const reqMap = new Map();
+
+  const addReq = (item) => {
+    if (!item) return;
+    const reqId = item.reqId || item.id || `req_${item.submittedAt || Date.now()}_${item.trxId || Math.random()}`;
+
+    const existing = reqMap.get(reqId);
+    let finalStatus = item.subRequestStatus || (item.trxId ? 'Pending' : 'Approved');
+
+    // If existing or incoming item is Approved or Rejected, permanently lock status as Approved or Rejected!
+    if (existing && (existing.subRequestStatus === 'Approved' || existing.subRequestStatus === 'Rejected')) {
+      finalStatus = existing.subRequestStatus;
+    } else if (item.subRequestStatus === 'Approved' || item.subRequestStatus === 'Rejected') {
+      finalStatus = item.subRequestStatus;
+    }
+
+    reqMap.set(reqId, {
+      ...existing,
+      ...item,
+      reqId: reqId,
+      storeId: item.storeId || item.id || (existing ? existing.storeId : 'store_demo_101'),
+      storeName: item.storeName || item.name || (existing ? existing.storeName : 'Merchant Shop'),
+      ownerName: item.ownerName || item.storeOwner || (existing ? existing.ownerName : 'Merchant Owner'),
+      phone: item.phone || item.senderPhone || (existing ? existing.phone : '01700000000'),
+      requestedMonths: parseInt(item.requestedMonths) || (existing ? existing.requestedMonths : 1),
+      amountPaid: parseFloat(item.amountPaid) || (existing ? existing.amountPaid : 150),
+      paymentMethod: item.paymentMethod || (existing ? existing.paymentMethod : 'bKash Send Money'),
+      trxId: item.trxId || (existing ? existing.trxId : ''),
+      senderPhone: item.senderPhone || item.phone || (existing ? existing.senderPhone : ''),
+      receiptImage: item.receiptImage || (existing ? existing.receiptImage : ''),
+      subRequestStatus: finalStatus,
+      isRead: (finalStatus === 'Approved' || finalStatus === 'Rejected') ? true : (item.isRead === true || (existing && existing.isRead)),
+      submittedAt: item.submittedAt || item.createdAt || (existing ? existing.submittedAt : new Date().toISOString())
+    });
+  };
+
+  // 1. Seed from local cache array
+  let cachedReqs = JSON.parse(localStorage.getItem('pos_subscription_requests')) || [];
+  if (Array.isArray(cachedReqs)) cachedReqs.forEach(addReq);
+
+  // 2. Seed from pos_subscription active key if pending
+  let activeSub = JSON.parse(localStorage.getItem('pos_subscription'));
+  if (activeSub && activeSub.trxId) {
+    addReq({ reqId: activeSub.reqId || `req_${activeSub.submittedAt || Date.now()}`, ...activeSub });
+  }
+
+  // 3. Parallel fetch from Cloud Firestore /subscription_requests and /subscriptions
+  if (window.POS_FIREBASE && window.POS_FIREBASE.db) {
+    try {
+      const [reqSnap, subSnap] = await Promise.all([
+        window.POS_FIREBASE.db.collection('subscription_requests').get().catch(() => null),
+        window.POS_FIREBASE.db.collection('subscriptions').get().catch(() => null)
+      ]);
+
+      if (reqSnap && !reqSnap.empty) {
+        reqSnap.forEach(doc => addReq({ reqId: doc.id, ...doc.data() }));
+      }
+      if (subSnap && !subSnap.empty) {
+        subSnap.forEach(doc => {
+          const d = doc.data() || {};
+          if (d.trxId || d.requestedMonths) {
+            addReq({ reqId: d.reqId || `sub_${doc.id}_${d.submittedAt || d.trxId}`, storeId: doc.id, ...d });
+          }
+        });
+      }
+    } catch (e) {
+      console.warn('[Cloud Sync Requests Warning]:', e);
+    }
+  }
+
+  subscriptionRequestsList = Array.from(reqMap.values()).sort((a, b) => new Date(b.submittedAt || 0) - new Date(a.submittedAt || 0));
+  localStorage.setItem('pos_subscription_requests', JSON.stringify(subscriptionRequestsList));
+
+  renderPendingSubscriptionsTable();
+}
+
+function switchMonthlySubTab(tabName) {
+  currentMonthlySubTab = tabName;
+  document.querySelectorAll('.monthly-sub-pill').forEach(pill => {
+    pill.style.background = 'transparent';
+    pill.style.borderColor = 'var(--border-color)';
+    pill.style.color = 'var(--text-muted)';
+    pill.classList.remove('active');
+  });
+
+  const pillMap = {
+    merchant: { id: 'pillMerchantAccounts', bg: 'rgba(168,85,247,0.25)', border: '#a855f7', color: '#fff' },
+    pending: { id: 'pillPendingRequests', bg: 'rgba(245,158,11,0.25)', border: '#f59e0b', color: '#f59e0b' },
+    all: { id: 'pillAllRequests', bg: 'rgba(59,130,246,0.25)', border: '#3b82f6', color: '#3b82f6' }
+  };
+
+  const activeInfo = pillMap[tabName] || pillMap.merchant;
+  const activePill = document.getElementById(activeInfo.id);
+  if (activePill) {
+    activePill.classList.add('active');
+    activePill.style.background = activeInfo.bg;
+    activePill.style.borderColor = activeInfo.border;
+    activePill.style.color = activeInfo.color;
+  }
+
+  renderPendingSubscriptionsTable();
+}
+
+// Mark specific request as read
+function markRequestAsRead(reqId) {
+  const req = subscriptionRequestsList.find(r => r.reqId === reqId);
+  if (req && req.isRead !== true) {
+    req.isRead = true;
+    localStorage.setItem('pos_subscription_requests', JSON.stringify(subscriptionRequestsList));
     if (window.POS_FIREBASE && window.POS_FIREBASE.db) {
       try {
-        window.POS_FIREBASE.db.collection('subscriptions').doc(storeId).set({ isRead: true }, { merge: true });
+        window.POS_FIREBASE.db.collection('subscription_requests').doc(reqId).set({ isRead: true }, { merge: true });
       } catch (e) {}
     }
     renderPendingSubscriptionsTable();
   }
 }
 
-// Render Dedicated Monthly Recurring Subscriptions Table (Tab 4 - Full Subscriber List & Verification Actions)
+// Render Dedicated Monthly Recurring Subscriptions Table (Tab 4 - 3 View Sub-Tabs)
 function renderPendingSubscriptionsTable() {
   const body = document.getElementById('pendingSubscriptionsTableBody');
   if (!body) return;
 
-  // Update Sidebar Unread Badge Counter
-  const unreadCount = subscribersList.filter(s => s.trxId && s.isRead !== true).length;
+  // Filter pending requests: requests with subRequestStatus === 'Pending' or (trxId present and not Approved/Rejected)
+  const pendingReqs = subscriptionRequestsList.filter(r => r.subRequestStatus === 'Pending' || (r.trxId && r.subRequestStatus !== 'Approved' && r.subRequestStatus !== 'Rejected'));
+
+  // Update Pending Requests Badge Counter on Tab Pill 2
+  const pendingBadgeEl = document.getElementById('pendingSubRequestsBadge');
+  if (pendingBadgeEl) {
+    if (pendingReqs.length > 0) {
+      pendingBadgeEl.textContent = pendingReqs.length;
+      pendingBadgeEl.style.display = 'inline-block';
+    } else {
+      pendingBadgeEl.style.display = 'none';
+    }
+  }
+
+  // Update Sidebar Unread Counter
+  const unreadCount = subscriptionRequestsList.filter(r => (r.subRequestStatus === 'Pending' || r.trxId) && r.isRead !== true).length;
   const unreadBadgeEl = document.getElementById('tab4UnreadBadge');
   if (unreadBadgeEl) {
     if (unreadCount > 0) {
@@ -456,93 +639,182 @@ function renderPendingSubscriptionsTable() {
     }
   }
 
-  body.innerHTML = subscribersList.map(s => {
-    const expiryIso = s.trialExpiresAt || new Date(Date.now() + 7 * 86400000).toISOString();
-    const timeInfo = formatRemainingTime(expiryIso);
-    const isExpired = timeInfo.expired || (new Date(expiryIso) <= new Date());
-    const hasPendingReq = !!(s.trxId || s.requestedMonths);
-    const isUnread = s.trxId && s.isRead !== true;
-    const isStopped = s.accountBlocked === true || s.status === 'Stopped' || s.status === 'Suspended' || isExpired;
-    const reqStatus = s.subRequestStatus; // 'Approved', 'Rejected', or undefined
+  // -------------------------------------------------------------
+  // VIEW 1: 🏪 মার্চেন্ট অ্যাকাউন্টস (Merchant Accounts View)
+  // -------------------------------------------------------------
+  if (currentMonthlySubTab === 'merchant') {
+    body.innerHTML = subscribersList.map(s => {
+      const expiryIso = s.trialExpiresAt || new Date(Date.now() + 7 * 86400000).toISOString();
+      const timeInfo = formatRemainingTime(expiryIso);
+      const isExpired = timeInfo.expired || (new Date(expiryIso) <= new Date());
+      const isStopped = s.accountBlocked === true || s.status === 'Stopped' || s.status === 'Suspended' || isExpired;
 
-    let statusBadgeHTML = `<span class="badge-status badge-active">🟢 সক্রিয়</span>`;
-    if (isExpired || isStopped) {
-      statusBadgeHTML = `<span class="badge-status badge-suspended">⛔ সাবস্ক্রিপশন বন্ধ (মেয়াদ শেষ)</span>`;
-    } else if (reqStatus === 'Approved') {
-      statusBadgeHTML = `<span class="badge" style="background:rgba(16,185,129,0.2); color:#10b981; border:1px solid #10b981; font-weight:700; padding:3px 8px; border-radius:12px;"><i class="fa-solid fa-circle-check"></i> 🟢 অনুমোদিত (Approved)</span>`;
-    } else if (reqStatus === 'Rejected') {
-      statusBadgeHTML = `<span class="badge" style="background:rgba(225,29,72,0.2); color:#e11d48; border:1px solid #e11d48; font-weight:700; padding:3px 8px; border-radius:12px;"><i class="fa-solid fa-circle-xmark"></i> 🔴 বাতিল করা হয়েছে (Rejected)</span>`;
-    } else if (hasPendingReq) {
-      statusBadgeHTML = `<span class="badge-status badge-pending">🟡 আবেদন পেন্ডিং</span>`;
+      const merchantPendingCount = subscriptionRequestsList.filter(r => (r.storeId === s.storeId || r.phone === s.phone) && (r.subRequestStatus === 'Pending' || (r.trxId && r.subRequestStatus !== 'Approved' && r.subRequestStatus !== 'Rejected'))).length;
+
+      let statusBadgeHTML = `<span class="badge-status badge-active">🟢 সক্রিয়</span>`;
+      if (isStopped) {
+        statusBadgeHTML = `<span class="badge-status badge-suspended">⛔ সাবস্ক্রিপশন বন্ধ (${isExpired ? 'মেয়াদ শেষ' : 'স্থগিত'})</span>`;
+      }
+
+      return `
+        <tr>
+          <td>
+            <strong style="font-size: 0.98rem; color: var(--text-color);">${s.storeName}</strong><br>
+            <small style="color: #94a3b8;">👤 ${s.ownerName} (${s.phone})</small>
+          </td>
+          <td>
+            <span style="font-weight: 700; color: ${isExpired ? '#ef4444' : '#10b981'}; display: block;">
+              <i class="fa-solid ${isExpired ? 'fa-lock' : 'fa-hourglass-half'}"></i> ${isExpired ? '🔴 সাবস্ক্রিপশন বন্ধ (মেয়াদ শেষ)' : timeInfo.text}
+            </span>
+            <small style="color: #64748b; font-size: 0.78rem;">মেয়াদ শেষ: ${new Date(expiryIso).toLocaleDateString('bn-BD')}</small>
+          </td>
+          <td>
+            <span class="badge" style="background:rgba(59,130,246,0.15); color:#3b82f6; padding:2px 8px; border-radius:10px;">${s.plan || 'SmartPOS Counter Combo'}</span>
+          </td>
+          <td>
+            ${merchantPendingCount > 0 ? `<span class="badge-status badge-pending">🟡 ${toBnNum(merchantPendingCount)} টি পেন্ডিং আবেদন</span>` : `<span class="text-muted" style="font-size:0.85rem;">কোনো পেন্ডিং আবেদন নেই</span>`}
+          </td>
+          <td>${statusBadgeHTML}</td>
+          <td style="text-align: center;">
+            <div style="display:flex; gap:0.4rem; justify-content:center;">
+              <button onclick="openMerchantProfileModal('${s.storeId || s.id}')" class="btn-submit" style="padding:0.35rem 0.65rem; font-size:0.78rem; background:#3b82f6;">
+                <i class="fa-solid fa-eye"></i> রিভিউ
+              </button>
+              <button onclick="toggleMonthlySubscriptionStatus('${s.storeId || s.id}')" class="btn-submit" style="padding:0.35rem 0.65rem; font-size:0.78rem; background:${isStopped ? '#10b981' : '#f59e0b'};" title="মার্চেন্ট সাবস্ক্রিপশন অ্যাকাউন্ট বন্ধ বা চালু করুন">
+                <i class="fa-solid ${isStopped ? 'fa-play' : 'fa-pause'}"></i> ${isStopped ? 'অনুকূল / চালু' : 'বন্ধ করুন'}
+              </button>
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('') || `<tr><td colspan="6" class="text-center p-3 text-muted">কোনো মার্চেন্ট অ্যাকাউন্ট পাওয়া যায়নি</td></tr>`;
+    return;
+  }
+
+  // -------------------------------------------------------------
+  // VIEW 2: 📥 সাবস্ক্রিপশন রিকোয়েস্ট (Pending Requests Only)
+  // Disappears from here IMMEDIATELY when Approved or Rejected!
+  // -------------------------------------------------------------
+  if (currentMonthlySubTab === 'pending') {
+    if (pendingReqs.length === 0) {
+      body.innerHTML = `<tr><td colspan="6" class="text-center p-4 text-muted"><i class="fa-solid fa-circle-check" style="font-size:2rem; display:block; margin-bottom:8px; color:#10b981;"></i> কোনো নতুন বা পেন্ডিং সাবস্ক্রিপশন রিকোয়েস্ট নেই। সব আবেদন সম্পন্ন করা হয়েছে!</td></tr>`;
+      return;
     }
 
-    return `
-      <tr style="${isUnread ? 'background: rgba(239, 68, 68, 0.12); border-left: 4px solid #ef4444;' : (hasPendingReq ? 'background: rgba(168, 85, 247, 0.08); border-left: 4px solid #a855f7;' : '')}" onclick="markSubscriptionAsRead('${s.storeId || s.id}')">
-        <td>
-          <div style="display:flex; align-items:center; gap:6px;">
-            ${isUnread ? `
-              <span class="badge" style="background:#ef4444; color:#fff; font-size:0.72rem; padding:2px 8px; border-radius:12px; font-weight:700; display:inline-flex; align-items:center; gap:4px; box-shadow:0 0 10px rgba(239,68,68,0.5);">
-                <i class="fa-solid fa-bell"></i> 🔴 NEW
-              </span>
-            ` : ''}
-            <strong style="font-size: 0.98rem; color: var(--text-color);">${s.storeName}</strong>
-          </div>
-          <small style="color: #94a3b8;">👤 ${s.ownerName} (${s.phone})</small>
-        </td>
-        <td>
-          <span style="font-weight: 700; color: ${isExpired ? '#ef4444' : '#10b981'}; display: block;">
-            <i class="fa-solid ${isExpired ? 'fa-lock' : 'fa-hourglass-half'}"></i> ${isExpired ? '🔴 সাবস্ক্রিপশন বন্ধ (মেয়াদ শেষ)' : timeInfo.text}
-          </span>
-          <small style="color: #64748b; font-size: 0.78rem;">মেয়াদ শেষ: ${new Date(expiryIso).toLocaleDateString('bn-BD')}</small>
-        </td>
-        <td>
-          ${hasPendingReq ? `
-            <strong style="color:#a855f7; display:block;"><i class="fa-solid fa-gem"></i> ${toBnNum(s.requestedMonths || 1)} মাস</strong>
-            <small style="color:#10b981; font-weight:700;">৳${toBnNum(s.amountPaid || 150)} BDT</small>
-          ` : `<span class="text-muted" style="font-size:0.85rem;">কোনো পেন্ডিং আবেদন নেই</span>`}
-        </td>
-        <td>
-          ${s.trxId ? `
-            <span class="badge" style="background:rgba(59,130,246,0.15); color:#3b82f6; font-size:0.75rem; margin-bottom:2px; display:inline-block;">
-              ${s.paymentMethod || 'bKash Send Money'}
-            </span>
-            <strong style="color:#10b981; font-family:monospace; display:block; font-size:0.92rem;">TrxID: ${s.trxId}</strong>
-            <small style="color:#94a3b8;">প্রেরক: ${s.senderPhone || s.phone}</small>
-          ` : `<span class="text-muted" style="font-size:0.85rem;">-</span>`}
-        </td>
-        <td>
-          ${statusBadgeHTML}
-        </td>
-        <td style="text-align: center;" onclick="event.stopPropagation();">
-          <div style="display:flex; gap:0.4rem; justify-content:center; flex-wrap:wrap;">
-            <button onclick="markSubscriptionAsRead('${s.storeId || s.id}'); openMerchantProfileModal('${s.storeId || s.id}')" class="btn-submit" style="padding:0.35rem 0.6rem; font-size:0.78rem; background:#3b82f6;" title="বিস্তারিত ও রিভিউ">
-              <i class="fa-solid fa-eye"></i> রিভিউ
-            </button>
+    body.innerHTML = pendingReqs.map(r => {
+      const isUnread = r.isRead !== true;
+      const merchant = subscribersList.find(s => s.storeId === r.storeId || s.phone === r.phone) || {};
+      const expiryIso = merchant.trialExpiresAt || new Date().toISOString();
+      const timeInfo = formatRemainingTime(expiryIso);
 
-            ${hasPendingReq ? `
-              <button onclick="approveMerchantSubscription('${s.storeId || s.id}')" class="btn-submit" style="padding:0.35rem 0.65rem; font-size:0.78rem; background:#10b981;" title="সাবস্ক্রিপশন রিকোয়েস্ট অনুমোদন করুন">
+      return `
+        <tr style="${isUnread ? 'background: rgba(239, 68, 68, 0.12); border-left: 4px solid #ef4444;' : 'background: rgba(168, 85, 247, 0.08); border-left: 4px solid #a855f7;'}" onclick="markRequestAsRead('${r.reqId}')">
+          <td>
+            <div style="display:flex; align-items:center; gap:6px;">
+              ${isUnread ? `<span class="badge" style="background:#ef4444; color:#fff; font-size:0.72rem; padding:2px 8px; border-radius:12px; font-weight:700;"><i class="fa-solid fa-bell"></i> 🔴 NEW</span>` : ''}
+              <strong style="font-size: 0.98rem; color: var(--text-color);">${r.storeName}</strong>
+            </div>
+            <small style="color: #94a3b8;">👤 ${r.ownerName} (${r.phone})</small>
+          </td>
+          <td>
+            <span style="font-weight: 700; color: #10b981; display: block;">
+              <i class="fa-solid fa-hourglass-half"></i> ${timeInfo.text}
+            </span>
+            <small style="color: #64748b; font-size: 0.78rem;">মেয়াদ শেষ: ${new Date(expiryIso).toLocaleDateString('bn-BD')}</small>
+          </td>
+          <td>
+            <strong style="color:#a855f7; display:block;"><i class="fa-solid fa-gem"></i> ${toBnNum(r.requestedMonths || 1)} মাস</strong>
+            <small style="color:#10b981; font-weight:700;">৳${toBnNum(r.amountPaid || 150)} BDT</small>
+          </td>
+          <td>
+            <span class="badge" style="background:rgba(59,130,246,0.15); color:#3b82f6; font-size:0.75rem; margin-bottom:2px; display:inline-block;">${r.paymentMethod || 'bKash Send Money'}</span>
+            <strong style="color:#10b981; font-family:monospace; display:block; font-size:0.92rem;">TrxID: ${(r.trxId && r.trxId.trim()) ? r.trxId : 'N/A'}</strong>
+            <small style="color:#94a3b8;">প্রেরক: ${r.senderPhone || r.phone}</small>
+          </td>
+          <td><span class="badge-status badge-pending">🟡 আবেদন পেন্ডিং</span></td>
+          <td style="text-align: center;" onclick="event.stopPropagation();">
+            <div style="display:flex; gap:0.4rem; justify-content:center; flex-wrap:wrap;">
+              <button onclick="markRequestAsRead('${r.reqId}'); openMerchantProfileModal('${r.reqId}')" class="btn-submit" style="padding:0.35rem 0.6rem; font-size:0.78rem; background:#3b82f6;" title="পেমেন্ট রসিদ পিকচার ও ট্রানজ্যাকশন রিভিউ করুন">
+                <i class="fa-solid fa-eye"></i> রিভিউ
+              </button>
+              <button onclick="approveMerchantSubscriptionRequest('${r.reqId}')" class="btn-submit" style="padding:0.35rem 0.65rem; font-size:0.78rem; background:#10b981;" title="আবেদনটি অনুমোদন করুন (+মেয়াদ যোগ হবে)">
                 <i class="fa-solid fa-check"></i> অনুমোদন
               </button>
-              <button onclick="rejectMerchantSubscription('${s.storeId || s.id}')" class="btn-submit" style="padding:0.35rem 0.65rem; font-size:0.78rem; background:#e11d48;" title="ভুয়া TrxID রিকোয়েস্ট বাতিল করুন">
+              <button onclick="rejectMerchantSubscriptionRequest('${r.reqId}')" class="btn-submit" style="padding:0.35rem 0.65rem; font-size:0.78rem; background:#e11d48;" title="আবেদনটি বাতিল করুন">
                 <i class="fa-solid fa-xmark"></i> বাতিল
               </button>
-            ` : ''}
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
+    return;
+  }
 
-            <button onclick="toggleMonthlySubscriptionStatus('${s.storeId || s.id}')" class="btn-submit" style="padding:0.35rem 0.65rem; font-size:0.78rem; background:${isStopped ? '#10b981' : '#f59e0b'};" title="সাবস্ক্রিপশন বন্ধ বা চালু করুন">
-              <i class="fa-solid ${isStopped ? 'fa-play' : 'fa-pause'}"></i> ${isStopped ? 'চালু' : 'বন্ধ'}
+  // -------------------------------------------------------------
+  // VIEW 3: 📜 অল রিকোয়েস্ট (All Historical Renewal Requests)
+  // Shows EVERY SINGLE RENEWAL REQUEST FROM BEGINNING TO END (A to Z)!
+  // -------------------------------------------------------------
+  if (currentMonthlySubTab === 'all') {
+    if (subscriptionRequestsList.length === 0) {
+      body.innerHTML = `<tr><td colspan="6" class="text-center p-3 text-muted">কোনো সাবস্ক্রিপশন আবেদন হিস্ট্রি পাওয়া যায়নি</td></tr>`;
+      return;
+    }
+
+    body.innerHTML = subscriptionRequestsList.map(r => {
+      const reqStatus = r.subRequestStatus;
+
+      let statusBadgeHTML = `<span class="badge-status badge-pending">🟡 আবেদন পেন্ডিং</span>`;
+      if (reqStatus === 'Approved') {
+        statusBadgeHTML = `<span class="badge" style="background:rgba(16,185,129,0.2); color:#10b981; border:1px solid #10b981; font-weight:700; padding:3px 8px; border-radius:12px;"><i class="fa-solid fa-circle-check"></i> 🟢 অনুমোদিত (Approved)</span>`;
+      } else if (reqStatus === 'Rejected') {
+        statusBadgeHTML = `<span class="badge" style="background:rgba(225,29,72,0.2); color:#e11d48; border:1px solid #e11d48; font-weight:700; padding:3px 8px; border-radius:12px;"><i class="fa-solid fa-circle-xmark"></i> 🔴 বাতিল করা হয়েছে (Rejected)</span>`;
+      }
+
+      return `
+        <tr>
+          <td>
+            <strong style="font-size: 0.98rem; color: var(--text-color);">${r.storeName}</strong><br>
+            <small style="color: #94a3b8;">👤 ${r.ownerName} (${r.phone})</small>
+          </td>
+          <td>
+            <small style="color: #64748b; font-size: 0.85rem;">তারিখ: ${new Date(r.submittedAt || Date.now()).toLocaleDateString('bn-BD')}</small>
+          </td>
+          <td>
+            <strong style="color:#a855f7;"><i class="fa-solid fa-gem"></i> ${toBnNum(r.requestedMonths || 1)} মাস</strong>
+            <small style="color:#10b981; font-weight:700; display:block;">৳${toBnNum(r.amountPaid || 150)} BDT</small>
+          </td>
+          <td>
+            <span class="badge" style="background:rgba(59,130,246,0.15); color:#3b82f6; font-size:0.75rem; margin-bottom:2px; display:inline-block;">${r.paymentMethod || 'bKash Send Money'}</span>
+            <strong style="color:#10b981; font-family:monospace; display:block; font-size:0.92rem;">TrxID: ${(r.trxId && r.trxId.trim()) ? r.trxId : 'N/A'}</strong>
+            <small style="color:#94a3b8; display:block;">প্রেরক: ${r.senderPhone || r.phone || 'N/A'}</small>
+          </td>
+          <td>${statusBadgeHTML}</td>
+          <td style="text-align: center;">
+            <button onclick="openMerchantProfileModal('${r.reqId}')" class="btn-submit" style="padding:0.35rem 0.65rem; font-size:0.78rem; background:#3b82f6;">
+              <i class="fa-solid fa-eye"></i> রিভিউ হিস্ট্রি
             </button>
-          </div>
-        </td>
-      </tr>
-    `;
-  }).join('') || `<tr><td colspan="6" class="text-center p-3 text-muted">কোনো মার্চেন্ট অ্যাকাউন্ট পাওয়া যায়নি</td></tr>`;
+          </td>
+        </tr>
+      `;
+    }).join('');
+    return;
+  }
 }
 
-// Open Clickable Merchant Profile Modal with Deep-Dive Details
-function openMerchantProfileModal(storeId) {
-  markSubscriptionAsRead(storeId);
-  const sub = subscribersList.find(s => s.storeId === storeId || s.id === storeId);
-  if (!sub) return;
+// Open Clickable Merchant Profile Modal with Deep-Dive Details & Receipt Image Preview
+function openMerchantProfileModal(idOrReqId) {
+  let req = subscriptionRequestsList.find(r => r.reqId === idOrReqId);
+  let sub = null;
+
+  if (req) {
+    sub = subscribersList.find(s => s.storeId === req.storeId || s.phone === req.phone) || req;
+  } else {
+    sub = subscribersList.find(s => s.storeId === idOrReqId || s.id === idOrReqId) || {};
+    req = subscriptionRequestsList.find(r => r.storeId === sub.storeId || r.phone === sub.phone);
+  }
+
+  if (!sub && !req) return;
 
   const modal = document.getElementById('merchantProfileModal');
   const container = document.getElementById('merchantProfileContent');
@@ -551,15 +823,25 @@ function openMerchantProfileModal(storeId) {
   const timeInfo = formatRemainingTime(expiryIso);
   const isStopped = sub.accountBlocked === true || sub.status === 'Stopped' || sub.status === 'Suspended';
 
+  const storeName = sub.storeName || req.storeName || 'Merchant Store';
+  const ownerName = sub.ownerName || req.ownerName || 'Merchant Owner';
+  const phone = sub.phone || req.phone || req.senderPhone || '01700000000';
+  const email = sub.email || req.email || 'N/A';
+  const storeId = sub.storeId || sub.id || req.storeId || idOrReqId;
+  const currentTrxId = (req && req.trxId) ? req.trxId : (sub.trxId || 'N/A');
+
+  // Mark request as read
+  if (req && req.reqId) markRequestAsRead(req.reqId);
+
   container.innerHTML = `
     <!-- PROFILE HEADER CARD -->
     <div style="background: linear-gradient(135deg, rgba(168, 85, 247, 0.15), rgba(59, 130, 246, 0.1)); border: 1px solid rgba(168, 85, 247, 0.3); border-radius: 18px; padding: 1.25rem; margin-bottom: 1.25rem;">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-        <span class="badge-status ${isStopped ? 'badge-suspended' : (sub.trxId ? 'badge-pending' : 'badge-active')}">${isStopped ? '🔴 বন্ধ/স্থগিত' : sub.status}</span>
-        <small style="color: #94a3b8;">Store ID: <code>${sub.storeId || storeId}</code></small>
+        <span class="badge-status ${isStopped ? 'badge-suspended' : (req && req.subRequestStatus === 'Pending' ? 'badge-pending' : 'badge-active')}">${isStopped ? '🔴 বন্ধ/স্থগিত' : (sub.status || 'Active Paid')}</span>
+        <small style="color: #94a3b8;">Store ID: <code>${storeId}</code></small>
       </div>
-      <h3 style="color: #fff; font-size: 1.3rem; margin-bottom: 0.2rem;">${sub.storeName}</h3>
-      <p style="color: #cbd5e1; font-size: 0.9rem;"><i class="fa-solid fa-user"></i> মালিক: <strong>${sub.ownerName}</strong> | <i class="fa-solid fa-phone"></i> ${sub.phone}</p>
+      <h3 style="color: #fff; font-size: 1.3rem; margin-bottom: 0.2rem;">${storeName}</h3>
+      <p style="color: #cbd5e1; font-size: 0.9rem;"><i class="fa-solid fa-user"></i> মালিক: <strong>${ownerName}</strong> | <i class="fa-solid fa-phone"></i> ${phone}</p>
     </div>
 
     <!-- REMAINING TIME COUNTER CARD -->
@@ -571,26 +853,43 @@ function openMerchantProfileModal(storeId) {
       <div style="font-size: 2rem; color: #10b981;"><i class="fa-solid fa-hourglass-half"></i></div>
     </div>
 
-    <!-- PENDING RENEWAL REQUEST HIGHLIGHT IF PRESENT -->
-    ${sub.trxId ? `
+    <!-- RENEWAL REQUEST TRANSACTION & RECEIPT HIGHLIGHT -->
+    ${req ? `
       <div style="background: rgba(168, 85, 247, 0.15); border: 2px solid #a855f7; border-radius: 14px; padding: 1rem; margin-bottom: 1.25rem;">
-        <strong style="color: #a855f7; font-size: 1.05rem; display: block; margin-bottom: 0.4rem;">
-          <i class="fa-solid fa-bell"></i> নতুন সাবস্ক্রিপশন রিন্যুয়াল আবেদন (Pending Verification)
-        </strong>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.9rem; color: #fff;">
-          <div>মেয়াদ: <strong style="color:#a855f7;">${toBnNum(sub.requestedMonths || 1)} মাস (৳${toBnNum(sub.amountPaid || 150)})</strong></div>
-          <div>মেথড: <strong>${sub.paymentMethod || 'bKash Send Money'}</strong></div>
-          <div>TrxID: <strong style="color:#10b981; font-family:monospace;">${sub.trxId}</strong></div>
-          <div>প্রেরক ফোন: <strong>${sub.senderPhone || sub.phone}</strong></div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+          <strong style="color: #a855f7; font-size: 1.05rem;">
+            <i class="fa-solid fa-receipt"></i> সাবস্ক্রিপশন আবেদন ডিটেইলস
+          </strong>
+          <span class="badge" style="background:${req.subRequestStatus === 'Approved' ? 'rgba(16,185,129,0.2)' : (req.subRequestStatus === 'Rejected' ? 'rgba(225,29,72,0.2)' : 'rgba(245,158,11,0.2)')}; color:${req.subRequestStatus === 'Approved' ? '#10b981' : (req.subRequestStatus === 'Rejected' ? '#e11d48' : '#f59e0b')}; font-weight:700;">
+            ${req.subRequestStatus === 'Approved' ? '🟢 অনুমোদিত (Approved)' : (req.subRequestStatus === 'Rejected' ? '🔴 বাতিল করা হয়েছে (Rejected)' : '🟡 আবেদন পেন্ডিং')}
+          </span>
         </div>
-        <div style="display: flex; gap: 10px; margin-top: 0.85rem;">
-          <button onclick="approveMerchantSubscription('${sub.storeId || storeId}')" class="btn-submit" style="background: #10b981; flex: 1;">
-            <i class="fa-solid fa-check"></i> এই পেমেন্ট অনুমোদন দিন
-          </button>
-          <button onclick="rejectMerchantSubscription('${sub.storeId || storeId}')" class="btn-submit" style="background: #e11d48; flex: 1;">
-            <i class="fa-solid fa-xmark"></i> ভুয়া TrxID বাতিল করুন
-          </button>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.9rem; color: #fff; margin-bottom: 0.75rem;">
+          <div>মেয়াদ: <strong style="color:#a855f7;">${toBnNum(req.requestedMonths || 1)} মাস (৳${toBnNum(req.amountPaid || 150)} BDT)</strong></div>
+          <div>মেথড: <strong>${req.paymentMethod || 'bKash Send Money'}</strong></div>
+          <div>TrxID: <strong style="color:#10b981; font-family:monospace; font-size:1rem;">${currentTrxId}</strong></div>
+          <div>প্রেরক ফোন: <strong style="color:#3b82f6;">${req.senderPhone || phone}</strong></div>
         </div>
+
+        <!-- UPLOADED PAYMENT RECEIPT PICTURE PREVIEW -->
+        ${req.receiptImage ? `
+          <div style="background: #0f172a; border: 1px solid rgba(168,85,247,0.3); border-radius: 10px; padding: 0.75rem; text-align: center; margin-top: 0.5rem;">
+            <small style="color: #a855f7; font-weight: 700; display: block; margin-bottom: 0.4rem;"><i class="fa-solid fa-image"></i> প্রেরিত পেমেন্ট রসিদের মূল ছবি:</small>
+            <img src="${req.receiptImage}" alt="Payment Receipt" style="max-width: 100%; max-height: 260px; border-radius: 8px; border: 1px solid #334155; cursor: pointer; object-fit: contain;" onclick="window.open(this.src, '_blank')" title="ছবিতে ক্লিক করে ফুল স্ক্রিনে বড় করে দেখুন">
+            <small style="color: #94a3b8; display: block; margin-top: 4px;">🔍 ছবিতে ক্লিক করে ফুল সাইজে বড় করুন</small>
+          </div>
+        ` : `<div style="background: rgba(30,41,59,0.5); padding: 0.5rem; border-radius: 8px; font-size: 0.82rem; color: #94a3b8; text-align: center;"><i class="fa-solid fa-circle-info"></i> কোনো পেমেন্ট রসিদ ছবি সংযুক্ত করা হয়নি</div>`}
+
+        ${req.subRequestStatus === 'Pending' ? `
+          <div style="display: flex; gap: 10px; margin-top: 0.85rem;">
+            <button onclick="approveMerchantSubscriptionRequest('${req.reqId}')" class="btn-submit" style="background: #10b981; flex: 1;">
+              <i class="fa-solid fa-check"></i> এই পেমেন্ট অনুমোদন দিন (+মেয়াদ যোগ হবে)
+            </button>
+            <button onclick="rejectMerchantSubscriptionRequest('${req.reqId}')" class="btn-submit" style="background: #e11d48; flex: 1;">
+              <i class="fa-solid fa-xmark"></i> ভুয়া TrxID বাতিল করুন
+            </button>
+          </div>
+        ` : ''}
       </div>
     ` : ''}
 
@@ -598,8 +897,8 @@ function openMerchantProfileModal(storeId) {
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.25rem; font-size: 0.9rem;">
       <div style="background: rgba(30,41,59,0.5); padding: 1rem; border-radius: 12px; border: 1px solid var(--border-color);">
         <strong style="color: #a855f7; display: block; margin-bottom: 0.5rem;"><i class="fa-solid fa-circle-info"></i> পার্সোনাল তথ্য</strong>
-        <div>ইমেইল: <strong>${sub.email || 'N/A'}</strong></div>
-        <div>ফোন: <strong>${sub.phone}</strong></div>
+        <div>ইমেইল: <strong>${email}</strong></div>
+        <div>ফোন: <strong>${phone}</strong></div>
         <div>নিবন্ধন তারিখ: <strong>${sub.createdAt || 'আজকে'}</strong></div>
       </div>
 
@@ -607,25 +906,25 @@ function openMerchantProfileModal(storeId) {
         <strong style="color: #3b82f6; display: block; margin-bottom: 0.5rem;"><i class="fa-solid fa-building"></i> বিজনেস ও পেমেন্ট তথ্য</strong>
         <div>এক্সেস সেটআপ ফি: <strong style="color:#10b981;">৳${toBnNum(sub.setupFee || 14999)}</strong></div>
         <div>সর্বশেষ প্যাকেজ: <strong>${toBnNum(sub.requestedMonths || 1)} মাস</strong></div>
-        <div>TrxID: <strong style="color:#10b981; font-family:monospace;">${sub.trxId || 'N/A'}</strong></div>
+        <div>TrxID: <strong style="color:#10b981; font-family:monospace;">${currentTrxId}</strong></div>
       </div>
     </div>
 
     <!-- ACTION BUTTONS -->
     <div style="display: flex; gap: 8px; flex-wrap: wrap; border-top: 1px solid var(--border-color); padding-top: 1rem;">
-      <button onclick="loginAsMerchant('${sub.storeId || storeId}')" class="btn-submit" style="background: linear-gradient(135deg, #3b82f6, #2563eb); flex: 1;">
+      <button onclick="loginAsMerchant('${storeId}')" class="btn-submit" style="background: linear-gradient(135deg, #3b82f6, #2563eb); flex: 1;">
         <i class="fa-solid fa-user-gear"></i> এডমিন
       </button>
-      <button onclick="loginAsCashier('${sub.storeId || storeId}')" class="btn-submit" style="background: linear-gradient(135deg, #10b981, #059669); flex: 1;">
+      <button onclick="loginAsCashier('${storeId}')" class="btn-submit" style="background: linear-gradient(135deg, #10b981, #059669); flex: 1;">
         <i class="fa-solid fa-cash-register"></i> POS
       </button>
-      <button onclick="extendMerchantSubscription('${sub.storeId || storeId}')" class="btn-submit" style="background: #8b5cf6; flex: 1;">
+      <button onclick="extendMerchantSubscription('${storeId}')" class="btn-submit" style="background: #8b5cf6; flex: 1;">
         <i class="fa-solid fa-calendar-plus"></i> দিন বাড়ান/কমান (+/-)
       </button>
-      <button onclick="toggleMonthlySubscriptionStatus('${sub.storeId || storeId}')" class="btn-submit" style="background: ${isStopped ? '#10b981' : '#e11d48'}; flex: 1;">
+      <button onclick="toggleMonthlySubscriptionStatus('${storeId}')" class="btn-submit" style="background: ${isStopped ? '#10b981' : '#e11d48'}; flex: 1;">
         <i class="fa-solid ${isStopped ? 'fa-play' : 'fa-pause'}"></i> ${isStopped ? 'সাবস্ক্রিপশন চালু' : 'সাবস্ক্রিপশন বন্ধ'}
       </button>
-      <button onclick="deleteMerchantAccount('${sub.storeId || storeId}')" class="btn-submit" style="background: rgba(239,68,68,0.2); border: 1px solid #ef4444; color: #ef4444;">
+      <button onclick="deleteMerchantAccount('${storeId}')" class="btn-submit" style="background: rgba(239,68,68,0.2); border: 1px solid #ef4444; color: #ef4444;">
         <i class="fa-solid fa-trash"></i>
       </button>
     </div>
@@ -652,17 +951,15 @@ function saveAndSyncSubscriberState(storeId, sub) {
   }
   localStorage.setItem('pos_subscriptions', JSON.stringify(subscribersList));
 
-  const activeStoreId = localStorage.getItem('pos_active_store_id');
-  if (activeStoreId === targetId || !activeStoreId) {
-    let activeSub = JSON.parse(localStorage.getItem('pos_subscription')) || {};
-    activeSub = { ...activeSub, ...sub };
-    localStorage.setItem('pos_subscription', JSON.stringify(activeSub));
-  }
+  let activeSub = JSON.parse(localStorage.getItem('pos_subscription')) || {};
+  activeSub = { ...activeSub, ...sub };
+  localStorage.setItem('pos_subscription', JSON.stringify(activeSub));
+  localStorage.setItem(`pos_tenant_${targetId}_pos_subscription`, JSON.stringify(activeSub));
 
   if (window.POS_FIREBASE && window.POS_FIREBASE.db) {
     try {
       window.POS_FIREBASE.db.collection('subscriptions').doc(targetId).set(sub, { merge: true });
-      window.POS_FIREBASE.db.collection('stores').doc(targetId).set({ profile: sub }, { merge: true });
+      window.POS_FIREBASE.db.collection('stores').doc(targetId).set({ profile: sub, pos_subscription: sub }, { merge: true });
     } catch (e) {
       console.warn('[Cloud Sync Warning]:', e);
     }
@@ -671,62 +968,95 @@ function saveAndSyncSubscriberState(storeId, sub) {
   window.dispatchEvent(new Event('storage'));
 }
 
-// Approve Monthly Subscription Request & Extend Exact Requested Duration
-function approveMerchantSubscription(storeId) {
-  const sub = subscribersList.find(s => s.storeId === storeId || s.id === storeId);
-  if (!sub) return;
+// Approve Specific Monthly Subscription Request & Extend Exact Requested Duration
+async function approveMerchantSubscriptionRequest(reqId) {
+  const req = subscriptionRequestsList.find(r => r.reqId === reqId);
+  if (!req) return;
 
-  const reqMonths = parseInt(sub.requestedMonths) || 1;
+  const targetStoreId = req.storeId;
+  const merchant = subscribersList.find(s => s.storeId === targetStoreId || s.phone === req.phone) || {};
+
+  const reqMonths = parseInt(req.requestedMonths) || 1;
   let addDays = 30;
   if (reqMonths === 6) addDays = 180;
   else if (reqMonths === 12) addDays = 365;
   else addDays = reqMonths * 30;
 
-  const currentExpiry = sub.trialExpiresAt ? new Date(sub.trialExpiresAt) : new Date();
+  const currentExpiry = merchant.trialExpiresAt ? new Date(merchant.trialExpiresAt) : new Date();
   const baseDate = currentExpiry > new Date() ? currentExpiry : new Date();
   baseDate.setDate(baseDate.getDate() + addDays);
 
-  sub.trialExpiresAt = baseDate.toISOString();
-  sub.status = 'Active Paid';
-  sub.subRequestStatus = 'Approved';
-  sub.isRead = true;
-  sub.isTrial = false;
-  sub.accountBlocked = false;
-  sub.accessBlocked = false;
-  sub.trxId = '';
+  const newExpiryIso = baseDate.toISOString();
 
-  saveAndSyncSubscriberState(storeId, sub);
+  // 1. Update request status
+  req.subRequestStatus = 'Approved';
+  req.isRead = true;
 
-  alert(`✅ '${sub.storeName}' এর ${toBnNum(reqMonths)} মাসের সাবস্ক্রিপশন সফলভাবে অনুমোদন করা হয়েছে!\n\nনতুন শেষ মেয়াদ: ${baseDate.toLocaleDateString('bn-BD')}`);
-  loadSubscribers();
-  renderPendingSubscriptionsTable();
+  // 2. Update merchant profile
+  merchant.trialExpiresAt = newExpiryIso;
+  merchant.status = 'Active Paid';
+  merchant.isTrial = false;
+  merchant.accountBlocked = false;
+  merchant.accessBlocked = false;
+  merchant.trxId = req.trxId || merchant.trxId || '';
+
+  // Save requests list
+  localStorage.setItem('pos_subscription_requests', JSON.stringify(subscriptionRequestsList));
+
+  // Sync to Firestore /subscription_requests
+  if (window.POS_FIREBASE && window.POS_FIREBASE.db) {
+    try {
+      await window.POS_FIREBASE.db.collection('subscription_requests').doc(reqId).set({
+        subRequestStatus: 'Approved',
+        isRead: true,
+        approvedAt: new Date().toISOString()
+      }, { merge: true });
+    } catch (e) {}
+  }
+
+  saveAndSyncSubscriberState(targetStoreId, merchant);
+
+  alert(`✅ '${req.storeName}' এর ${toBnNum(reqMonths)} মাসের সাবস্ক্রিপশন সফলভাবে অনুমোদন করা হয়েছে!\n\nনতুন শেষ মেয়াদ: ${baseDate.toLocaleDateString('bn-BD')}`);
+  
+  await loadSubscriptionRequests();
+  await loadSubscribers();
   closeMerchantProfileModal();
 }
 
-// Reject Fake TrxID Monthly Subscription Request Without Adding Extra Days (Retains Existing Valid Days)
-function rejectMerchantSubscription(storeId) {
-  const sub = subscribersList.find(s => s.storeId === storeId || s.id === storeId);
-  if (!sub) return;
+// Reject Specific Monthly Subscription Request Without Adding Extra Days
+async function rejectMerchantSubscriptionRequest(reqId) {
+  const req = subscriptionRequestsList.find(r => r.reqId === reqId);
+  if (!req) return;
 
-  const reqMonths = parseInt(sub.requestedMonths) || 1;
+  const targetStoreId = req.storeId;
+  const merchant = subscribersList.find(s => s.storeId === targetStoreId || s.phone === req.phone) || {};
+  const reqMonths = parseInt(req.requestedMonths) || 1;
 
-  if (confirm(`⚠️ পেমেন্ট না আসায়/ভুয়া TrxID প্রদান করায় '${sub.storeName}' এর ${toBnNum(reqMonths)} মাসের সাবস্ক্রিপশন আবেদনটি বাতিল করতে চান?\n\nআবেদনটি বাতিল করলে নতুন কোনো দিন যোগ হবে না। মার্চেন্টের আগের অবশিষ্ট মেয়াদের সময় বজায় থাকবে।`)) {
-    sub.trxId = '';
-    sub.subRequestStatus = 'Rejected';
-    sub.isRead = true;
+  if (confirm(`⚠️ পেমেন্ট না আসায়/ভুয়া TrxID প্রদান করায় '${req.storeName}' এর ${toBnNum(reqMonths)} মাসের সাবস্ক্রিপশন আবেদনটি বাতিল করতে চান?\n\nআবেদনটি বাতিল করলে নতুন কোনো দিন যোগ হবে না। মার্চেন্টের আগের অবশিষ্ট মেয়াদের সময় বজায় থাকবে।`)) {
+    // 1. Permanently update request object (preserve original trxId for historical records!)
+    req.subRequestStatus = 'Rejected';
+    req.isRead = true;
 
-    const currentExpiry = sub.trialExpiresAt ? new Date(sub.trialExpiresAt) : new Date(0);
-    if (currentExpiry > new Date()) {
-      sub.status = 'Active Paid';
-    } else {
-      sub.status = 'Expired';
+    // 2. Update merchant profile status
+    merchant.subRequestStatus = 'Rejected';
+
+    localStorage.setItem('pos_subscription_requests', JSON.stringify(subscriptionRequestsList));
+    saveAndSyncSubscriberState(targetStoreId, merchant);
+
+    if (window.POS_FIREBASE && window.POS_FIREBASE.db) {
+      try {
+        await window.POS_FIREBASE.db.collection('subscription_requests').doc(reqId).set({
+          subRequestStatus: 'Rejected',
+          isRead: true,
+          rejectedAt: new Date().toISOString()
+        }, { merge: true });
+      } catch (e) {}
     }
 
-    saveAndSyncSubscriberState(storeId, sub);
-
-    alert(`🔴 '${sub.storeName}' এর রিনিউ আবেদনটি সফলভাবে বাতিল করা হয়েছে! মার্চেন্টের আগের অবশিষ্ট মেয়াদ বহাল রয়েছে।`);
-    loadSubscribers();
-    renderPendingSubscriptionsTable();
+    alert(`🔴 '${req.storeName}' এর রিনিউ আবেদনটি সফলভাবে বাতিল করা হয়েছে! মার্চেন্টের আগের অবশিষ্ট মেয়াদ বহাল রয়েছে।`);
+    
+    await loadSubscriptionRequests();
+    await loadSubscribers();
     closeMerchantProfileModal();
   }
 }
