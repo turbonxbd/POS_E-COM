@@ -496,33 +496,43 @@ async function loadSubscriptionRequests() {
     if (!item) return;
     const reqId = item.reqId || item.id || `req_${item.submittedAt || Date.now()}_${item.trxId || Math.random()}`;
 
-    const existing = reqMap.get(reqId);
-    let finalStatus = item.subRequestStatus || (item.trxId ? 'Pending' : 'Approved');
+    const existing = reqMap.get(reqId) || {};
+    let finalStatus = item.subRequestStatus || existing.subRequestStatus || (item.trxId ? 'Pending' : 'Approved');
 
-    // If existing or incoming item is Approved or Rejected, permanently lock status as Approved or Rejected!
-    if (existing && (existing.subRequestStatus === 'Approved' || existing.subRequestStatus === 'Rejected')) {
+    // Permanent status resolution lock
+    if (existing.subRequestStatus === 'Approved' || existing.subRequestStatus === 'Rejected') {
       finalStatus = existing.subRequestStatus;
     } else if (item.subRequestStatus === 'Approved' || item.subRequestStatus === 'Rejected') {
       finalStatus = item.subRequestStatus;
     }
 
+    // Preserve requestedMonths & amountPaid! Never let omitted fields reset 6m/12m packages to 1m!
+    const validReqMonths = parseInt(item.requestedMonths) || parseInt(existing.requestedMonths) || 1;
+    const validAmountPaid = parseFloat(item.amountPaid) || parseFloat(existing.amountPaid) || 150;
+
+    // Preserve non-empty trxId! Never let an empty string overwrite a valid trxId!
+    const validTrxId = (item.trxId && String(item.trxId).trim()) ? String(item.trxId).trim() : (existing.trxId && String(existing.trxId).trim() ? String(existing.trxId).trim() : (item.transactionId || item.trx || existing.transactionId || ''));
+    const validSenderPhone = item.senderPhone || existing.senderPhone || item.phone || existing.phone || '';
+    const validReceiptImage = item.receiptImage || existing.receiptImage || '';
+
     reqMap.set(reqId, {
       ...existing,
       ...item,
       reqId: reqId,
-      storeId: item.storeId || item.id || (existing ? existing.storeId : 'store_demo_101'),
-      storeName: item.storeName || item.name || (existing ? existing.storeName : 'Merchant Shop'),
-      ownerName: item.ownerName || item.storeOwner || (existing ? existing.ownerName : 'Merchant Owner'),
-      phone: item.phone || item.senderPhone || (existing ? existing.phone : '01700000000'),
-      requestedMonths: parseInt(item.requestedMonths) || (existing ? existing.requestedMonths : 1),
-      amountPaid: parseFloat(item.amountPaid) || (existing ? existing.amountPaid : 150),
-      paymentMethod: item.paymentMethod || (existing ? existing.paymentMethod : 'bKash Send Money'),
-      trxId: item.trxId || (existing ? existing.trxId : ''),
-      senderPhone: item.senderPhone || item.phone || (existing ? existing.senderPhone : ''),
-      receiptImage: item.receiptImage || (existing ? existing.receiptImage : ''),
+      storeId: item.storeId || existing.storeId || item.id || 'store_demo_101',
+      storeName: item.storeName || existing.storeName || 'Merchant Shop',
+      ownerName: item.ownerName || existing.ownerName || 'Merchant Owner',
+      phone: item.phone || existing.phone || validSenderPhone || '01700000000',
+      requestedMonths: validReqMonths,
+      amountPaid: validAmountPaid,
+      paymentMethod: item.paymentMethod || existing.paymentMethod || 'bKash Send Money',
+      trxId: validTrxId,
+      senderPhone: validSenderPhone,
+      receiptImage: validReceiptImage,
       subRequestStatus: finalStatus,
-      isRead: (finalStatus === 'Approved' || finalStatus === 'Rejected') ? true : (item.isRead === true || (existing && existing.isRead)),
-      submittedAt: item.submittedAt || item.createdAt || (existing ? existing.submittedAt : new Date().toISOString())
+      isRead: (finalStatus === 'Approved' || finalStatus === 'Rejected') ? true : (item.isRead === true || existing.isRead === true),
+      submittedAt: item.submittedAt || existing.submittedAt || item.createdAt || new Date().toISOString(),
+      updatedAt: item.updatedAt || item.approvedAt || item.rejectedAt || existing.updatedAt || existing.approvedAt || existing.rejectedAt || item.submittedAt || existing.submittedAt || new Date().toISOString()
     });
   };
 
@@ -542,7 +552,12 @@ async function loadSubscriptionRequests() {
     }
   }
 
-  subscriptionRequestsList = Array.from(reqMap.values()).sort((a, b) => new Date(b.submittedAt || 0) - new Date(a.submittedAt || 0));
+  // Sort: NEWEST / MOST RECENT ACTIONS (Approved, Rejected, or Submitted) ALWAYS FLOAT TO THE VERY TOP!
+  subscriptionRequestsList = Array.from(reqMap.values()).sort((a, b) => {
+    const timeA = new Date(a.updatedAt || a.approvedAt || a.rejectedAt || a.submittedAt || a.createdAt || 0).getTime();
+    const timeB = new Date(b.updatedAt || b.approvedAt || b.rejectedAt || b.submittedAt || b.createdAt || 0).getTime();
+    return timeB - timeA;
+  });
   localStorage.setItem('pos_subscription_requests', JSON.stringify(subscriptionRequestsList));
 
   renderPendingSubscriptionsTable();
@@ -973,6 +988,7 @@ async function approveMerchantSubscriptionRequest(reqId) {
   // 1. Update request status
   req.subRequestStatus = 'Approved';
   req.isRead = true;
+  req.updatedAt = new Date().toISOString();
 
   // 2. Update merchant profile
   merchant.trialExpiresAt = newExpiryIso;
@@ -989,9 +1005,17 @@ async function approveMerchantSubscriptionRequest(reqId) {
   if (window.POS_FIREBASE && window.POS_FIREBASE.db) {
     try {
       await window.POS_FIREBASE.db.collection('subscription_requests').doc(reqId).set({
+        reqId: reqId,
+        storeId: targetStoreId,
+        trxId: req.trxId || '',
+        senderPhone: req.senderPhone || req.phone || '',
+        requestedMonths: req.requestedMonths || 1,
+        amountPaid: req.amountPaid || 150,
+        paymentMethod: req.paymentMethod || 'bKash Send Money',
         subRequestStatus: 'Approved',
         isRead: true,
-        approvedAt: new Date().toISOString()
+        approvedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       }, { merge: true });
     } catch (e) {}
   }
@@ -1018,6 +1042,7 @@ async function rejectMerchantSubscriptionRequest(reqId) {
     // 1. Permanently update request object (preserve original trxId for historical records!)
     req.subRequestStatus = 'Rejected';
     req.isRead = true;
+    req.updatedAt = new Date().toISOString();
 
     // 2. Update merchant profile status
     merchant.subRequestStatus = 'Rejected';
@@ -1028,9 +1053,17 @@ async function rejectMerchantSubscriptionRequest(reqId) {
     if (window.POS_FIREBASE && window.POS_FIREBASE.db) {
       try {
         await window.POS_FIREBASE.db.collection('subscription_requests').doc(reqId).set({
+          reqId: reqId,
+          storeId: targetStoreId,
+          trxId: req.trxId || '',
+          senderPhone: req.senderPhone || req.phone || '',
+          requestedMonths: req.requestedMonths || 1,
+          amountPaid: req.amountPaid || 150,
+          paymentMethod: req.paymentMethod || 'bKash Send Money',
           subRequestStatus: 'Rejected',
           isRead: true,
-          rejectedAt: new Date().toISOString()
+          rejectedAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
         }, { merge: true });
       } catch (e) {}
     }
