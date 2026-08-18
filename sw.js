@@ -1,5 +1,5 @@
 // SmartPOS - Service Worker Caching & Instant Automatic Background Update Engine
-const CACHE_NAME = 'smartpos-v3.4.0';
+const CACHE_NAME = 'smartpos-v3.5.0';
 const ASSETS_TO_CACHE = [
   './portal.html',
   './cashier.html',
@@ -69,8 +69,8 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // HTML Pages: Network-First so merchants automatically receive live GitHub updates on app launch
-  if (url.includes('.html') || url.endsWith('/') || url === self.location.origin) {
+  // HTML Pages & Core JS Application Files: Network-First so installed PWA apps automatically receive live GitHub updates on launch
+  if (url.includes('.html') || url.includes('.js') || url.endsWith('/') || url === self.location.origin) {
     event.respondWith(
       fetch(event.request)
         .then((networkResponse) => {

@@ -11,9 +11,12 @@ if ('serviceWorker' in navigator) {
         swRegistration = reg;
         console.log('[PWA] Service Worker active:', reg.scope);
 
-        // Check if an update is waiting
+        // Force browser to check GitHub Pages for new SW version immediately on app launch!
+        reg.update();
+
+        // If a new Service Worker is waiting, force skipWaiting immediately
         if (reg.waiting) {
-          showAppUpdateBanner('v2.7.0');
+          reg.waiting.postMessage({ type: 'SKIP_WAITING', action: 'skipWaiting' });
         }
 
         // Listen for new updates found
@@ -22,8 +25,8 @@ if ('serviceWorker' in navigator) {
           if (installingWorker) {
             installingWorker.onstatechange = () => {
               if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                console.log('[PWA] New version installed and ready for activation!');
-                showAppUpdateBanner('v2.7.0');
+                console.log('[PWA] New version installed! Activating immediately...');
+                installingWorker.postMessage({ type: 'SKIP_WAITING', action: 'skipWaiting' });
               }
             };
           }
@@ -31,7 +34,7 @@ if ('serviceWorker' in navigator) {
       })
       .catch(err => console.warn('[PWA] Service Worker failed:', err));
 
-    // Handle controllerchange event (when new SW takes control)
+    // Handle controllerchange event (when new SW takes control, reload app window automatically!)
     let refreshing = false;
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       if (!refreshing) {
