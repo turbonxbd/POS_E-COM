@@ -530,30 +530,12 @@ async function loadSubscriptionRequests() {
   let cachedReqs = JSON.parse(localStorage.getItem('pos_subscription_requests')) || [];
   if (Array.isArray(cachedReqs)) cachedReqs.forEach(addReq);
 
-  // 2. Seed from pos_subscription active key if pending
-  let activeSub = JSON.parse(localStorage.getItem('pos_subscription'));
-  if (activeSub && activeSub.trxId) {
-    addReq({ reqId: activeSub.reqId || `req_${activeSub.submittedAt || Date.now()}`, ...activeSub });
-  }
-
-  // 3. Parallel fetch from Cloud Firestore /subscription_requests and /subscriptions
+  // 2. Fetch from Cloud Firestore /subscription_requests collection exclusively
   if (window.POS_FIREBASE && window.POS_FIREBASE.db) {
     try {
-      const [reqSnap, subSnap] = await Promise.all([
-        window.POS_FIREBASE.db.collection('subscription_requests').get().catch(() => null),
-        window.POS_FIREBASE.db.collection('subscriptions').get().catch(() => null)
-      ]);
-
+      const reqSnap = await window.POS_FIREBASE.db.collection('subscription_requests').get().catch(() => null);
       if (reqSnap && !reqSnap.empty) {
         reqSnap.forEach(doc => addReq({ reqId: doc.id, ...doc.data() }));
-      }
-      if (subSnap && !subSnap.empty) {
-        subSnap.forEach(doc => {
-          const d = doc.data() || {};
-          if (d.trxId || d.requestedMonths) {
-            addReq({ reqId: d.reqId || `sub_${doc.id}_${d.submittedAt || d.trxId}`, storeId: doc.id, ...d });
-          }
-        });
       }
     } catch (e) {
       console.warn('[Cloud Sync Requests Warning]:', e);
