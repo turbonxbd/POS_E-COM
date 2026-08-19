@@ -38,26 +38,103 @@ document.addEventListener('DOMContentLoaded', () => {
   loadSubscribers();
 });
 
-// Master PIN Security Auth Gate
-function initMasterAuth() {
+// Master Firebase Cloud Security Auth Engine
+async function getMasterCloudAuth() {
+  let defaultAuth = {
+    email: 'admin@smartpos.com',
+    password: 'superadmin123'
+  };
+
+  const localAuth = JSON.parse(localStorage.getItem('pos_master_auth_creds'));
+  if (localAuth && localAuth.email && localAuth.password) {
+    defaultAuth = localAuth;
+  }
+
+  if (window.POS_FIREBASE && window.POS_FIREBASE.db) {
+    try {
+      const doc = await window.POS_FIREBASE.db.collection('master_settings').doc('auth').get();
+      if (doc.exists && doc.data()) {
+        const cloudData = doc.data();
+        if (cloudData.email && cloudData.password) {
+          defaultAuth = { email: String(cloudData.email).trim().toLowerCase(), password: String(cloudData.password).trim() };
+          localStorage.setItem('pos_master_auth_creds', JSON.stringify(defaultAuth));
+        }
+      }
+    } catch (e) {}
+  }
+  return defaultAuth;
+}
+
+async function initMasterAuth() {
   const overlay = document.getElementById('masterAuthOverlay');
   const form = document.getElementById('masterLoginForm');
 
   if (sessionStorage.getItem('pos_master_authenticated') === 'true') {
     if (overlay) overlay.style.display = 'none';
-    return;
   }
 
   if (form) {
-    form.addEventListener('submit', (e) => {
+    form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const pin = document.getElementById('masterPinInput').value.trim();
-      if (pin === 'admin123' || pin === '0000' || pin === '1234') {
+      const inputEmail = document.getElementById('masterEmailInput')?.value.trim().toLowerCase();
+      const inputPassword = document.getElementById('masterPinInput')?.value.trim();
+
+      const cloudAuth = await getMasterCloudAuth();
+
+      if (inputEmail === cloudAuth.email.toLowerCase() && inputPassword === cloudAuth.password) {
         sessionStorage.setItem('pos_master_authenticated', 'true');
         if (overlay) overlay.style.display = 'none';
       } else {
-        alert('❌ ভুল মাস্টার পাসওয়ার্ড! অনুগ্রহ করে সঠিক পাসওয়ার্ড দিয়ে চেষ্টা করুন।');
+        alert('❌ ভুল ইমেইল বা কাস্টম পাসওয়ার্ড! অনুগ্রহ করে সঠিক তথ্য দিয়ে চেষ্টা করুন।');
       }
+    });
+  }
+
+  // Pre-fill Email input in security settings form in Tab 7
+  const masterSecForm = document.getElementById('masterSecurityChangeForm');
+  if (masterSecForm) {
+    getMasterCloudAuth().then(cloudAuth => {
+      const emailField = document.getElementById('superAdminNewEmail');
+      if (emailField) emailField.value = cloudAuth.email;
+    });
+
+    masterSecForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const newEmail = document.getElementById('superAdminNewEmail')?.value.trim().toLowerCase();
+      const oldPass = document.getElementById('superAdminOldPassword')?.value.trim();
+      const newPass = document.getElementById('superAdminNewPassword')?.value.trim();
+      const confirmPass = document.getElementById('superAdminConfirmPassword')?.value.trim();
+
+      const currentCloudAuth = await getMasterCloudAuth();
+
+      if (oldPass !== currentCloudAuth.password) {
+        alert('❌ বর্তমান পাসওয়ার্ডটি সঠিক নয়! আপনার সঠিক বর্তমান পাসওয়ার্ড দিন।');
+        return;
+      }
+      if (!newPass || newPass.length < 6) {
+        alert('⚠️ নতুন কাস্টম পাসওয়ার্ড কমপক্ষে ৬ ডিজিট বা অক্ষরের হতে হবে!');
+        return;
+      }
+      if (newPass !== confirmPass) {
+        alert('❌ নতুন পাসওয়ার্ড এবং কনফার্ম পাসওয়ার্ড মিলছে না! দুটি পাসওয়ার্ড হুবহু একই হতে হবে।');
+        return;
+      }
+
+      const updatedAuth = { email: newEmail, password: newPass };
+      localStorage.setItem('pos_master_auth_creds', JSON.stringify(updatedAuth));
+
+      if (window.POS_FIREBASE && window.POS_FIREBASE.db) {
+        try {
+          await window.POS_FIREBASE.db.collection('master_settings').doc('auth').set(updatedAuth, { merge: true });
+        } catch (err) {
+          console.warn('[Cloud Auth Update Warning]:', err);
+        }
+      }
+
+      alert(`🎉 ফায়ারবেস ক্লাউডে সুপার এডমিন ইমেইল ও পাসওয়ার্ড সফলভাবে আপডেট করা হয়েছে!\n\nনতুন ইমেইল: ${newEmail}\nনতুন পাসওয়ার্ড: ${newPass}`);
+      document.getElementById('superAdminOldPassword').value = '';
+      document.getElementById('superAdminNewPassword').value = '';
+      document.getElementById('superAdminConfirmPassword').value = '';
     });
   }
 }
@@ -219,12 +296,15 @@ async function loadSubscribers() {
       }
 
       let finalTrxId = normalizedItem.trxId || existing.trxId || normalizedItem.transactionId || existing.transactionId || normalizedItem.trx || existing.trx || '';
+      let finalPassword = normalizedItem.merchantPassword || normalizedItem.adminPin || existing.merchantPassword || existing.adminPin;
 
       mergedMap.set(key, {
         ...existing,
         ...normalizedItem,
         id: existing.id || normalizedItem.id,
         storeId: existing.storeId || normalizedItem.storeId,
+        merchantPassword: finalPassword,
+        adminPin: finalPassword,
         setupFee: mergedSetupFee,
         trialExpiresAt: mergedTrialExpiresAt,
         subRequestStatus: finalStatus,
@@ -437,13 +517,16 @@ function renderSubscribersMasterTable() {
             <button onclick="openMerchantProfileModal('${s.storeId || s.id}')" class="btn-submit" style="padding:0.35rem 0.55rem; font-size:0.75rem; background:linear-gradient(135deg, #a855f7, #7c3aed);" title="প্রোফাইল ডিটেইলস">
               <i class="fa-solid fa-id-card"></i> প্রোফাইল
             </button>
+            <button onclick="resetMerchantPasswordPrompt('${s.storeId || s.id}')" class="btn-submit" style="padding:0.35rem 0.55rem; font-size:0.75rem; background:#0284c7;" title="মার্চেন্টের পাসওয়ার্ড / পিন রিসেট করুন">
+              <i class="fa-solid fa-key"></i> পাসওয়ার্ড
+            </button>
             <button onclick="extendMerchantSubscription('${s.storeId || s.id}')" class="btn-submit" style="padding:0.35rem 0.55rem; font-size:0.75rem; background:#8b5cf6;" title="সাবস্ক্রিপশন মেয়াদ দিন বাড়ান বা কমান (+/-)">
               <i class="fa-solid fa-calendar-plus"></i> মেয়াদ +/-
             </button>
-            <button onclick="loginAsMerchant('${s.storeId || s.id}')" class="btn-submit" style="padding:0.35rem 0.55rem; font-size:0.75rem; background:linear-gradient(135deg, #3b82f6, #2563eb);" title="মার্চেন্ট এডমিন প্যানেলে ঢুকুন">
+            <button onclick="loginAsMerchant('${s.storeId || s.id}')" class="btn-submit" style="padding:0.35rem 0.55rem; font-size:0.75rem; background:linear-gradient(135deg, #3b82f6, #2563eb);" title="মার্চেন্ট এডমিন প্যানেলে ঢুকুন (পাসওয়ার্ড ছাড়া সরাসরি)">
               <i class="fa-solid fa-user-gear"></i> এডমিন
             </button>
-            <button onclick="loginAsCashier('${s.storeId || s.id}')" class="btn-submit" style="padding:0.35rem 0.55rem; font-size:0.75rem; background:linear-gradient(135deg, #10b981, #059669);" title="ক্যাশিয়ার POS প্যানেলে ঢুকুন">
+            <button onclick="loginAsCashier('${s.storeId || s.id}')" class="btn-submit" style="padding:0.35rem 0.55rem; font-size:0.75rem; background:linear-gradient(135deg, #10b981, #059669);" title="ক্যাশিয়ার POS প্যানেলে ঢুকুন (পাসওয়ার্ড ছাড়া সরাসরি)">
               <i class="fa-solid fa-cash-register"></i> POS
             </button>
             <button onclick="toggleMonthlySubscriptionStatus('${s.storeId || s.id}')" class="btn-submit" style="padding:0.35rem 0.55rem; font-size:0.75rem; background:${isStopped ? '#10b981' : '#e11d48'};" title="${isStopped ? 'অ্যাকাউন্ট চালু' : 'অ্যাকাউন্ট বন্ধ'}">
@@ -824,7 +907,9 @@ function openMerchantProfileModal(idOrReqId) {
   const ownerName = sub.ownerName || req.ownerName || 'Merchant Owner';
   const phone = sub.phone || req.phone || req.senderPhone || '01700000000';
   const email = sub.email || req.email || 'N/A';
-  const storeId = sub.storeId || sub.id || req.storeId || idOrReqId;
+  const storeId = sub.storeId || sub.id || (req ? req.storeId : null) || idOrReqId;
+  const tenantLocalSettings = JSON.parse(localStorage.getItem(`pos_tenant_${storeId}_pos_settings`)) || {};
+  const livePassword = tenantLocalSettings.merchantPassword || tenantLocalSettings.adminPin || sub.merchantPassword || sub.adminPin || '1234';
   const currentTrxId = (req && req.trxId) ? req.trxId : (sub.trxId || 'N/A');
 
   // Mark request as read
@@ -896,6 +981,7 @@ function openMerchantProfileModal(idOrReqId) {
         <strong style="color: #a855f7; display: block; margin-bottom: 0.5rem;"><i class="fa-solid fa-circle-info"></i> পার্সোনাল তথ্য</strong>
         <div>ইমেইল: <strong>${email}</strong></div>
         <div>ফোন: <strong>${phone}</strong></div>
+        <div>পাসওয়ার্ড/পিন: <strong style="color:#f59e0b; font-family:monospace; font-size:1.02rem;">${livePassword}</strong></div>
         <div>নিবন্ধন তারিখ: <strong>${sub.createdAt || 'আজকে'}</strong></div>
       </div>
 
@@ -909,11 +995,14 @@ function openMerchantProfileModal(idOrReqId) {
 
     <!-- ACTION BUTTONS -->
     <div style="display: flex; gap: 8px; flex-wrap: wrap; border-top: 1px solid var(--border-color); padding-top: 1rem;">
-      <button onclick="loginAsMerchant('${storeId}')" class="btn-submit" style="background: linear-gradient(135deg, #3b82f6, #2563eb); flex: 1;">
-        <i class="fa-solid fa-user-gear"></i> এডমিন
+      <button onclick="loginAsMerchant('${storeId}')" class="btn-submit" style="background: linear-gradient(135deg, #3b82f6, #2563eb); flex: 1;" title="পাসওয়ার্ড ছাড়া সরাসরি এডমিন প্যানেলে ঢুকুন">
+        <i class="fa-solid fa-user-gear"></i> এডমিন প্যানেল
       </button>
-      <button onclick="loginAsCashier('${storeId}')" class="btn-submit" style="background: linear-gradient(135deg, #10b981, #059669); flex: 1;">
-        <i class="fa-solid fa-cash-register"></i> POS
+      <button onclick="loginAsCashier('${storeId}')" class="btn-submit" style="background: linear-gradient(135deg, #10b981, #059669); flex: 1;" title="পাসওয়ার্ড ছাড়া সরাসরি POS সেলস কাউন্টারে ঢুকুন">
+        <i class="fa-solid fa-cash-register"></i> POS কাউন্টার
+      </button>
+      <button onclick="resetMerchantPasswordPrompt('${storeId}')" class="btn-submit" style="background: #0284c7; flex: 1;" title="পাসওয়ার্ড রিসেট বা পরিবর্তন করুন">
+        <i class="fa-solid fa-key"></i> পাসওয়ার্ড রিসেট
       </button>
       <button onclick="extendMerchantSubscription('${storeId}')" class="btn-submit" style="background: #8b5cf6; flex: 1;">
         <i class="fa-solid fa-calendar-plus"></i> দিন বাড়ান/কমান (+/-)
@@ -1307,7 +1396,7 @@ async function saveCMSDataToCloud() {
   }
 }
 
-// Context Switch into Merchant Admin Panel
+// Context Switch into Merchant Admin Panel (Super Admin Direct Passwordless Entry)
 function loginAsMerchant(storeId) {
   const sub = subscribersList.find(s => s.storeId === storeId || s.id === storeId);
   if (!sub) return;
@@ -1319,12 +1408,14 @@ function loginAsMerchant(storeId) {
 
   localStorage.setItem('pos_active_store_id', targetStoreId);
   localStorage.setItem('pos_subscription', JSON.stringify(sub));
+  localStorage.setItem('pos_master_authenticated', 'true'); // Super Admin Master Bypass
+  localStorage.setItem('pos_session_logged_in', 'true');
 
   closeMerchantProfileModal();
   window.open('admin.html', '_blank');
 }
 
-// Context Switch into Cashier POS Panel
+// Context Switch into Cashier POS Panel (Super Admin Direct Passwordless Entry)
 function loginAsCashier(storeId) {
   const sub = subscribersList.find(s => s.storeId === storeId || s.id === storeId);
   if (!sub) return;
@@ -1336,9 +1427,39 @@ function loginAsCashier(storeId) {
 
   localStorage.setItem('pos_active_store_id', targetStoreId);
   localStorage.setItem('pos_subscription', JSON.stringify(sub));
+  localStorage.setItem('pos_master_authenticated', 'true'); // Super Admin Master Bypass
+  localStorage.setItem('pos_session_logged_in', 'true');
 
   closeMerchantProfileModal();
   window.open('cashier.html', '_blank');
+}
+
+// Super Admin Password Reset & View Handler
+function resetMerchantPasswordPrompt(storeId) {
+  const sub = subscribersList.find(s => s.storeId === storeId || s.id === storeId);
+  if (!sub) return;
+
+  const targetStoreId = sub.storeId || storeId;
+  const tenantSettingsKey = `pos_tenant_${targetStoreId}_pos_settings`;
+  let settings = JSON.parse(localStorage.getItem(tenantSettingsKey)) || JSON.parse(localStorage.getItem('pos_settings')) || {};
+  const currentPass = settings.merchantPassword || settings.adminPin || sub.merchantPassword || sub.adminPin || '1234';
+
+  const newPass = prompt(`🔑 '${sub.storeName}' এর পাসওয়ার্ড / পিন পরিবর্তন করুন:\n\n(বর্তমান পাসওয়ার্ড: ${currentPass})`, currentPass);
+  if (!newPass || !newPass.trim()) return;
+
+  const trimmedPass = newPass.trim();
+  sub.merchantPassword = trimmedPass;
+  sub.adminPin = trimmedPass;
+  settings.adminPin = trimmedPass;
+  settings.merchantPassword = trimmedPass;
+  localStorage.setItem(tenantSettingsKey, JSON.stringify(settings));
+
+  // Sync to master subscriber list and Firestore /subscriptions
+  saveAndSyncSubscriberState(targetStoreId, sub);
+
+  alert(`🎉 '${sub.storeName}' এর নতুন পাসওয়ার্ড সফলভাবে আপডেট করা হয়েছে!\n\nনতুন পাসওয়ার্ড: ${trimmedPass}`);
+  loadSubscribers();
+  closeMerchantProfileModal();
 }
 
 // Extend or Reduce Merchant Subscription Duration (+/- Days)

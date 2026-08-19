@@ -112,7 +112,7 @@
             <div class="form-group mb-3">
               <label style="font-weight: 600;"><i class="fa-solid fa-lock"></i> সিকিউরিটি পিন / পাসওয়ার্ড *</label>
               <input type="password" id="portalAuthPin" class="form-control form-control-lg text-center" placeholder="****" maxlength="8" style="letter-spacing: 6px; font-size: 1.4rem;" required>
-              <small class="text-muted display-block mt-1">ডিফল্ট এডমিন পিন: <code>1234</code></small>
+              <small class="text-muted display-block mt-1">আপনার নিবন্ধিত পিন বা পাসওয়ার্ড দিন</small>
             </div>
 
             <button type="submit" class="btn btn-success btn-block" style="padding: 0.75rem; border-radius: 12px; font-weight: 700; font-size: 1rem; display: flex; align-items: center; justify-content: center; gap: 8px; background: linear-gradient(135deg, #10b981, #059669); border: none; width: 100%;">
@@ -139,7 +139,7 @@
         <p class="mb-2 text-muted">এডমিন প্যানেলে প্রবেশের জন্য সিকিউরিটি পিন দিন:</p>
         <div class="form-group">
           <input type="password" id="portalPinInput" class="form-control form-control-lg text-center" placeholder="****" maxlength="8" style="font-size:1.6rem; letter-spacing:8px;">
-          <small class="text-muted mt-1 display-block">ডিফল্ট এডমিন পিন: <code>1234</code></small>
+          <small class="text-muted mt-1 display-block">আপনার এডমিন সিকিউরিটি পিন দিন</small>
         </div>
       </div>
       <div class="modal-footer">
@@ -169,7 +169,7 @@
       function refreshPortalState() {
         const settings = JSON.parse(localStorage.getItem('pos_settings')) || {};
         const subscription = JSON.parse(localStorage.getItem('pos_subscription')) || {};
-        const isLoggedIn = localStorage.getItem('pos_session_logged_in') !== 'false';
+        const isLoggedIn = localStorage.getItem('pos_session_logged_in') === 'true';
 
         const storeNameEl = document.getElementById('portalStoreName');
         const storeAddrEl = document.getElementById('portalStoreAddress');
@@ -191,7 +191,7 @@
         }
 
         if (storeLogoEl) {
-          if (storeLogo) {
+          if (storeLogo && isLoggedIn) {
             storeLogoEl.innerHTML = `<img src="${storeLogo}" alt="Logo" style="width:100%;height:100%;object-fit:contain;border-radius:18px;">`;
           } else {
             storeLogoEl.innerHTML = `<i class="fa-solid ${isLoggedIn ? 'fa-barcode' : 'fa-lock'}" style="color: ${isLoggedIn ? 'var(--accent-green)' : '#ef4444'};"></i>`;
@@ -237,7 +237,7 @@
       }
 
       function openMerchantPinModal() {
-        const isLoggedIn = localStorage.getItem('pos_session_logged_in') !== 'false';
+        const isLoggedIn = localStorage.getItem('pos_session_logged_in') === 'true';
         if (!isLoggedIn) {
           alert('⚠️ সিস্টেমে কোনো অ্যাকাউন্ট লগইন নেই! প্রথমে অ্যাকাউন্ট লগইন করুন।');
           openAuthModal();
@@ -341,10 +341,14 @@
           if (singleSub.storeName) allSubs.unshift(singleSub);
 
           const matchedSub = allSubs.find(s => (s.phone && s.phone === phoneInput) || (s.email && s.email === phoneInput));
+          const targetStoreId = matchedSub ? (matchedSub.storeId || matchedSub.id) : (localStorage.getItem('pos_active_store_id') || 'store_demo_101');
+          
+          const tenantSettings = JSON.parse(localStorage.getItem(`pos_tenant_${targetStoreId}_pos_settings`)) || {};
           const savedSettings = JSON.parse(localStorage.getItem('pos_settings')) || {};
-          const expectedPin = savedSettings.adminPin || '1234';
+          
+          const expectedPin = String(matchedSub?.merchantPassword || matchedSub?.adminPin || tenantSettings.adminPin || savedSettings.adminPin || '1234').trim();
 
-          if (pinInput === expectedPin || pinInput === '1234' || (matchedSub && pinInput === '1234')) {
+          if (pinInput === expectedPin) {
             localStorage.setItem('pos_session_logged_in', 'true');
             if (matchedSub) {
               const owner = matchedSub.ownerName || matchedSub.storeOwner || savedSettings.storeOwner || '';
@@ -360,18 +364,20 @@
               savedSettings.email = email;
               savedSettings.personalEmail = email;
               savedSettings.storeAddress = matchedSub.storeAddress || savedSettings.storeAddress;
+              savedSettings.adminPin = expectedPin;
+              savedSettings.merchantPassword = expectedPin;
+
               localStorage.setItem('pos_settings', JSON.stringify(savedSettings));
-              const activeStoreId = matchedSub.storeId || matchedSub.id || localStorage.getItem('pos_active_store_id');
-              if (activeStoreId) {
-                localStorage.setItem('pos_active_store_id', activeStoreId);
-                localStorage.setItem(`pos_tenant_${activeStoreId}_pos_settings`, JSON.stringify(savedSettings));
+              if (targetStoreId) {
+                localStorage.setItem('pos_active_store_id', targetStoreId);
+                localStorage.setItem(`pos_tenant_${targetStoreId}_pos_settings`, JSON.stringify(savedSettings));
               }
             }
             refreshPortalState();
             if (authModal) authModal.classList.remove('active');
             alert(`🎉 স্বাগতম! সফলভাবে আপনার অ্যাকাউন্ট প্যানেলে লগইন করা হয়েছে।`);
           } else {
-            alert('ভুল মোবাইল নম্বর বা সিকিউরিটি পিন! সঠিক পিন দিয়ে পুনরায় চেষ্টা করুন। (ডিফল্ট: 1234)');
+            alert('ভুল মোবাইল নম্বর বা সিকিউরিটি পিন! সঠিক পিন দিয়ে পুনরায় চেষ্টা করুন।');
           }
         });
       }
@@ -382,6 +388,7 @@
         btnLogout.addEventListener('click', () => {
           if (confirm('আপনি কি নিশ্চিত যে অ্যাকাউন্টটি লগআউট করতে চান?')) {
             localStorage.setItem('pos_session_logged_in', 'false');
+            localStorage.removeItem('pos_master_authenticated');
             refreshPortalState();
             if (authModal) authModal.classList.remove('active');
             alert('🔒 অ্যাকাউন্ট সফলভাবে লগআউট করা হয়েছে!');
@@ -395,9 +402,10 @@
 
       if (btnCashier) {
         btnCashier.addEventListener('click', () => {
-          const isLoggedIn = localStorage.getItem('pos_session_logged_in') !== 'false';
+          const isLoggedIn = localStorage.getItem('pos_session_logged_in') === 'true';
           if (!isLoggedIn) {
-            alert('⚠️ সিস্টেমে কোনো অ্যাকাউন্ট লগইন নেই! সেলস কাউন্টারে ঢুকতে প্রথমে সিক্রেট উপায়ে লোগোতে ক্লিক করে লগইন করুন।');
+            alert('⚠️ সিস্টেমে কোনো অ্যাকাউন্ট লগইন নেই! সেলস কাউন্টারে ঢুকতে প্রথমে লগইন করুন।');
+            openAuthModal();
           } else {
             window.location.href = 'cashier.html';
           }
@@ -406,12 +414,24 @@
 
       if (submitPortalPinBtn) {
         submitPortalPinBtn.addEventListener('click', () => {
+          // Super Admin Master Bypass Check
+          const isMasterAdmin = localStorage.getItem('pos_master_authenticated') === 'true';
+          if (isMasterAdmin) {
+            window.location.href = 'admin.html';
+            return;
+          }
+
+          const activeStoreId = localStorage.getItem('pos_active_store_id') || 'store_demo_101';
+          const tenantSettings = JSON.parse(localStorage.getItem(`pos_tenant_${activeStoreId}_pos_settings`)) || {};
           const savedSettings = JSON.parse(localStorage.getItem('pos_settings')) || {};
-          const expectedPin = savedSettings.adminPin || '1234';
+          const activeSub = JSON.parse(localStorage.getItem('pos_subscription')) || {};
+
+          const expectedPin = String(activeSub.merchantPassword || activeSub.adminPin || tenantSettings.adminPin || savedSettings.adminPin || '1234').trim();
+
           if (portalPinInput.value.trim() === expectedPin) {
             window.location.href = 'admin.html';
           } else {
-            alert('ভুল এডমিন সিকিউরিটি পিন! সঠিক পিন ইনপুট দিন। (ডিফল্ট: 1234)');
+            alert('ভুল এডমিন সিকিউরিটি পিন! সঠিক পিন ইনপুট দিন।');
           }
         });
       }

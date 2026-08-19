@@ -328,22 +328,35 @@
 </head>
 <body>
 
-  <!-- MASTER AUTH SECURITY PIN OVERLAY -->
+  <!-- MASTER AUTH SECURITY OVERLAY -->
   <div id="masterAuthOverlay">
-    <div class="auth-card">
-      <div class="brand-icon" style="margin:0 auto 1rem;">
+    <div class="auth-card" style="max-width: 460px;">
+      <div class="brand-icon" style="margin:0 auto 1rem; width: 64px; height: 64px; font-size: 1.8rem; background: linear-gradient(135deg, #a855f7, #6366f1); border-radius: 18px;">
         <i class="fa-solid fa-user-shield"></i>
       </div>
-      <h2>সুপার এডমিন অথেন্টিকেশন</h2>
-      <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:1.5rem;">
-        স্মার্ট POS প্যানেল সিকিউরিটি সিস্টেম। প্রবেশ করতে মাস্টার পাসওয়ার্ড দিন।
+      <h2 style="font-size: 1.5rem;">সুপার এডমিন সিকিউর কনসোল</h2>
+      <p style="color:var(--text-muted); font-size:0.88rem; margin-bottom:1.25rem;">
+        ফায়ারবেস ক্লাউড সিকিউরিটি এনক্রিপশন। প্যানেলে প্রবেশ করতে ইমেইল ও পাসওয়ার্ড দিন।
       </p>
+
       <form id="masterLoginForm">
-        <div style="margin-bottom: 1rem;">
-          <input type="password" id="masterPinInput" class="form-control text-center" placeholder="মাস্টার পাসওয়ার্ড দিন (ডিফল্ট: admin123)" style="font-size:1.1rem; letter-spacing:2px;" required>
+        <div style="margin-bottom: 1rem; text-align: left;">
+          <label style="display:block; font-size:0.85rem; color:var(--text-muted); margin-bottom:4px;"><i class="fa-solid fa-envelope" style="color: #a855f7;"></i> সুপার এডমিন ইমেইল *</label>
+          <input type="email" id="masterEmailInput" class="form-control" placeholder="admin@smartpos.com" required style="width:100%; padding:0.75rem 1rem; background: #0f172a; border: 1px solid #334155; color: #fff; border-radius: 12px; font-size: 0.95rem;">
         </div>
-        <button type="submit" class="btn-submit" style="width:100%; padding:0.85rem;">
-          <i class="fa-solid fa-key"></i> সিকিউর লগইন করুন
+
+        <div style="margin-bottom: 1.25rem; text-align: left; position: relative;">
+          <label style="display:block; font-size:0.85rem; color:var(--text-muted); margin-bottom:4px;"><i class="fa-solid fa-lock" style="color: #a855f7;"></i> কাস্টম পাসওয়ার্ড *</label>
+          <div style="position: relative;">
+            <input type="password" id="masterPinInput" class="form-control" placeholder="আপনার সুপার এডমিন পাসওয়ার্ড দিন" required style="width:100%; padding:0.75rem 1rem; background: #0f172a; border: 1px solid #334155; color: #fff; border-radius: 12px; font-size: 0.95rem;">
+            <button type="button" onclick="const input = document.getElementById('masterPinInput'); const icon = this.querySelector('i'); if(input.type==='password'){input.type='text'; icon.className='fa-solid fa-eye-slash';}else{input.type='password'; icon.className='fa-solid fa-eye';}" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 5px;">
+              <i class="fa-solid fa-eye"></i>
+            </button>
+          </div>
+        </div>
+
+        <button type="submit" class="btn-submit" style="width:100%; padding:0.85rem; font-size: 1rem; display: flex; align-items: center; justify-content: center; gap: 8px;">
+          <i class="fa-solid fa-shield-halved"></i> ফায়ারবেস সিকিউর লগইন
         </button>
       </form>
     </div>
@@ -800,6 +813,60 @@
 
       <!-- MODULE 7: SECURITY AUDIT LOGS & CLOUD BACKUPS -->
       <div id="tabSecurityLogs" class="tab-view" style="display: none;">
+        
+        <!-- SUPER ADMIN FIREBASE CLOUD CREDENTIALS MANAGEMENT -->
+        <div class="cms-card">
+          <div class="cms-card-title">
+            <i class="fa-solid fa-user-shield" style="color:#a855f7;"></i> সুপার এডমিন ফায়ারবেস পাসওয়ার্ড ও ইমেইল পরিবর্তন
+          </div>
+          <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:1.25rem;">
+            আপনার সুবিধামতো যে কোনো সময় আপনার সুপার এডমিন ইমেইল এবং কাস্টম পাসওয়ার্ড পরিবর্তন করতে পারেন। তথ্যগুলো সরাসরি আপনার ফায়ারবেস ক্লাউড ডাটাবেজে এনক্রিপ্ট হয়ে সেভ হবে।
+          </p>
+
+          <form id="masterSecurityChangeForm" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; max-width: 800px;">
+            <div class="form-group mb-2">
+              <label><i class="fa-solid fa-envelope"></i> সুপার এডমিন ইমেইল (Super Admin Email) *</label>
+              <input type="email" id="superAdminNewEmail" class="form-control" placeholder="admin@smartpos.com" required>
+            </div>
+
+            <div class="form-group mb-2">
+              <label><i class="fa-solid fa-key"></i> বর্তমান পাসওয়ার্ড (Current Password) *</label>
+              <div style="position: relative;">
+                <input type="password" id="superAdminOldPassword" class="form-control" placeholder="আগের পাসওয়ার্ড দিন" required>
+                <button type="button" onclick="const input = document.getElementById('superAdminOldPassword'); const icon = this.querySelector('i'); if(input.type==='password'){input.type='text'; icon.className='fa-solid fa-eye-slash';}else{input.type='password'; icon.className='fa-solid fa-eye';}" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 5px;">
+                  <i class="fa-solid fa-eye"></i>
+                </button>
+              </div>
+            </div>
+
+            <div class="form-group mb-2">
+              <label><i class="fa-solid fa-lock"></i> নতুন কাস্টম পাসওয়ার্ড (New Password) *</label>
+              <div style="position: relative;">
+                <input type="password" id="superAdminNewPassword" class="form-control" placeholder="নতুন কাস্টম পাসওয়ার্ড দিন" required>
+                <button type="button" onclick="const input = document.getElementById('superAdminNewPassword'); const icon = this.querySelector('i'); if(input.type==='password'){input.type='text'; icon.className='fa-solid fa-eye-slash';}else{input.type='password'; icon.className='fa-solid fa-eye';}" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 5px;">
+                  <i class="fa-solid fa-eye"></i>
+                </button>
+              </div>
+            </div>
+
+            <div class="form-group mb-2">
+              <label><i class="fa-solid fa-circle-check"></i> নতুন পাসওয়ার্ড পুনরায় নিশ্চিত করুন *</label>
+              <div style="position: relative;">
+                <input type="password" id="superAdminConfirmPassword" class="form-control" placeholder="নতুন পাসওয়ার্ডটি আবার লিখুন" required>
+                <button type="button" onclick="const input = document.getElementById('superAdminConfirmPassword'); const icon = this.querySelector('i'); if(input.type==='password'){input.type='text'; icon.className='fa-solid fa-eye-slash';}else{input.type='password'; icon.className='fa-solid fa-eye';}" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 5px;">
+                  <i class="fa-solid fa-eye"></i>
+                </button>
+              </div>
+            </div>
+
+            <div style="grid-column: 1 / -1; margin-top: 0.5rem;">
+              <button type="submit" class="btn-submit" style="background: linear-gradient(135deg, #a855f7, #6366f1); font-size: 1rem;">
+                <i class="fa-solid fa-floppy-disk"></i> 💾 ফায়ারবেস ক্লাউডে ইমেইল ও পাসওয়ার্ড আপডেট করুন
+              </button>
+            </div>
+          </form>
+        </div>
+
         <div class="cms-card">
           <div class="cms-card-title">
             <i class="fa-solid fa-shield-halved" style="color:#3b82f6;"></i> সিস্টেম সিকিউরিটি ও ক্লাউড ডাটাবেজ আইসোলেশন
@@ -809,7 +876,7 @@
           </p>
 
           <div style="background: rgba(30,41,59,0.5); border: 1px solid var(--border-color); border-radius: 14px; padding: 1.25rem;">
-            <h4 style="color:#10b981; margin-bottom: 0.5rem;"><i class="fa-solid fa-database"></i> মলিটি-টেন্যান্ট ডাটা আইসোলেশন হেলথ: 🟢 ১০০% ওকে</h4>
+            <h4 style="color:#10b981; margin-bottom: 0.5rem;"><i class="fa-solid fa-database"></i> মাল্টি-টেন্যান্ট ডাটা আইসোলেশন হেলথ: 🟢 ১০০% ওকে</h4>
             <p style="color: #cbd5e1; font-size: 0.88rem; line-height: 1.6;">
               প্রত্যেক মার্চেন্টের ডাটা নিজস্ব ডকুমেন্টে এনক্রিপ্টেড এবং সম্পূর্ণ বিচ্ছিন্ন রয়েছে। কোনো মার্চেন্টের বারকোড বা তথ্য অন্য মার্চেন্টের সাথে কনফ্লিক্ট হবে না।
             </p>

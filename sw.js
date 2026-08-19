@@ -1,5 +1,5 @@
 // SmartPOS - Service Worker Caching & Instant Automatic Background Update Engine
-const CACHE_NAME = 'smartpos-v3.5.0';
+const CACHE_NAME = 'smartpos-v4.2.0';
 const ASSETS_TO_CACHE = [
   './portal.html',
   './cashier.html',
@@ -16,6 +16,7 @@ const ASSETS_TO_CACHE = [
   './admin.js',
   './landing.js',
   './pwa-install.js',
+  './subscription-modal.js',
   './manifest.json',
   './icons/icon.svg'
 ];

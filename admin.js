@@ -4241,9 +4241,23 @@ class AdminPanel {
     setVal('settingDefaultTax', s.defaultTax !== undefined ? s.defaultTax : 0);
     setVal('settingCurrencySymbol', s.currencySymbol || '৳');
     setVal('settingReceiptHeader', s.receiptHeaderNote || 'Mirpur 10, Dhaka - 1216');
-    setVal('settingReceiptFooter', s.receiptFooterNote || 'Thank you! Come again.');
-    setVal('settingAdminPin', s.adminPin || '1234');
+    setVal('settingCurrentAdminPin', '');
+    setVal('settingNewAdminPin', '');
+    setVal('settingConfirmAdminPin', '');
     setVal('settingDefaultTheme', s.defaultTheme || 'dark');
+
+    // Update Forgot Password WhatsApp Link dynamically from Super Admin CMS
+    try {
+      const cms = JSON.parse(localStorage.getItem('pos_landing_cms')) || {};
+      let rawWa = cms.whatsappNumber || cms.phone || cms.bkashNumber || '01700000000';
+      let waNum = rawWa.replace(/[^0-9]/g, '');
+      if (waNum.length === 11 && waNum.startsWith('01')) waNum = '88' + waNum;
+
+      const storeNameStr = s.storeName || 'আমার স্টোর';
+      document.querySelectorAll('a[href*="wa.me"]').forEach(btn => {
+        btn.href = `https://wa.me/${waNum}?text=${encodeURIComponent('হ্যালো, আমার স্টোরের (' + storeNameStr + ') পাসওয়ার্ড ভুলে গেছি। রিসেট করতে সহায়তার প্রয়োজন।')}`;
+      });
+    } catch (e) {}
 
     // Load Custom Background Wallpaper Settings
     setVal('settingDesktopBg', s.customDesktopBg || '');
@@ -4321,15 +4335,73 @@ class AdminPanel {
       defaultTax: parseFloat(getVal('settingDefaultTax')) || 0,
       currencySymbol: getVal('settingCurrencySymbol') || '৳',
       currencyCode: 'BDT',
-      adminPin: getVal('settingAdminPin') || '1234',
       defaultTheme: getVal('settingDefaultTheme') || 'dark'
     };
 
+    const activeStoreId = localStorage.getItem('pos_active_store_id') || 'store_demo_101';
+    const tenantSettings = JSON.parse(localStorage.getItem(`pos_tenant_${activeStoreId}_pos_settings`)) || {};
+    const activeSub = JSON.parse(localStorage.getItem('pos_subscription')) || {};
+    const existingPin = String(activeSub.merchantPassword || activeSub.adminPin || tenantSettings.adminPin || this.settings.adminPin || '1234').trim();
+
+    const currentPinInput = getVal('settingCurrentAdminPin');
+    const newPinInput = getVal('settingNewAdminPin');
+    const confirmPinInput = getVal('settingConfirmAdminPin');
+
+    let finalPin = existingPin;
+    let isPasswordChanged = false;
+
+    // Check if user is attempting to change password
+    if (currentPinInput || newPinInput || confirmPinInput) {
+      if (!currentPinInput) {
+        alert('⚠️ পাসওয়ার্ড পরিবর্তন করতে হলে আপনার বর্তমান (আগের) পাসওয়ার্ড দেওয়া আবশ্যক!');
+        return;
+      }
+      if (currentPinInput !== existingPin) {
+        alert('❌ বর্তমান সিকিউরিটি পাসওয়ার্ডটি সঠিক নয়! সঠিক আগের পাসওয়ার্ড লিখে পুনরায় চেষ্টা করুন।\n\n(ভুলে গেলে নিচে "হোয়াটসঅ্যাপে হেল্প নিন" বাটনে ক্লিক করে সহায়তার সুযোগ রয়েছে)');
+        return;
+      }
+      if (!newPinInput || newPinInput.length < 4) {
+        alert('⚠️ নতুন সিকিউরিটি পাসওয়ার্ডটি কমপক্ষে ৪ ডিজিট বা অক্ষরের হতে হবে!');
+        return;
+      }
+      if (newPinInput !== confirmPinInput) {
+        alert('❌ নতুন পাসওয়ার্ড এবং কনফার্ম পাসওয়ার্ড মিলছে না! দুটো ঘরে হুবহু একই পাসওয়ার্ড লিখুন।');
+        return;
+      }
+
+      finalPin = newPinInput;
+      isPasswordChanged = true;
+    }
+
+    updatedSettings.adminPin = finalPin;
+    updatedSettings.merchantPassword = finalPin;
+
     this.settings = updatedSettings;
+
+    // Save strictly to tenant-isolated LocalStorage key
+    localStorage.setItem(`pos_tenant_${activeStoreId}_pos_settings`, JSON.stringify(updatedSettings));
     localStorage.setItem('pos_settings', JSON.stringify(updatedSettings));
     localStorage.setItem('pos_theme', updatedSettings.defaultTheme);
     document.documentElement.setAttribute('data-theme', updatedSettings.defaultTheme);
     applyMerchantCustomWallpaper(updatedSettings);
+
+    // Sync merchant password/pin to tenant master profile in pos_subscriptions & Firestore /subscriptions
+    let allSubs = JSON.parse(localStorage.getItem('pos_subscriptions')) || [];
+    const subIdx = allSubs.findIndex(s => s.storeId === activeStoreId || s.id === activeStoreId);
+    if (subIdx >= 0) {
+      allSubs[subIdx].adminPin = updatedSettings.adminPin;
+      allSubs[subIdx].merchantPassword = updatedSettings.adminPin;
+      localStorage.setItem('pos_subscriptions', JSON.stringify(allSubs));
+
+      if (window.POS_FIREBASE && window.POS_FIREBASE.db) {
+        try {
+          window.POS_FIREBASE.db.collection('subscriptions').doc(activeStoreId).set({
+            adminPin: updatedSettings.adminPin,
+            merchantPassword: updatedSettings.adminPin
+          }, { merge: true });
+        } catch (e) {}
+      }
+    }
 
     const paymentGateways = {
       bKash: {
@@ -4356,19 +4428,17 @@ class AdminPanel {
 
     localStorage.setItem('pos_payment_gateways', JSON.stringify(paymentGateways));
     this.updateSidebarStoreProfile();
-    this.showToast('দোকানের সেটিংস ও পেমেন্ট গেটওয়ে সফলভাবে সেভ হয়েছে!');
-  }
+    const currentInput = document.getElementById('settingCurrentAdminPin');
+    const newInput = document.getElementById('settingNewAdminPin');
+    const confirmInput = document.getElementById('settingConfirmAdminPin');
+    if (currentInput) currentInput.value = '';
+    if (newInput) newInput.value = '';
+    if (confirmInput) confirmInput.value = '';
 
-  restoreDemoData() {
-    if (confirm('আপনি কি নিশ্চিত যে ডেমো ডেটা রিস্টোর করতে চান? আপনার বর্তমান সমস্ত পরিবর্তন রিসেট হয়ে যাবে!')) {
-      localStorage.removeItem('pos_products');
-      localStorage.removeItem('pos_sales');
-      localStorage.removeItem('pos_settings');
-      localStorage.removeItem('pos_categories');
-      localStorage.removeItem('pos_coupons');
-      localStorage.removeItem('pos_payment_gateways');
-      location.reload();
+    if (isPasswordChanged) {
+      alert('🎉 সিকিউরিটি পিন / পাসওয়ার্ড সফলভাবে পরিবর্তন করা হয়েছে!');
     }
+    this.showToast('দোকানের সেটিংস সফলভাবে সেভ হয়েছে!');
   }
 
   switchSettingsSubTab(subTabId) {

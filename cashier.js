@@ -2697,18 +2697,31 @@ class CashierTerminal {
   }
 
   promptAdminPin() {
-    document.getElementById('adminPinInput').value = '';
-    this.openModal('adminPinModal');
-    setTimeout(() => document.getElementById('adminPinInput').focus(), 100);
+    const pinInput = document.getElementById('adminPinInput');
+    if (pinInput) {
+      pinInput.value = '';
+      this.openModal('adminPinModal');
+      setTimeout(() => pinInput.focus(), 100);
+    }
   }
 
   verifyAdminPin() {
-    const pin = document.getElementById('adminPinInput').value.trim();
-    if (pin === '1234') {
+    const pinEl = document.getElementById('adminPinInput');
+    if (!pinEl) return;
+    const pin = pinEl.value.trim();
+
+    const activeStoreId = localStorage.getItem('pos_active_store_id') || 'store_demo_101';
+    const tenantSettings = JSON.parse(localStorage.getItem(`pos_tenant_${activeStoreId}_pos_settings`)) || {};
+    const savedSettings = JSON.parse(localStorage.getItem('pos_settings')) || {};
+    const activeSub = JSON.parse(localStorage.getItem('pos_subscription')) || {};
+
+    const expectedPin = String(activeSub.merchantPassword || activeSub.adminPin || tenantSettings.adminPin || savedSettings.adminPin || this.settings.adminPin || '1234').trim();
+
+    if (pin === expectedPin) {
       this.closeModal('adminPinModal');
       window.location.href = 'admin.html';
     } else {
-      this.showToast('ভুল এডমিন পিন! (ডিফল্ট: 1234)', 'error');
+      this.showToast('ভুল এডমিন সিকিউরিটি পিন! আপনার সঠিক এডমিন পিন দিয়ে চেষ্টা করুন।', 'error');
     }
   }
 
@@ -2730,65 +2743,88 @@ class CashierTerminal {
     const btnGoTerminal = document.getElementById('btnGoToTerminalFromDashboard');
     if (btnGoTerminal) btnGoTerminal.addEventListener('click', () => this.switchTab('cashierTerminalView'));
 
-    document.getElementById('btnOpenAdminModal').addEventListener('click', () => this.promptAdminPin());
-    document.getElementById('submitPinBtn').addEventListener('click', () => this.verifyAdminPin());
-    document.getElementById('adminPinInput').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') this.verifyAdminPin();
-    });
+    const btnAdmin = document.getElementById('btnOpenAdminModal');
+    if (btnAdmin) btnAdmin.addEventListener('click', () => this.promptAdminPin());
 
-    document.getElementById('themeToggleBtn').addEventListener('click', () => {
-      const html = document.documentElement;
-      const next = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-      html.setAttribute('data-theme', next);
-      localStorage.setItem('pos_theme', next);
-      try {
-        const s = JSON.parse(localStorage.getItem('pos_settings')) || {};
-        s.defaultTheme = next;
-        localStorage.setItem('pos_settings', JSON.stringify(s));
-      } catch(e) {}
-    });
+    const btnSubmitPin = document.getElementById('submitPinBtn');
+    if (btnSubmitPin) btnSubmitPin.addEventListener('click', () => this.verifyAdminPin());
 
-    document.getElementById('soundToggleBtn').addEventListener('click', () => {
-      this.soundEnabled = !this.soundEnabled;
-      const btn = document.getElementById('soundToggleBtn');
-      btn.style.color = this.soundEnabled ? 'var(--text-main)' : 'var(--accent-red)';
-    });
+    const adminPinInput = document.getElementById('adminPinInput');
+    if (adminPinInput) {
+      adminPinInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') this.verifyAdminPin();
+      });
+    }
 
-    document.getElementById('cameraScanBtn').addEventListener('click', () => this.openCameraScanner());
+    const themeToggleBtn = document.getElementById('themeToggleBtn');
+    if (themeToggleBtn) {
+      themeToggleBtn.addEventListener('click', () => {
+        const html = document.documentElement;
+        const next = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+        html.setAttribute('data-theme', next);
+        localStorage.setItem('pos_theme', next);
+        try {
+          const s = JSON.parse(localStorage.getItem('pos_settings')) || {};
+          s.defaultTheme = next;
+          localStorage.setItem('pos_settings', JSON.stringify(s));
+        } catch(e) {}
+      });
+    }
 
-    document.getElementById('clearCartHeaderBtn').addEventListener('click', () => {
-      if (this.cart.length > 0 && confirm('আপনি কি পুরো কার্ট খালি করতে চান?')) this.clearCart();
-    });
+    const soundToggleBtn = document.getElementById('soundToggleBtn');
+    if (soundToggleBtn) {
+      soundToggleBtn.addEventListener('click', () => {
+        this.soundEnabled = !this.soundEnabled;
+        soundToggleBtn.style.color = this.soundEnabled ? 'var(--text-main)' : 'var(--accent-red)';
+      });
+    }
+
+    const cameraScanBtn = document.getElementById('cameraScanBtn');
+    if (cameraScanBtn) cameraScanBtn.addEventListener('click', () => this.openCameraScanner());
+
+    const clearCartHeaderBtn = document.getElementById('clearCartHeaderBtn');
+    if (clearCartHeaderBtn) {
+      clearCartHeaderBtn.addEventListener('click', () => {
+        if (this.cart.length > 0 && confirm('আপনি কি পুরো কার্ট খালি করতে চান?')) this.clearCart();
+      });
+    }
 
     const searchInput = document.getElementById('productSearchInput');
     const clearSearchBtn = document.getElementById('clearSearchBtn');
-    searchInput.addEventListener('input', (e) => {
-      clearSearchBtn.style.display = e.target.value ? 'block' : 'none';
-      this.renderProducts();
-    });
-    clearSearchBtn.addEventListener('click', () => {
-      searchInput.value = '';
-      clearSearchBtn.style.display = 'none';
-      this.renderProducts();
-    });
-
-    document.getElementById('simulateBarcodeBtn').addEventListener('click', () => {
-      // Pick a random variant barcode
-      const randomProd = this.products[Math.floor(Math.random() * this.products.length)];
-      if (randomProd && randomProd.variants && randomProd.variants.length > 0) {
-        const randomVar = randomProd.variants[Math.floor(Math.random() * randomProd.variants.length)];
-        this.handleBarcodeScan(randomVar.barcode);
-      }
-    });
-
-    document.getElementById('categoriesBar').addEventListener('click', (e) => {
-      if (e.target.classList.contains('cat-pill')) {
-        document.querySelectorAll('.cat-pill').forEach(p => p.classList.remove('active'));
-        e.target.classList.add('active');
-        this.activeCategory = e.target.dataset.cat;
+    if (searchInput && clearSearchBtn) {
+      searchInput.addEventListener('input', (e) => {
+        clearSearchBtn.style.display = e.target.value ? 'block' : 'none';
         this.renderProducts();
-      }
-    });
+      });
+      clearSearchBtn.addEventListener('click', () => {
+        searchInput.value = '';
+        clearSearchBtn.style.display = 'none';
+        this.renderProducts();
+      });
+    }
+
+    const simulateBarcodeBtn = document.getElementById('simulateBarcodeBtn');
+    if (simulateBarcodeBtn) {
+      simulateBarcodeBtn.addEventListener('click', () => {
+        const randomProd = this.products[Math.floor(Math.random() * this.products.length)];
+        if (randomProd && randomProd.variants && randomProd.variants.length > 0) {
+          const randomVar = randomProd.variants[Math.floor(Math.random() * randomProd.variants.length)];
+          this.handleBarcodeScan(randomVar.barcode);
+        }
+      });
+    }
+
+    const categoriesBar = document.getElementById('categoriesBar');
+    if (categoriesBar) {
+      categoriesBar.addEventListener('click', (e) => {
+        if (e.target.classList.contains('cat-pill')) {
+          document.querySelectorAll('.cat-pill').forEach(p => p.classList.remove('active'));
+          e.target.classList.add('active');
+          this.activeCategory = e.target.dataset.cat;
+          this.renderProducts();
+        }
+      });
+    }
 
     const discInput = document.getElementById('discountInput');
     if (discInput) {
