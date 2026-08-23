@@ -33,20 +33,53 @@ class FirebasePOSSync {
     this.syncTenantLocalStorageCache();
 
     if (this.db) {
+      try {
+        this.db.enablePersistence({ synchronizeTabs: true }).catch(err => {
+          if (err.code === 'failed-precondition') {
+            console.warn('[Firebase Cloud] Offline persistence: Multiple tabs open in browser');
+          } else if (err.code === 'unimplemented') {
+            console.warn('[Firebase Cloud] Offline persistence not supported in this browser');
+          }
+        });
+      } catch (e) {}
+
       this.initCloudSync();
       this.hookLocalStorage();
     }
 
-    // Auto-Sync offline sales & data when Internet connection is restored
-    window.addEventListener('online', () => {
-      console.log('[Firebase Cloud Sync] Internet reconnected! Syncing offline sales & data to cloud...');
+    // Auto-Sync offline sales, products, categories, coupons & settings when Internet connection is restored
+    window.addEventListener('online', async () => {
+      console.log('[Firebase Cloud Sync] Internet reconnected! Auto-syncing offline data to cloud...');
       if (this.storeId && this.db) {
-        this.keys.forEach(key => {
-          const localVal = localStorage.getItem(key);
-          if (localVal && localVal !== '[]' && localVal !== '{}') {
-            this.pushKeyToCloud(key, localVal);
+        try {
+          // 1. Sync all tenant data keys (products, categories, sales, settings, gateways, customers)
+          for (const key of this.keys) {
+            const tenantKey = this.getTenantStorageKey(key);
+            const localVal = localStorage.getItem(tenantKey) || localStorage.getItem(key);
+            if (localVal && localVal !== '[]' && localVal !== '{}') {
+              await this.pushKeyToCloud(key, localVal);
+            }
           }
-        });
+
+          // 2. Sync tenant master subscription profile (including updated password and shop details)
+          const activeSub = JSON.parse(localStorage.getItem('pos_subscription')) || {};
+          const tenantSettings = JSON.parse(localStorage.getItem(`pos_tenant_${this.storeId}_pos_settings`)) || JSON.parse(localStorage.getItem('pos_settings')) || {};
+
+          if (this.storeId && this.storeId !== 'store_demo_101') {
+            await this.db.collection('subscriptions').doc(this.storeId).set({
+              storeId: this.storeId,
+              storeName: tenantSettings.storeName || activeSub.storeName || 'Merchant Store',
+              adminPin: tenantSettings.adminPin || activeSub.adminPin || '1234',
+              merchantPassword: tenantSettings.merchantPassword || tenantSettings.adminPin || activeSub.merchantPassword || '1234',
+              updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            }, { merge: true }).catch(() => {});
+          }
+
+          console.log('[Firebase Cloud Sync] 🎉 Offline products, categories, sales & settings successfully synced to cloud!');
+          window.dispatchEvent(new CustomEvent('pos_online_sync_completed', { detail: { storeId: this.storeId } }));
+        } catch (err) {
+          console.warn('[Firebase Cloud Sync Warning]:', err);
+        }
       }
     });
   }
@@ -245,30 +278,6 @@ class FirebasePOSSync {
           }
 
           let finalData = remotePayload.data;
-
-          // Smart Product Merger: Merge remote products with any un-synced offline local products by unique ID / Barcode
-          if (key === 'pos_products' && Array.isArray(remotePayload.data)) {
-            let localProds = [];
-            try { localProds = JSON.parse(currentLocalJson || '[]'); } catch (e) {}
-            if (Array.isArray(localProds) && localProds.length > 0) {
-              const prodMap = new Map();
-              remotePayload.data.forEach(p => {
-                if (p && (p.id || p.barcode)) prodMap.set(String(p.id || p.barcode), p);
-              });
-              localProds.forEach(p => {
-                const keyId = p ? String(p.id || p.barcode) : null;
-                if (keyId && !prodMap.has(keyId)) {
-                  prodMap.set(keyId, p);
-                }
-              });
-              finalData = Array.from(prodMap.values());
-
-              if (finalData.length > remotePayload.data.length) {
-                console.log(`[Data Safeguard] Found ${finalData.length - remotePayload.data.length} offline local products! Syncing merged product list to cloud...`);
-                this.pushKeyToCloud('pos_products', JSON.stringify(finalData));
-              }
-            }
-          }
 
           // Smart Sales Merger: Merge remote sales with any un-synced local sales by unique Invoice ID
           if (key === 'pos_sales' && Array.isArray(remotePayload.data)) {

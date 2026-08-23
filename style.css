@@ -740,24 +740,14 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  animation: slideIn 0.2s ease;
   transition: border-color 0.2s ease;
   overflow: hidden;
   box-sizing: border-box;
   width: 100%;
+  transform: none !important;
 }
 .cart-item:hover {
   border-color: rgba(16, 185, 129, 0.4);
-}
-@keyframes slideIn {
-  from {
- opacity: 0;
- transform: translateX(10px);
- }
-  to {
- opacity: 1;
- transform: translateX(0);
- }
 }
 .cart-item-top {
   display: flex;
@@ -3842,28 +3832,39 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 }
 /* ==========================================================================   @media print ��� Isolation rules   ========================================================================== */
 @media print {
-  body > *:not(#smartPrintHubModal):not(#printableReceipt) {
- display: none !important;
- }
-  .modal:not(#smartPrintHubModal) {
- display: none !important;
- }
-  #smartPrintHubModal {
+  body > *:not(#smartPrintHubModal):not(#receiptModal):not(#adminReceiptModal) {
+    display: none !important;
+  }
+  .modal:not(#smartPrintHubModal):not(#receiptModal):not(#adminReceiptModal) {
+    display: none !important;
+  }
+  #receiptModal, #adminReceiptModal, #smartPrintHubModal {
     position: absolute !important;
-    inset: 0 !important;
+    left: 0 !important;
+    top: 0 !important;
     width: 100% !important;
     height: auto !important;
-    background: #fff !important;
-    color: #000 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
     display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
     overflow: visible !important;
     padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
   }
-  #smartPrintHubModal .print-hub-header,  #smartPrintHubModal .print-hub-toolbar,  #smartPrintHubModal .print-hub-settings-drawer,  #smartPrintHubModal .printer-chassis,  #smartPrintHubModal .print-progress-wrapper,  #smartPrintHubModal .laser-scan-line,  #smartPrintHubModal .print-hub-footer {
- display: none !important;
- }
-  #smartPrintHubModal .modal-content,  #smartPrintHubModal .print-hub-body,  #smartPrintHubModal .paper-tray-viewport {
-    background: #fff !important;
+  #smartPrintHubModal .print-hub-header, #smartPrintHubModal .print-hub-toolbar, #smartPrintHubModal .print-hub-settings-drawer, #smartPrintHubModal .printer-chassis, #smartPrintHubModal .print-progress-wrapper, #smartPrintHubModal .laser-scan-line, #smartPrintHubModal .print-hub-footer,
+  #receiptModal .modal-header, #receiptModal .modal-footer, #receiptModal .close-modal, #receiptModal .thermal-slot-header, #receiptModal .thermal-paper-slot-mouth, #receiptModal .thermal-feed-scanline,
+  #adminReceiptModal .modal-header, #adminReceiptModal .modal-footer, #adminReceiptModal .close-modal, #adminReceiptModal .thermal-slot-header, #adminReceiptModal .thermal-paper-slot-mouth, #adminReceiptModal .thermal-feed-scanline {
+    display: none !important;
+  }
+  #smartPrintHubModal .modal-content, #smartPrintHubModal .print-hub-body, #smartPrintHubModal .paper-tray-viewport,
+  #receiptModal .modal-content, #receiptModal .modal-body, #receiptModal .receipt-feed-container, #receiptModal .receipt-feed-viewport,
+  #adminReceiptModal .modal-content, #adminReceiptModal .modal-body, #adminReceiptModal .receipt-feed-container, #adminReceiptModal .receipt-feed-viewport {
+    background: #ffffff !important;
+    color: #000000 !important;
     border: none !important;
     box-shadow: none !important;
     padding: 0 !important;

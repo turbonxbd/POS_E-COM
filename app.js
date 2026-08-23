@@ -844,7 +844,7 @@ class POSApp {
     const price = parseFloat(document.getElementById('prodFormPrice').value);
     const cost = parseFloat(document.getElementById('prodFormCost').value) || (price * 0.8);
     const stock = parseInt(document.getElementById('prodFormStock').value);
-    const image = document.getElementById('prodFormImage').value.trim() || 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=300&q=80';
+    const image = document.getElementById('prodFormImage').value.trim();
 
     if (id) {
       // Edit

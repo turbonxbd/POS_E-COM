@@ -113,6 +113,23 @@ class AdminPanel {
     this.checkAccountStatusSecurityGuard();
     setInterval(() => this.checkAccountStatusSecurityGuard(), 3000);
     window.addEventListener('storage', () => this.checkAccountStatusSecurityGuard());
+
+    window.addEventListener('pos_online_sync_completed', () => {
+      this.products = JSON.parse(localStorage.getItem('pos_products')) || [];
+      this.categories = JSON.parse(localStorage.getItem('pos_categories')) || [];
+      this.coupons = JSON.parse(localStorage.getItem('pos_coupons')) || [];
+      this.customers = JSON.parse(localStorage.getItem('pos_customers')) || [];
+      this.sales = JSON.parse(localStorage.getItem('pos_sales')) || [];
+
+      this.populateCategoryDropdowns();
+      this.renderInventoryTable();
+      this.renderCategoryCards();
+      this.renderCategoryProductsTable();
+      this.renderSalesLog();
+      this.renderDashboard();
+      this.showToast('🟢 ইন্টারনেট কানেক্ট হয়েছে! অফলাইনের সকল ডেটা (প্রোডাক্ট, ক্যাটাগরি, সেলস ও সেটিংস) সার্ভারে অটোমেটিক আপডেট করা হয়েছে!');
+    });
+
     this.initEventListeners();
     this.initClock();
     this.initDatePicker();
@@ -167,7 +184,6 @@ class AdminPanel {
       this.products = savedProd && savedProd !== '[]' ? JSON.parse(savedProd) : (isGuestStore && typeof INITIAL_PRODUCTS !== 'undefined' ? INITIAL_PRODUCTS : []);
       this.sales = savedSales && savedSales !== '[]' ? JSON.parse(savedSales) : [];
       this.settings = savedSettings && savedSettings !== '{}' ? JSON.parse(savedSettings) : (typeof DEFAULT_SETTINGS !== 'undefined' ? DEFAULT_SETTINGS : {});
-      applyMerchantCustomWallpaper(this.settings);
       this.categories = savedCats && savedCats !== '[]' ? JSON.parse(savedCats) : (isGuestStore && typeof INITIAL_CATEGORIES !== 'undefined' ? INITIAL_CATEGORIES : []);
       this.coupons = savedCoupons && savedCoupons !== '[]' ? JSON.parse(savedCoupons) : [];
       this.customers = savedCusts && savedCusts !== '[]' ? JSON.parse(savedCusts) : [];
@@ -1054,13 +1070,16 @@ class AdminPanel {
       const prodsUnderCat = this.products.filter(p => p.category === c.name);
       const totalItems = prodsUnderCat.length;
       const totalStock = prodsUnderCat.reduce((acc, p) => acc + (p.variants || []).reduce((s, v) => s + (v.stock || 0), 0), 0);
-      const imgUrl = c.image || 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=400&q=80';
+      const imgUrl = c.image || '';
       const desc = c.description || `${c.name} ক্যাটাগরির মানসম্মত পণ্যসমূহ`;
+      const catImgMarkup = imgUrl 
+        ? `<img src="${imgUrl}" class="category-card-sq-img" alt="${c.bnName || c.name}" style="background:#000000; object-fit:cover;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';"><div style="display:none; width:100%; height:100%; background:#000000;"></div>`
+        : `<div class="category-card-sq-img" style="background:#000000; width:100%; height:100%;"></div>`;
 
       html += `
         <div class="category-card-sq" onclick="admin.filterByVariantCategory('${c.name}')">
-          <div class="category-card-sq-imgwrap">
-            <img src="${imgUrl}" class="category-card-sq-img" alt="${c.bnName || c.name}" onerror="this.onerror=null; this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'100\' height=\'100\' viewBox=\'0 0 100 100\'><rect width=\'100\' height=\'100\' fill=\'%231e293b\'/><text x=\'50%\' y=\'50%\' dominant-baseline=\'middle\' text-anchor=\'middle\' fill=\'%2394a3b8\' font-family=\'sans-serif\' font-size=\'12\'>No Image</text></svg>'">
+          <div class="category-card-sq-imgwrap" style="background:#000000;">
+            ${catImgMarkup}
             <div class="category-card-sq-overlay">
               <div style="display:flex; justify-content:space-between; align-items:flex-start;">
                 <span class="category-badge-chip" style="border-color:${c.color || '#3b82f6'};">
@@ -1145,7 +1164,9 @@ class AdminPanel {
       return `
         <tr>
           <td>
-            <img src="${p.image}" alt="${p.name}" style="width:44px; height:44px; border-radius:10px; object-fit:cover;" onerror="this.onerror=null; this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'100\' height=\'100\' viewBox=\'0 0 100 100\'><rect width=\'100\' height=\'100\' fill=\'%231e293b\'/><text x=\'50%\' y=\'50%\' dominant-baseline=\'middle\' text-anchor=\'middle\' fill=\'%2394a3b8\' font-family=\'sans-serif\' font-size=\'12\'>No Image</text></svg>'">
+            ${p.image && p.image.trim() !== '' 
+              ? `<img src="${p.image}" alt="${p.name}" style="width:44px; height:44px; border-radius:10px; object-fit:cover; background:#000000;" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';"><div style="display:none; width:44px; height:44px; border-radius:10px; background:#000000;"></div>`
+              : `<div style="width:44px; height:44px; border-radius:10px; background:#000000; display:inline-block;"></div>`}
           </td>
           <td><strong>${p.name}</strong></td>
           <td><span class="badge" style="background:rgba(59,130,246,0.15); color:var(--accent-blue);">${p.category}</span></td>
@@ -1324,7 +1345,7 @@ class AdminPanel {
     const id = document.getElementById('prodFormId').value;
     const name = document.getElementById('prodFormName').value.trim();
     const category = document.getElementById('prodFormCategory').value;
-    const image = document.getElementById('prodFormImage').value.trim() || 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=300&q=80';
+    const image = document.getElementById('prodFormImage').value.trim();
 
     if (!name) {
       this.showToast('পণ্যের নাম পূরণ করা আবশ্যক!', 'error');
@@ -1500,7 +1521,7 @@ class AdminPanel {
       if (cat) {
         cat.name = nameEng;
         cat.bnName = nameBn;
-        cat.image = imgUrl || cat.image || 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=400&q=80';
+        cat.image = imgUrl;
         cat.description = description;
         cat.icon = icon;
         cat.color = color;
@@ -1512,7 +1533,7 @@ class AdminPanel {
         id: `CAT-${Date.now().toString().slice(-4)}`,
         name: nameEng,
         bnName: nameBn,
-        image: imgUrl || 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=400&q=80',
+        image: imgUrl,
         icon,
         color,
         description: description || `${nameEng} ক্যাটাগরির পণ্যসমূহ`
@@ -4069,7 +4090,7 @@ class AdminPanel {
         if (scanline) scanline.style.display = 'none';
 
         if (statusIndicator) statusIndicator.classList.remove('printing');
-        if (statusText) statusText.innerText = '✅ প্রিন্ট সম্পন্ন';
+        if (statusText) statusText.innerText = '✅ ইনভয়েস প্রিন্ট সম্পন্ন';
 
         if (viewport) {
           viewport.scrollTop = viewport.scrollHeight;
@@ -4077,6 +4098,17 @@ class AdminPanel {
 
         if (window.printHub && window.printHub.playSuccessBeep) {
           window.printHub.playSuccessBeep();
+        }
+
+        if (autoTriggerSystemPrint) {
+          if (window.printHub && typeof window.printHub.executeHardwarePrint === 'function') {
+            window.printHub.executeHardwarePrint(null, null, (errMsg) => {
+              if (statusText) statusText.innerText = '❌ প্রিন্টার কানেক্টেড নেই বা ইনভয়েস প্রিন্ট ব্যর্থ হয়েছে!';
+              if (typeof this.showToast === 'function') {
+                this.showToast(`❌ প্রিন্টার কানেক্টেড নেই বা ইনভয়েস প্রিন্ট ব্যর্থ হয়েছে! (${errMsg})`, 'error');
+              }
+            });
+          }
         }
 
         if (window.confetti) {

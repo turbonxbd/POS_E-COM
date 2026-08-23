@@ -273,7 +273,6 @@ class CashierTerminal {
       this.sales = savedSales && savedSales !== '[]' ? JSON.parse(savedSales) : [];
       this.settings = savedSettings && savedSettings !== '{}' ? JSON.parse(savedSettings) : (typeof DEFAULT_SETTINGS !== 'undefined' ? DEFAULT_SETTINGS : {});
       applyMerchantCustomWallpaper(this.settings);
-      this.updateSidebarStoreBranding();
       this.customers = savedCusts && savedCusts !== '[]' ? JSON.parse(savedCusts) : [];
 
       this.updateDiscountTaxUI();
@@ -893,8 +892,10 @@ class CashierTerminal {
 
       return `
         <div class="product-card" onclick="cashier.handleProductCardClick('${p.id}')">
-          <div class="product-img-wrap">
-            <img src="${p.image}" alt="${p.name}" loading="lazy" onerror="this.onerror=null; this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'100\' height=\'100\' viewBox=\'0 0 100 100\'><rect width=\'100\' height=\'100\' fill=\'%231e293b\'/><text x=\'50%\' y=\'50%\' dominant-baseline=\'middle\' text-anchor=\'middle\' fill=\'%2394a3b8\' font-family=\'sans-serif\' font-size=\'12\'>No Image</text></svg>'">
+          <div class="product-img-wrap" style="background:#000000;">
+            ${p.image && p.image.trim() !== '' 
+              ? `<img src="${p.image}" alt="${p.name}" loading="lazy" style="background:#000000; object-fit:cover;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';"><div style="display:none; width:100%; height:100%; background:#000000;"></div>`
+              : `<div style="width:100%; height:100%; background:#000000;"></div>`}
             <span class="stock-tag ${stockClass}">${stockText}</span>
           </div>
           <div class="product-details">
@@ -1205,47 +1206,55 @@ class CashierTerminal {
     }
   }
 
-  renderCart() {
+  renderCart(force = false) {
     const cartList = document.getElementById('cartItemsList');
     const badge = document.getElementById('cartCountBadge');
     const totalItems = this.cart.reduce((sum, i) => sum + i.quantity, 0);
-    badge.innerText = `${totalItems} আইটেম`;
+    if (badge) badge.innerText = `${totalItems} আইটেম`;
 
-    if (this.cart.length === 0) {
-      cartList.innerHTML = `
-        <div class="empty-cart-state">
-          <i class="fa-solid fa-barcode-read"></i>
-          <p>কার্ট খালি রয়েছে</p>
-          <small>বারকোড স্ক্যান করুন অথবা ক্লিক করে ভেরিয়েন্ট যোগ করুন</small>
-        </div>`;
-    } else {
-      cartList.innerHTML = this.cart.map(item => `
-        <div class="cart-item" data-variant-id="${item.variantId}">
-          <div class="cart-item-top">
-            <h5 class="cart-item-title" title="${item.name}">${item.name}</h5>
-            <span class="cart-item-variant">(${item.color} / ${item.size})</span>
-          </div>
-          <div class="cart-item-bottom">
-            <div class="cart-qty-wrap">
-              <div class="cart-qty-controls">
-                <button class="qty-btn" onclick="cashier.updateCartQty('${item.variantId}', -1)">-</button>
-                <input type="number" class="qty-val-input" value="${item.quantity}" min="1" onchange="cashier.setCartQty('${item.variantId}', this.value)" onfocus="this.select()" title="কোয়ান্টিটি সরাসরি টাইপ করতে ক্লিক করুন">
-                <button class="qty-btn" onclick="cashier.updateCartQty('${item.variantId}', 1)">+</button>
+    const currentCartJSON = JSON.stringify(this.cart);
+    const cartChanged = force || this.lastRenderedCartJSON !== currentCartJSON;
+
+    if (cartChanged && cartList) {
+      this.lastRenderedCartJSON = currentCartJSON;
+      if (this.cart.length === 0) {
+        cartList.innerHTML = `
+          <div class="empty-cart-state">
+            <i class="fa-solid fa-barcode-read"></i>
+            <p>কার্ট খালি রয়েছে</p>
+            <small>বারকোড স্ক্যান করুন অথবা ক্লিক করে ভেরিয়েন্ট যোগ করুন</small>
+          </div>`;
+      } else {
+        cartList.innerHTML = this.cart.map(item => `
+          <div class="cart-item" data-variant-id="${item.variantId}">
+            <div class="cart-item-top">
+              <h5 class="cart-item-title" title="${item.name}">${item.name}</h5>
+              <span class="cart-item-variant">(${item.color} / ${item.size})</span>
+            </div>
+            <div class="cart-item-bottom">
+              <div class="cart-qty-wrap">
+                <div class="cart-qty-controls">
+                  <button class="qty-btn" onclick="cashier.updateCartQty('${item.variantId}', -1)">-</button>
+                  <input type="number" class="qty-val-input" value="${item.quantity}" min="1" onchange="cashier.setCartQty('${item.variantId}', this.value)" onfocus="this.select()" title="কোয়ান্টিটি সরাসরি টাইপ করতে ক্লিক করুন">
+                  <button class="qty-btn" onclick="cashier.updateCartQty('${item.variantId}', 1)">+</button>
+                </div>
+                <span class="unit-price-breakdown">৳${item.price} × ${item.quantity}</span>
               </div>
-              <span class="unit-price-breakdown">৳${item.price} × ${item.quantity}</span>
-            </div>
-            <div class="cart-item-price-actions">
-              <span class="cart-item-subtotal">৳${item.subtotal}</span>
-              <button class="btn-remove-item" onclick="cashier.removeFromCart('${item.variantId}')" title="আইটেম মুছুন"><i class="fa-solid fa-trash-can"></i></button>
+              <div class="cart-item-price-actions">
+                <span class="cart-item-subtotal">৳${item.subtotal}</span>
+                <button class="btn-remove-item" onclick="cashier.removeFromCart('${item.variantId}')" title="আইটেম মুছুন"><i class="fa-solid fa-trash-can"></i></button>
+              </div>
             </div>
           </div>
-        </div>
-      `).join('');
+        `).join('');
+      }
     }
 
     const totals = this.getCartTotals();
-    document.getElementById('cartSubtotal').innerText = `৳${totals.subtotal.toFixed(2)}`;
-    document.getElementById('cartGrandTotal').innerText = `৳${totals.grandTotal.toFixed(2)}`;
+    const subtotalEl = document.getElementById('cartSubtotal');
+    const grandTotalEl = document.getElementById('cartGrandTotal');
+    if (subtotalEl) subtotalEl.innerText = `৳${totals.subtotal.toFixed(2)}`;
+    if (grandTotalEl) grandTotalEl.innerText = `৳${totals.grandTotal.toFixed(2)}`;
 
     const mobileCartCount = document.getElementById('mobileCartCount');
     const mobileCartTotal = document.getElementById('mobileCartTotal');
@@ -1253,8 +1262,10 @@ class CashierTerminal {
     if (mobileCartTotal) mobileCartTotal.innerText = `৳${totals.grandTotal.toFixed(2)}`;
 
     const hasItems = this.cart.length > 0;
-    document.getElementById('payCashBtn').disabled = !hasItems;
-    document.getElementById('payEpayBtn').disabled = !hasItems;
+    const payCashBtn = document.getElementById('payCashBtn');
+    const payEpayBtn = document.getElementById('payEpayBtn');
+    if (payCashBtn) payCashBtn.disabled = !hasItems;
+    if (payEpayBtn) payEpayBtn.disabled = !hasItems;
   }
 
   // CASH PAYMENT FLOW
@@ -3880,7 +3891,7 @@ class CashierTerminal {
         if (scanline) scanline.style.display = 'none';
 
         if (statusIndicator) statusIndicator.classList.remove('printing');
-        if (statusText) statusText.innerText = '✅ প্রিন্ট সম্পন্ন';
+        if (statusText) statusText.innerText = '✅ ইনভয়েস প্রিন্ট সম্পন্ন';
 
         if (viewport) {
           viewport.scrollTop = viewport.scrollHeight;
@@ -3892,6 +3903,17 @@ class CashierTerminal {
 
         if (window.confetti) {
           confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } });
+        }
+
+        if (autoTriggerSystemPrint) {
+          if (window.printHub && typeof window.printHub.executeHardwarePrint === 'function') {
+            window.printHub.executeHardwarePrint(null, null, (errMsg) => {
+              if (statusText) statusText.innerText = '❌ প্রিন্টার কানেক্টেড নেই বা ইনভয়েস প্রিন্ট ব্যর্থ হয়েছে!';
+              if (typeof this.showToast === 'function') {
+                this.showToast(`❌ প্রিন্টার কানেক্টেড নেই বা ইনভয়েস প্রিন্ট ব্যর্থ হয়েছে! (${errMsg})`, 'error');
+              }
+            });
+          }
         }
       }
     };

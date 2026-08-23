@@ -506,11 +506,11 @@ class SmartPrintHub {
         ${pageRule}
 
         /* ABSOLUTE PRINT ISOLATION TO PREVENT GHOSTING / DOUBLE PRINTING OVERLAPS */
-        body > *:not(#smartPrintHubModal) {
+        body > *:not(#smartPrintHubModal):not(#receiptModal):not(#adminReceiptModal) {
           display: none !important;
         }
 
-        #smartPrintHubModal {
+        #smartPrintHubModal, #receiptModal, #adminReceiptModal {
           position: absolute !important;
           left: 0 !important;
           top: 0 !important;
@@ -684,18 +684,69 @@ class SmartPrintHub {
     } catch(e) {}
   }
 
-  // --- PAPER EJECTION & SCANNER ANIMATION ENGINE ---
-  triggerPrintEjection(autoSystemPrint = true) {
-    this.playPrintAnimation(() => {
-      if (autoSystemPrint) {
-        setTimeout(() => {
-          window.print();
-        }, 200);
+  // --- HARDWARE PRINTER DISPATCH & STATUS MONITOR ENGINE ---
+  executeHardwarePrint(onStart, onSuccess, onError) {
+    let printDispatched = false;
+    let printCompleted = false;
+
+    const mediaQueryList = window.matchMedia ? window.matchMedia('print') : null;
+
+    const handleBeforePrint = () => {
+      printDispatched = true;
+      if (typeof onStart === 'function') onStart();
+    };
+
+    const handleAfterPrint = () => {
+      printCompleted = true;
+      if (typeof onSuccess === 'function') onSuccess();
+      cleanup();
+    };
+
+    const mqlListener = (mql) => {
+      if (mql.matches) {
+        handleBeforePrint();
+      } else {
+        handleAfterPrint();
       }
-    });
+    };
+
+    const cleanup = () => {
+      window.removeEventListener('beforeprint', handleBeforePrint);
+      window.removeEventListener('afterprint', handleAfterPrint);
+      if (mediaQueryList && mediaQueryList.removeEventListener) {
+        mediaQueryList.removeEventListener('change', mqlListener);
+      }
+    };
+
+    window.addEventListener('beforeprint', handleBeforePrint);
+    window.addEventListener('afterprint', handleAfterPrint);
+
+    if (mediaQueryList && mediaQueryList.addEventListener) {
+      mediaQueryList.addEventListener('change', mqlListener);
+    }
+
+    try {
+      this.updateDynamicPrintStyles();
+      window.print();
+
+      setTimeout(() => {
+        if (!printDispatched && !printCompleted) {
+          cleanup();
+          if (typeof onSuccess === 'function') onSuccess(); // Auto-fallback for silent print drivers
+        }
+      }, 1500);
+    } catch (err) {
+      cleanup();
+      if (typeof onError === 'function') onError(err.message || 'Printer Connection Failed');
+    }
   }
 
-  playPrintAnimation(onCompleteCallback = null) {
+  // --- PAPER EJECTION & SCANNER ANIMATION ENGINE ---
+  triggerPrintEjection(autoDispatchHardware = true) {
+    this.playPrintAnimation(autoDispatchHardware);
+  }
+
+  playPrintAnimation(autoDispatchHardware = true) {
     const paperTarget = document.getElementById('printablePrintHubTarget');
     const paperTrayViewport = document.getElementById('paperTrayViewport');
     const progressWrapper = document.getElementById('printProgressWrapper');
@@ -709,7 +760,6 @@ class SmartPrintHub {
     if (!paperTarget) return;
 
     const itemCount = (this.currentItems && this.currentItems.length > 0) ? this.currentItems.length : 1;
-    // Calculate dynamic animation duration based on total sticker count (~350ms per sticker, min 1600ms, max 10000ms)
     let baseTime = Math.max(1600, Math.min(10000, itemCount * 350 + 600));
     let animDuration = baseTime;
     if (speed === 'fast') animDuration = Math.max(700, Math.round(baseTime * 0.45));
@@ -717,13 +767,11 @@ class SmartPrintHub {
 
     this.isAnimating = true;
 
-    // Reset paper tray scroll to top
     if (paperTrayViewport) {
       paperTrayViewport.scrollTop = 0;
       paperTrayViewport.style.overflowY = 'auto';
     }
 
-    // Reset paper target initial position and opacity
     paperTarget.style.transition = 'none';
     paperTarget.style.transform = 'translateY(30px)';
     paperTarget.style.opacity = '0.4';
@@ -733,18 +781,16 @@ class SmartPrintHub {
     }
 
     if (statusLed) statusLed.className = 'led led-status printing';
-    if (statusLedText) statusLedText.innerText = 'EJECTING...';
+    if (statusLedText) statusLedText.innerText = 'PRINTING...';
 
     if (progressWrapper) progressWrapper.style.display = 'flex';
     if (progressBar) progressBar.style.width = '0%';
-    if (progressText) progressText.innerText = `🖨️ নিচ থেকে ওপরের দিকে বারকোড স্টিকার প্রিন্ট হয়ে বের হচ্ছে (১/${itemCount})... 0%`;
+    if (progressText) progressText.innerText = `🖨️ প্রিন্টারে প্রিন্টিং প্রসেস শুরু হয়েছে (১/${itemCount})... 0%`;
 
-    // Play thermal printer motor audio sound
     if (speed !== 'instant') {
       this.playPrinterAudio(animDuration);
     }
 
-    // Force layout reflow
     void paperTarget.offsetHeight;
 
     const startTime = performance.now();
@@ -757,15 +803,13 @@ class SmartPrintHub {
       const processedCount = Math.min(itemCount, Math.max(1, Math.ceil(progress * itemCount)));
 
       if (progressBar) progressBar.style.width = `${percent}%`;
-      if (progressText) progressText.innerText = `🖨️ নিচ থেকে ওপরের দিকে বারকোড স্টিকার প্রিন্ট হয়ে বের হচ্ছে (${processedCount}/${itemCount})... ${percent}%`;
+      if (progressText) progressText.innerText = `🖨️ প্রিন্টারে স্টিকার প্রিন্ট হয়ে বের হচ্ছে (${processedCount}/${itemCount})... ${percent}%`;
 
-      // Smooth initial slide out from printer slot
       const initialEntryRatio = Math.min(1, progress * 4);
       const translateY = Math.round((1 - initialEntryRatio) * 30);
       paperTarget.style.transform = `translateY(${translateY}px)`;
       paperTarget.style.opacity = `${0.4 + (progress * 0.6)}`;
 
-      // Scroll viewport down continuously so stickers feed upwards from #1 to the last sticker
       if (paperTrayViewport) {
         const maxScroll = Math.max(0, paperTarget.scrollHeight - paperTrayViewport.clientHeight + 10);
         if (maxScroll > 0) {
@@ -780,14 +824,13 @@ class SmartPrintHub {
       if (progress < 1) {
         requestAnimationFrame(animateStep);
       } else {
-        // Animation complete
         paperTarget.style.transform = 'translateY(0px)';
         paperTarget.style.opacity = '1';
         if (laserLine) laserLine.style.display = 'none';
 
         if (statusLed) statusLed.className = 'led led-status ready';
         if (statusLedText) statusLedText.innerText = 'PRINT COMPLETE';
-        if (progressText) progressText.innerText = `✅ মোট ${itemCount} টি বারকোড স্টিকার প্রিন্ট সম্পন্ন!`;
+        if (progressText) progressText.innerText = `✅ মোট ${itemCount} টি বারকোড স্টিকার প্রিন্ট সফলভাবে সম্পন্ন হয়েছে!`;
 
         if (paperTrayViewport) {
           paperTrayViewport.style.overflowY = 'auto';
@@ -796,13 +839,19 @@ class SmartPrintHub {
         this.playSuccessBeep();
         this.isAnimating = false;
 
-        if (typeof onCompleteCallback === 'function') {
-          onCompleteCallback();
-        }
-
         setTimeout(() => {
           if (progressWrapper) progressWrapper.style.display = 'none';
-        }, 1000);
+        }, 1200);
+
+        if (autoDispatchHardware) {
+          this.executeHardwarePrint(null, null, (errMsg) => {
+            if (statusLed) statusLed.className = 'led led-status error';
+            if (statusLedText) statusLedText.innerText = 'PRINT FAILED';
+            if (progressText) progressText.innerText = `❌ প্রিন্টার কানেক্টেড নেই বা প্রিন্ট ব্যর্থ হয়েছে! (${errMsg})`;
+            if (window.cashier && cashier.showToast) cashier.showToast(`❌ প্রিন্টার কানেকশন ব্যর্থ: ${errMsg}`, 'error');
+            else if (window.admin && admin.showToast) admin.showToast(`❌ প্রিন্টার কানেকশন ব্যর্থ: ${errMsg}`, 'error');
+          });
+        }
       }
     };
 
