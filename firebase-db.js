@@ -246,6 +246,30 @@ class FirebasePOSSync {
 
           let finalData = remotePayload.data;
 
+          // Smart Product Merger: Merge remote products with any un-synced offline local products by unique ID / Barcode
+          if (key === 'pos_products' && Array.isArray(remotePayload.data)) {
+            let localProds = [];
+            try { localProds = JSON.parse(currentLocalJson || '[]'); } catch (e) {}
+            if (Array.isArray(localProds) && localProds.length > 0) {
+              const prodMap = new Map();
+              remotePayload.data.forEach(p => {
+                if (p && (p.id || p.barcode)) prodMap.set(String(p.id || p.barcode), p);
+              });
+              localProds.forEach(p => {
+                const keyId = p ? String(p.id || p.barcode) : null;
+                if (keyId && !prodMap.has(keyId)) {
+                  prodMap.set(keyId, p);
+                }
+              });
+              finalData = Array.from(prodMap.values());
+
+              if (finalData.length > remotePayload.data.length) {
+                console.log(`[Data Safeguard] Found ${finalData.length - remotePayload.data.length} offline local products! Syncing merged product list to cloud...`);
+                this.pushKeyToCloud('pos_products', JSON.stringify(finalData));
+              }
+            }
+          }
+
           // Smart Sales Merger: Merge remote sales with any un-synced local sales by unique Invoice ID
           if (key === 'pos_sales' && Array.isArray(remotePayload.data)) {
             let localSales = [];

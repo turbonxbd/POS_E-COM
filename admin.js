@@ -167,6 +167,7 @@ class AdminPanel {
       this.products = savedProd && savedProd !== '[]' ? JSON.parse(savedProd) : (isGuestStore && typeof INITIAL_PRODUCTS !== 'undefined' ? INITIAL_PRODUCTS : []);
       this.sales = savedSales && savedSales !== '[]' ? JSON.parse(savedSales) : [];
       this.settings = savedSettings && savedSettings !== '{}' ? JSON.parse(savedSettings) : (typeof DEFAULT_SETTINGS !== 'undefined' ? DEFAULT_SETTINGS : {});
+      applyMerchantCustomWallpaper(this.settings);
       this.categories = savedCats && savedCats !== '[]' ? JSON.parse(savedCats) : (isGuestStore && typeof INITIAL_CATEGORIES !== 'undefined' ? INITIAL_CATEGORIES : []);
       this.coupons = savedCoupons && savedCoupons !== '[]' ? JSON.parse(savedCoupons) : [];
       this.customers = savedCusts && savedCusts !== '[]' ? JSON.parse(savedCusts) : [];

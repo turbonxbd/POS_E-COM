@@ -328,56 +328,142 @@
         }, { passive: true });
       });
 
-      // === Login Form Handler ===
+      // === Phone / Email Normalization Utility ===
+      const cleanPhone = (val) => {
+        if (!val) return '';
+        let str = String(val).trim();
+        if (str.includes('@')) return str.toLowerCase();
+        let digits = str.replace(/\D/g, '');
+        if (digits.length === 13 && digits.startsWith('8801')) {
+          digits = digits.substring(2);
+        }
+        return digits;
+      };
+
+      // === Cloud + Local Multi-Device Login Form Handler ===
       const loginForm = document.getElementById('portalLoginForm');
       if (loginForm) {
-        loginForm.addEventListener('submit', (e) => {
+        loginForm.addEventListener('submit', async (e) => {
           e.preventDefault();
-          const phoneInput = document.getElementById('portalAuthPhone').value.trim();
-          const pinInput = document.getElementById('portalAuthPin').value.trim();
+          const submitBtn = loginForm.querySelector('button[type="submit"]');
+          const originalBtnHtml = submitBtn ? submitBtn.innerHTML : '';
+          if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> অ্যাকাউন্ট যাচাই করা হচ্ছে...';
+          }
 
-          const allSubs = JSON.parse(localStorage.getItem('pos_subscriptions')) || [];
+          const rawInput = document.getElementById('portalAuthPhone').value.trim();
+          const pinInput = document.getElementById('portalAuthPin').value.trim();
+          const searchKey = cleanPhone(rawInput);
+
+          // 1. Gather all local accounts
+          let allSubs = JSON.parse(localStorage.getItem('pos_subscriptions')) || [];
           const singleSub = JSON.parse(localStorage.getItem('pos_subscription')) || {};
           if (singleSub.storeName) allSubs.unshift(singleSub);
 
-          const matchedSub = allSubs.find(s => (s.phone && s.phone === phoneInput) || (s.email && s.email === phoneInput));
+          // 2. Fetch fresh cloud accounts from Firestore if available
+          if (window.POS_FIREBASE && window.POS_FIREBASE.db) {
+            try {
+              const [subSnap, storesSnap] = await Promise.all([
+                window.POS_FIREBASE.db.collection('subscriptions').get().catch(() => null),
+                window.POS_FIREBASE.db.collection('stores').get().catch(() => null)
+              ]);
+
+              if (subSnap && !subSnap.empty) {
+                subSnap.forEach(doc => {
+                  const data = doc.data() || {};
+                  allSubs.push({ id: doc.id, storeId: doc.id, ...data });
+                });
+              }
+
+              if (storesSnap && !storesSnap.empty) {
+                await Promise.all(storesSnap.docs.map(async (doc) => {
+                  const sData = doc.data() || {};
+                  const profile = sData.profile || sData;
+                  try {
+                    const settingsDoc = await window.POS_FIREBASE.db.collection('stores').doc(doc.id).collection('pos_data').doc('pos_settings').get();
+                    const settings = settingsDoc.exists ? (settingsDoc.data().data || {}) : {};
+                    allSubs.push({
+                      id: doc.id,
+                      storeId: doc.id,
+                      ...profile,
+                      ...sData,
+                      ...settings,
+                      adminPin: settings.adminPin || profile.adminPin || sData.adminPin || '1234',
+                      merchantPassword: settings.merchantPassword || settings.adminPin || profile.merchantPassword || profile.adminPin || sData.merchantPassword || sData.adminPin || '1234'
+                    });
+                  } catch (err) {
+                    allSubs.push({ id: doc.id, storeId: doc.id, ...profile, ...sData });
+                  }
+                }));
+              }
+            } catch (err) {
+              console.warn('[Portal Auth Cloud Fetch Warning]:', err);
+            }
+          }
+
+          // 3. Match Store Account by Phone, Email, or Store ID
+          const matchedSub = allSubs.find(s => {
+            const p1 = cleanPhone(s.phone);
+            const p2 = cleanPhone(s.storePhone);
+            const p3 = cleanPhone(s.personalPhone);
+            const p4 = cleanPhone(s.senderPhone);
+            const e1 = cleanPhone(s.email);
+            const e2 = cleanPhone(s.storeEmail);
+            const e3 = cleanPhone(s.personalEmail);
+            const sId = String(s.storeId || s.id || '').trim().toLowerCase();
+
+            return (searchKey && (p1 === searchKey || p2 === searchKey || p3 === searchKey || p4 === searchKey || e1 === searchKey || e2 === searchKey || e3 === searchKey || sId === searchKey));
+          });
+
           const targetStoreId = matchedSub ? (matchedSub.storeId || matchedSub.id) : (localStorage.getItem('pos_active_store_id') || 'store_demo_101');
-          
           const tenantSettings = JSON.parse(localStorage.getItem(`pos_tenant_${targetStoreId}_pos_settings`)) || {};
           const savedSettings = JSON.parse(localStorage.getItem('pos_settings')) || {};
-          
-          const expectedPin = String(matchedSub?.merchantPassword || matchedSub?.adminPin || tenantSettings.adminPin || savedSettings.adminPin || '1234').trim();
 
-          if (pinInput === expectedPin) {
+          const expectedPin = String(matchedSub?.merchantPassword || matchedSub?.adminPin || tenantSettings.merchantPassword || tenantSettings.adminPin || savedSettings.merchantPassword || savedSettings.adminPin || '1234').trim();
+
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalBtnHtml;
+          }
+
+          if (matchedSub && pinInput === expectedPin) {
             localStorage.setItem('pos_session_logged_in', 'true');
-            if (matchedSub) {
-              const owner = matchedSub.ownerName || matchedSub.storeOwner || savedSettings.storeOwner || '';
-              const phone = matchedSub.phone || matchedSub.storePhone || savedSettings.storePhone || '';
-              const email = matchedSub.email || matchedSub.storeEmail || savedSettings.storeEmail || '';
-              savedSettings.storeName = matchedSub.storeName || savedSettings.storeName;
-              savedSettings.storeOwner = owner;
-              savedSettings.ownerName = owner;
-              savedSettings.storePhone = phone;
-              savedSettings.phone = phone;
-              savedSettings.personalPhone = phone;
-              savedSettings.storeEmail = email;
-              savedSettings.email = email;
-              savedSettings.personalEmail = email;
-              savedSettings.storeAddress = matchedSub.storeAddress || savedSettings.storeAddress;
-              savedSettings.adminPin = expectedPin;
-              savedSettings.merchantPassword = expectedPin;
+            localStorage.setItem('pos_active_store_id', targetStoreId);
 
-              localStorage.setItem('pos_settings', JSON.stringify(savedSettings));
-              if (targetStoreId) {
-                localStorage.setItem('pos_active_store_id', targetStoreId);
-                localStorage.setItem(`pos_tenant_${targetStoreId}_pos_settings`, JSON.stringify(savedSettings));
-              }
-            }
+            const owner = matchedSub.ownerName || matchedSub.storeOwner || savedSettings.storeOwner || '';
+            const phone = matchedSub.phone || matchedSub.storePhone || savedSettings.storePhone || '';
+            const email = matchedSub.email || matchedSub.storeEmail || savedSettings.storeEmail || '';
+            const storeName = matchedSub.storeName || savedSettings.storeName || 'মার্চেন্ট স্টোর';
+
+            savedSettings.storeName = storeName;
+            savedSettings.storeOwner = owner;
+            savedSettings.ownerName = owner;
+            savedSettings.storePhone = phone;
+            savedSettings.phone = phone;
+            savedSettings.personalPhone = phone;
+            savedSettings.storeEmail = email;
+            savedSettings.email = email;
+            savedSettings.personalEmail = email;
+            savedSettings.storeAddress = matchedSub.storeAddress || savedSettings.storeAddress || '';
+            savedSettings.adminPin = expectedPin;
+            savedSettings.merchantPassword = expectedPin;
+
+            localStorage.setItem('pos_settings', JSON.stringify(savedSettings));
+            localStorage.setItem(`pos_tenant_${targetStoreId}_pos_settings`, JSON.stringify(savedSettings));
+            localStorage.setItem('pos_subscription', JSON.stringify(matchedSub));
+
+            let localSubs = JSON.parse(localStorage.getItem('pos_subscriptions')) || [];
+            const subIdx = localSubs.findIndex(s => (s.storeId === targetStoreId || s.id === targetStoreId));
+            if (subIdx >= 0) localSubs[subIdx] = { ...localSubs[subIdx], ...matchedSub };
+            else localSubs.push(matchedSub);
+            localStorage.setItem('pos_subscriptions', JSON.stringify(localSubs));
+
             refreshPortalState();
             if (authModal) authModal.classList.remove('active');
-            alert(`🎉 স্বাগতম! সফলভাবে আপনার অ্যাকাউন্ট প্যানেলে লগইন করা হয়েছে।`);
+            alert(`🎉 স্বাগতম! '${storeName}' অ্যাকাউন্টে সফলভাবে লগইন করা হয়েছে।`);
           } else {
-            alert('ভুল মোবাইল নম্বর বা সিকিউরিটি পিন! সঠিক পিন দিয়ে পুনরায় চেষ্টা করুন।');
+            alert('❌ ভুল মোবাইল নম্বর/ইমেইল বা সিকিউরিটি পিন! সঠিক তথ্য দিয়ে পুনরায় চেষ্টা করুন।');
           }
         });
       }
@@ -450,6 +536,9 @@
       });
     });
   </script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+  <script src="firebase-db.js"></script>
   <script src="pwa-install.js"></script>
 </body>
 </html>

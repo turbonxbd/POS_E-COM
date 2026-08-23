@@ -273,6 +273,7 @@ class CashierTerminal {
       this.sales = savedSales && savedSales !== '[]' ? JSON.parse(savedSales) : [];
       this.settings = savedSettings && savedSettings !== '{}' ? JSON.parse(savedSettings) : (typeof DEFAULT_SETTINGS !== 'undefined' ? DEFAULT_SETTINGS : {});
       applyMerchantCustomWallpaper(this.settings);
+      this.updateSidebarStoreBranding();
       this.customers = savedCusts && savedCusts !== '[]' ? JSON.parse(savedCusts) : [];
 
       this.updateDiscountTaxUI();

@@ -1,6 +1,7 @@
 // SmartPOS - Service Worker Caching & Instant Automatic Background Update Engine
-const CACHE_NAME = 'smartpos-v4.2.0';
+const CACHE_NAME = 'smartpos-v4.3.0';
 const ASSETS_TO_CACHE = [
+  './',
   './portal.html',
   './cashier.html',
   './admin.html',
@@ -59,7 +60,42 @@ self.addEventListener('message', (event) => {
   }
 });
 
-// Fetch Event - Instant Automatic PWA App Live Update Strategy
+// Robust Multi-Path Cache Matcher for Desktop PCs and Mobile Browsers
+async function getCachedAsset(request) {
+  // 1. Try direct match
+  const directMatch = await caches.match(request);
+  if (directMatch) return directMatch;
+
+  // 2. Extract pathname and filename
+  const urlObj = new URL(request.url);
+  const pathname = urlObj.pathname;
+  const filename = pathname.split('/').pop() || 'index.html';
+
+  // 3. Try relative path variants
+  const relativeVariants = [
+    `./${filename}`,
+    `/${filename}`,
+    filename
+  ];
+
+  for (const variant of relativeVariants) {
+    const matched = await caches.match(variant);
+    if (matched) return matched;
+  }
+
+  // 4. Desktop/Mobile HTML Navigation Fallback Engine
+  if (request.mode === 'navigate' || request.headers.get('accept')?.includes('text/html') || pathname.endsWith('.html') || !pathname.includes('.')) {
+    if (pathname.includes('cashier')) return (await caches.match('./cashier.html')) || (await caches.match('cashier.html'));
+    if (pathname.includes('admin') && !pathname.includes('super-admin')) return (await caches.match('./admin.html')) || (await caches.match('admin.html'));
+    if (pathname.includes('super-admin')) return (await caches.match('./super-admin.html')) || (await caches.match('super-admin.html'));
+    if (pathname.includes('portal')) return (await caches.match('./portal.html')) || (await caches.match('portal.html'));
+    return (await caches.match('./index.html')) || (await caches.match('index.html'));
+  }
+
+  return null;
+}
+
+// Fetch Event - Instant Automatic PWA App Live Update & Desktop Offline Strategy
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
@@ -70,7 +106,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // HTML Pages & Core JS Application Files: Network-First so installed PWA apps automatically receive live GitHub updates on launch
+  // HTML Pages & Application Scripts: Network-First when online, Robust Cache Fallback when offline
   if (url.includes('.html') || url.includes('.js') || url.endsWith('/') || url === self.location.origin) {
     event.respondWith(
       fetch(event.request)
@@ -81,15 +117,18 @@ self.addEventListener('fetch', (event) => {
           }
           return networkResponse;
         })
-        .catch(() => caches.match(event.request))
+        .catch(async () => {
+          const cached = await getCachedAsset(event.request);
+          if (cached) return cached;
+          return new Response('Offline Page', { status: 200, headers: { 'Content-Type': 'text/html' } });
+        })
     );
     return;
   }
 
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
+    caches.match(event.request).then(async (cachedResponse) => {
       if (cachedResponse) {
-        // Return cached asset instantly (0.01s load) without hanging background fetch promises
         if (url.startsWith(self.location.origin) && !url.includes('.html')) {
           fetch(event.request).then((networkResponse) => {
             if (networkResponse && networkResponse.status === 200) {
@@ -101,7 +140,10 @@ self.addEventListener('fetch', (event) => {
         return cachedResponse;
       }
 
-      // If not in cache, fetch with 4s timeout fallback to prevent browser tab favicon spinner hanging
+      // Try multi-path asset matcher before network timeout
+      const fallbackCache = await getCachedAsset(event.request);
+      if (fallbackCache) return fallbackCache;
+
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 4000);
 
@@ -114,8 +156,10 @@ self.addEventListener('fetch', (event) => {
           }
           return networkResponse;
         })
-        .catch(() => {
+        .catch(async () => {
           clearTimeout(timeoutId);
+          const finalFallback = await getCachedAsset(event.request);
+          if (finalFallback) return finalFallback;
           return caches.match('./index.html');
         });
     })

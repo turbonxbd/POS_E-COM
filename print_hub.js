@@ -685,11 +685,17 @@ class SmartPrintHub {
   }
 
   // --- PAPER EJECTION & SCANNER ANIMATION ENGINE ---
-  triggerPrintEjection() {
-    this.playPrintAnimation();
+  triggerPrintEjection(autoSystemPrint = true) {
+    this.playPrintAnimation(() => {
+      if (autoSystemPrint) {
+        setTimeout(() => {
+          window.print();
+        }, 200);
+      }
+    });
   }
 
-  playPrintAnimation() {
+  playPrintAnimation(onCompleteCallback = null) {
     const paperTarget = document.getElementById('printablePrintHubTarget');
     const paperTrayViewport = document.getElementById('paperTrayViewport');
     const progressWrapper = document.getElementById('printProgressWrapper');
@@ -789,6 +795,10 @@ class SmartPrintHub {
 
         this.playSuccessBeep();
         this.isAnimating = false;
+
+        if (typeof onCompleteCallback === 'function') {
+          onCompleteCallback();
+        }
 
         setTimeout(() => {
           if (progressWrapper) progressWrapper.style.display = 'none';
