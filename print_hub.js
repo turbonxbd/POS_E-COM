@@ -428,7 +428,7 @@ class SmartPrintHub {
     }
   }
 
-  updateDynamicPrintStyles() {
+  updateDynamicPrintStyles(mode = 'barcode') {
     let styleTag = document.getElementById('printHubDynamicStyles');
     if (!styleTag) {
       styleTag = document.createElement('style');
@@ -440,73 +440,125 @@ class SmartPrintHub {
     let heightMm = 'auto';
     let isStickerRoll = false;
 
-    switch(this.paperFormat) {
-      case '58mm':
-        widthMm = '58mm';
+    if (mode === 'invoice') {
+      widthMm = '80mm';
+      isStickerRoll = false;
+      const receiptEl = document.getElementById('printableReceipt');
+      if (receiptEl) {
+        const rect = receiptEl.getBoundingClientRect();
+        const pxHeight = Math.max(receiptEl.offsetHeight || 0, rect.height || 0);
+        // Convert px to mm (1px = 0.2645833mm) + 4mm tiny breathing margin right after footer
+        const calculatedHeightMm = Math.ceil(pxHeight * 0.2645833) + 4;
+        heightMm = `${Math.max(50, calculatedHeightMm)}mm`;
+      } else {
         heightMm = 'auto';
-        break;
-      case '100mm':
-        widthMm = '100mm';
-        heightMm = 'auto';
-        break;
-      case 'sticker_50x30':
-        widthMm = '50mm';
-        heightMm = '30mm';
-        isStickerRoll = true;
-        break;
-      case 'sticker_38x25':
-        widthMm = '38mm';
-        heightMm = '25mm';
-        isStickerRoll = true;
-        break;
-      case 'sticker_50x25':
-        widthMm = '50mm';
-        heightMm = '25mm';
-        isStickerRoll = true;
-        break;
-      case 'sticker_75x50':
-        widthMm = '75mm';
-        heightMm = '50mm';
-        isStickerRoll = true;
-        break;
-      case 'sticker_25x15':
-        widthMm = '25mm';
-        heightMm = '15mm';
-        isStickerRoll = true;
-        break;
-      case '2up_label':
-        widthMm = '76mm';
-        heightMm = '25mm';
-        isStickerRoll = true;
-        break;
-      case 'a4_grid':
-        widthMm = '210mm';
-        heightMm = '297mm';
-        break;
-      case 'custom':
-        widthMm = `${this.settings.customWidthMm || 80}mm`;
-        heightMm = this.settings.customHeightMm ? `${this.settings.customHeightMm}mm` : 'auto';
-        break;
-      case '80mm':
-      default:
-        widthMm = '80mm';
-        heightMm = 'auto';
-        break;
+      }
+    } else {
+      // Default to 38x25 sticker format for barcode mode if non-sticker format passed
+      if (!this.paperFormat || this.paperFormat === '80mm' || this.paperFormat === '58mm') {
+        this.paperFormat = 'sticker_38x25';
+      }
+      switch(this.paperFormat) {
+        case 'sticker_38x25':
+          widthMm = '38mm';
+          heightMm = '25mm';
+          isStickerRoll = true;
+          break;
+        case 'sticker_50x30':
+          widthMm = '50mm';
+          heightMm = '30mm';
+          isStickerRoll = true;
+          break;
+        case 'sticker_50x25':
+          widthMm = '50mm';
+          heightMm = '25mm';
+          isStickerRoll = true;
+          break;
+        case 'sticker_75x50':
+          widthMm = '75mm';
+          heightMm = '50mm';
+          isStickerRoll = true;
+          break;
+        case 'sticker_25x15':
+          widthMm = '25mm';
+          heightMm = '15mm';
+          isStickerRoll = true;
+          break;
+        case '2up_label':
+          widthMm = '76mm';
+          heightMm = '25mm';
+          isStickerRoll = true;
+          break;
+        case 'a4_grid':
+          widthMm = '210mm';
+          heightMm = '297mm';
+          break;
+        case 'custom':
+          widthMm = `${this.settings.customWidthMm || 38}mm`;
+          heightMm = `${this.settings.customHeightMm || 25}mm`;
+          isStickerRoll = true;
+          break;
+        default:
+          widthMm = '38mm';
+          heightMm = '25mm';
+          isStickerRoll = true;
+          break;
+      }
     }
 
     const scale = (this.settings.scalePercent || 100) / 100;
     const margin = isStickerRoll ? '0mm' : `${this.settings.marginMm !== undefined ? this.settings.marginMm : 0}mm`;
 
-    let pageRule = heightMm !== 'auto'
-      ? `@page { size: ${widthMm} ${heightMm}; margin: 0mm !important; }`
-      : `@page { size: ${widthMm} auto; margin: 0mm !important; }`;
+    let pageRule = '';
+    if (mode === 'invoice' && heightMm !== 'auto') {
+      pageRule = `@page { size: 80mm ${heightMm} !important; margin: 0mm !important; }`;
+    } else if (mode === 'invoice') {
+      pageRule = `@page { size: 80mm auto !important; margin: 0mm !important; }`;
+    } else if (heightMm === 'auto') {
+      pageRule = `@page { size: ${widthMm} auto !important; margin: 0mm !important; }`;
+    } else {
+      pageRule = `@page { size: ${widthMm} ${heightMm} !important; margin: 0mm !important; }`;
+    }
 
     styleTag.innerHTML = `
       @media print {
         ${pageRule}
 
-        /* ABSOLUTE PRINT ISOLATION TO PREVENT GHOSTING / DOUBLE PRINTING OVERLAPS */
-        body > *:not(#smartPrintHubModal):not(#receiptModal):not(#adminReceiptModal) {
+        html, body {
+          direction: ltr !important;
+          writing-mode: horizontal-tb !important;
+          transform: none !important;
+          rotate: 0deg !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          background: #ffffff !important;
+          color: #000000 !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          width: ${mode === 'invoice' ? '80mm' : widthMm} !important;
+          max-width: ${mode === 'invoice' ? '80mm' : widthMm} !important;
+          margin: 0 auto !important;
+        }
+
+        /* 1. BARCODE PRINTING ISOLATION MODE */
+        body.printing-barcode > *:not(#smartPrintHubModal) {
+          display: none !important;
+        }
+        body.printing-barcode #receiptModal,
+        body.printing-barcode #adminReceiptModal {
+          display: none !important;
+        }
+
+        /* 2. INVOICE PRINTING ISOLATION MODE */
+        body.printing-invoice > *:not(#receiptModal):not(#adminReceiptModal) {
+          display: none !important;
+        }
+        body.printing-invoice #smartPrintHubModal {
+          display: none !important;
+        }
+
+        /* DEFAULT FALLBACK */
+        body:not(.printing-barcode):not(.printing-invoice) > *:not(#smartPrintHubModal):not(#receiptModal):not(#adminReceiptModal) {
           display: none !important;
         }
 
@@ -514,67 +566,93 @@ class SmartPrintHub {
           position: absolute !important;
           left: 0 !important;
           top: 0 !important;
-          width: ${widthMm} !important;
+          width: ${mode === 'invoice' ? '80mm' : widthMm} !important;
+          max-width: ${mode === 'invoice' ? '80mm' : widthMm} !important;
           height: auto !important;
           background: #ffffff !important;
           color: #000000 !important;
           display: block !important;
           opacity: 1 !important;
           visibility: visible !important;
-          margin: 0 !important;
+          margin: 0 auto !important;
           padding: 0 !important;
           border: none !important;
           box-shadow: none !important;
         }
 
-        #smartPrintHubModal .print-hub-header,
-        #smartPrintHubModal .print-hub-toolbar,
-        #smartPrintHubModal .print-hub-settings-drawer,
-        #smartPrintHubModal .printer-chassis,
-        #smartPrintHubModal .print-progress-wrapper,
-        #smartPrintHubModal .laser-scan-line,
-        #smartPrintHubModal .print-hub-footer {
+        #smartPrintHubModal .print-hub-header, #smartPrintHubModal .print-hub-toolbar, #smartPrintHubModal .print-hub-settings-drawer, #smartPrintHubModal .printer-chassis, #smartPrintHubModal .print-progress-wrapper, #smartPrintHubModal .laser-scan-line, #smartPrintHubModal .print-hub-footer,
+        #receiptModal .modal-header, #receiptModal .modal-footer, #receiptModal .close-modal, #receiptModal .thermal-slot-header, #receiptModal .thermal-paper-slot-mouth, #receiptModal .thermal-feed-scanline,
+        #adminReceiptModal .modal-header, #adminReceiptModal .modal-footer, #adminReceiptModal .close-modal, #adminReceiptModal .thermal-slot-header, #adminReceiptModal .thermal-paper-slot-mouth, #adminReceiptModal .thermal-feed-scanline {
           display: none !important;
         }
 
-        #smartPrintHubModal .modal-content,
-        #smartPrintHubModal .print-hub-body,
-        #smartPrintHubModal .paper-tray-viewport {
-          background: #ffffff !important;
+        #smartPrintHubModal .modal-content, #smartPrintHubModal .print-hub-body, #smartPrintHubModal .paper-tray-viewport, #smartPrintHubModal .printed-paper-sheet, #printablePrintHubTarget, #barcodeHubGrid,
+        #receiptModal .modal-content, #receiptModal .modal-body, #receiptModal .receipt-feed-container, #receiptModal .receipt-feed-viewport,
+        #adminReceiptModal .modal-content, #adminReceiptModal .modal-body, #adminReceiptModal .receipt-feed-container, #adminReceiptModal .receipt-feed-viewport {
+          background: transparent !important;
+          color: #000000 !important;
           border: none !important;
           box-shadow: none !important;
           padding: 0 !important;
-          margin: 0 !important;
-          width: ${widthMm} !important;
-          max-width: ${widthMm} !important;
+          margin: 0 auto !important;
+          min-height: 0 !important;
+          height: auto !important;
+          max-height: none !important;
+          width: ${mode === 'invoice' ? '80mm' : widthMm} !important;
+          max-width: ${mode === 'invoice' ? '80mm' : widthMm} !important;
           overflow: visible !important;
           display: block !important;
         }
 
-        .printed-paper-sheet {
-          width: ${widthMm} !important;
-          max-width: ${widthMm} !important;
-          box-shadow: none !important;
-          border: none !important;
-          margin: 0 !important;
-          padding: ${margin} !important;
-          font-size: ${scale * 100}% !important;
-          transform: none !important;
-          opacity: 1 !important;
+        #printableReceipt {
+          position: relative !important;
+          left: 0 !important;
+          top: 0 !important;
+          width: 80mm !important;
+          max-width: 80mm !important;
+          min-width: 80mm !important;
+          height: auto !important;
+          margin: 0 auto !important;
+          padding: 2mm 3mm !important;
+          box-sizing: border-box !important;
           background: #ffffff !important;
           color: #000000 !important;
-          -webkit-print-color-adjust: exact !important;
-          print-color-adjust: exact !important;
+          transform: none !important;
+          opacity: 1 !important;
+          display: block !important;
+          visibility: visible !important;
+          writing-mode: horizontal-tb !important;
+          direction: ltr !important;
+          page-break-before: avoid !important;
+          page-break-after: avoid !important;
+          page-break-inside: avoid !important;
+          break-before: avoid !important;
+          break-after: avoid !important;
+          break-inside: avoid !important;
         }
 
-        ${isStickerRoll ? `
+        #printableReceipt *,
+        .receipt-table, .receipt-totals-table, .receipt-header, .receipt-footer, .receipt-info-grid,
+        .receipt-table tr, .receipt-table td, .receipt-table th,
+        .receipt-totals-table tr, .receipt-totals-table td {
+          page-break-inside: avoid !important;
+          break-inside: avoid !important;
+          page-break-before: avoid !important;
+          page-break-after: avoid !important;
+          writing-mode: horizontal-tb !important;
+          direction: ltr !important;
+        }
+
+        ${isStickerRoll && mode !== 'invoice' ? `
         .barcode-studio-header {
           display: none !important;
         }
         .barcode-hub-grid {
           display: block !important;
-          margin: 0 !important;
+          margin: 0 auto !important;
           padding: 0 !important;
+          width: ${widthMm} !important;
+          max-width: ${widthMm} !important;
         }
         .barcode-sticker-card {
           width: ${widthMm} !important;
@@ -583,7 +661,7 @@ class SmartPrintHub {
           max-height: ${heightMm} !important;
           box-sizing: border-box !important;
           margin: 0 !important;
-          padding: 1px 2px !important;
+          padding: 3px 4px 3px 4px !important;
           page-break-before: auto !important;
           page-break-after: always !important;
           break-after: page !important;
@@ -596,6 +674,11 @@ class SmartPrintHub {
           flex-direction: column !important;
           align-items: center !important;
           justify-content: space-between !important;
+        }
+        .barcode-sticker-card:last-child,
+        .barcode-sticker-card:last-of-type {
+          page-break-after: avoid !important;
+          break-after: avoid !important;
         }
         ` : `
         .barcode-sticker-card {
@@ -685,11 +768,36 @@ class SmartPrintHub {
   }
 
   // --- HARDWARE PRINTER DISPATCH & STATUS MONITOR ENGINE ---
-  executeHardwarePrint(onStart, onSuccess, onError) {
+  executeHardwarePrint(mode = 'barcode', onStart, onSuccess, onError) {
+    if (typeof mode === 'function') {
+      onError = onSuccess;
+      onSuccess = onStart;
+      onStart = mode;
+      mode = 'barcode';
+    }
+
+    if (mode === 'invoice') {
+      document.body.classList.add('printing-invoice');
+      document.body.classList.remove('printing-barcode');
+    } else {
+      document.body.classList.add('printing-barcode');
+      document.body.classList.remove('printing-invoice');
+    }
+
     let printDispatched = false;
     let printCompleted = false;
 
     const mediaQueryList = window.matchMedia ? window.matchMedia('print') : null;
+
+    const cleanup = () => {
+      document.body.classList.remove('printing-barcode');
+      document.body.classList.remove('printing-invoice');
+      window.removeEventListener('beforeprint', handleBeforePrint);
+      window.removeEventListener('afterprint', handleAfterPrint);
+      if (mediaQueryList && mediaQueryList.removeEventListener) {
+        mediaQueryList.removeEventListener('change', mqlListener);
+      }
+    };
 
     const handleBeforePrint = () => {
       printDispatched = true;
@@ -710,14 +818,6 @@ class SmartPrintHub {
       }
     };
 
-    const cleanup = () => {
-      window.removeEventListener('beforeprint', handleBeforePrint);
-      window.removeEventListener('afterprint', handleAfterPrint);
-      if (mediaQueryList && mediaQueryList.removeEventListener) {
-        mediaQueryList.removeEventListener('change', mqlListener);
-      }
-    };
-
     window.addEventListener('beforeprint', handleBeforePrint);
     window.addEventListener('afterprint', handleAfterPrint);
 
@@ -726,7 +826,7 @@ class SmartPrintHub {
     }
 
     try {
-      this.updateDynamicPrintStyles();
+      this.updateDynamicPrintStyles(mode);
       window.print();
 
       setTimeout(() => {
@@ -927,19 +1027,19 @@ class SmartPrintHub {
 
       const nameStr = item.name || '';
       const len = nameStr.trim().length;
-      let fontStyling = 'font-size:0.58rem; font-weight:600; line-height:1.02; margin:0; padding:0;';
+      let fontStyling = 'font-size:0.56rem; font-weight:700; line-height:1.08; margin-top:2px; margin-bottom:1px; padding:1px 0 0 0;';
       if (len > 32) {
-        fontStyling = 'font-size:0.50rem; font-weight:600; line-height:1.0; margin:0; padding:0;';
+        fontStyling = 'font-size:0.48rem; font-weight:600; line-height:1.05; margin-top:2px; margin-bottom:1px; padding:1px 0 0 0;';
       } else if (len > 22) {
-        fontStyling = 'font-size:0.54rem; font-weight:600; line-height:1.01; margin:0; padding:0;';
+        fontStyling = 'font-size:0.52rem; font-weight:700; line-height:1.06; margin-top:2px; margin-bottom:1px; padding:1px 0 0 0;';
       }
 
       const nameHtml = showName ? `<div style="${fontStyling} width:100%; text-align:center; color:#000; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; word-break:break-word;">${item.name}</div>` : '';
-      const variantHtml = (showVariant && item.variantDetails) ? `<div style="font-size:0.52rem; font-weight:600; color:#333; margin-top:0px; margin-bottom:0px; line-height:1.0;">${item.variantDetails}</div>` : '';
-      const priceHtml = showPrice ? `<div style="font-size:0.68rem; font-weight:800; color:#000; margin-top:0px; line-height:1.0;">${priceFormatted}</div>` : '';
+      const variantHtml = (showVariant && item.variantDetails) ? `<div style="font-size:0.50rem; font-weight:600; color:#333; margin-top:1px; margin-bottom:1px; line-height:1.05;">${item.variantDetails}</div>` : '';
+      const priceHtml = showPrice ? `<div style="font-size:0.66rem; font-weight:800; color:#000; margin-top:1px; margin-bottom:2px; padding-bottom:1px; line-height:1.05;">${priceFormatted}</div>` : '';
 
       stickersHtml += `
-        <div class="barcode-sticker-card hub-sticker" style="background:#fff; color:#000; padding:2px 3px; border:1px solid #ddd; border-radius:4px; text-align:center; box-shadow:0 1px 3px rgba(0,0,0,0.06); display:flex; flex-direction:column; align-items:center; justify-content:space-between; page-break-inside:avoid; break-inside:avoid; box-sizing:border-box;">
+        <div class="barcode-sticker-card hub-sticker" style="background:#fff; color:#000; padding:3px 4px 3px 4px; border:1px solid #ddd; border-radius:4px; text-align:center; box-shadow:0 1px 3px rgba(0,0,0,0.06); display:flex; flex-direction:column; align-items:center; justify-content:space-between; page-break-inside:avoid; break-inside:avoid; box-sizing:border-box;">
           ${nameHtml}
           ${variantHtml}
           <div style="width:100%; display:flex; justify-content:center; margin:1px 0;">
@@ -972,13 +1072,13 @@ class SmartPrintHub {
     if (typeof JsBarcode === 'undefined') return;
 
     let bcWidth = 1.05;
-    let bcHeight = 26;
+    let bcHeight = 22;
     let bcFontSize = 8.5;
     let bcMargin = 0;
 
     if (this.paperFormat === 'sticker_38x25') {
       bcWidth = 1.05;
-      bcHeight = 26;
+      bcHeight = 22;
       bcFontSize = 8.5;
       bcMargin = 0;
     } else if (this.paperFormat === 'sticker_50x30') {
@@ -1038,7 +1138,9 @@ class SmartPrintHub {
             fontSize: bcFontSize,
             fontOptions: "bold",
             font: "monospace",
-            margin: bcMargin,
+            marginTop: 1,
+            marginBottom: 4,
+            textMargin: 3,
             background: "#ffffff",
             lineColor: "#000000",
             displayValue: true
@@ -1102,13 +1204,120 @@ class SmartPrintHub {
 
     const fileName = `${this.currentTitle.replace(/[^a-zA-Z0-9_\-]/g, '_')}_${Date.now()}.pdf`;
 
-    if (window.html2pdf) {
+    const pxHeight = Math.max(paperTarget.offsetHeight || 0, paperTarget.getBoundingClientRect().height || 0);
+    const calculatedHeightMm = Math.ceil(pxHeight * 0.2645833) + 4;
+
+    let targetWidthMm = 38;
+    let targetHeightMm = 25;
+
+    if (this.paperFormat === '80mm') {
+      targetWidthMm = 80;
+      targetHeightMm = Math.max(50, calculatedHeightMm);
+    } else if (this.paperFormat === '58mm') {
+      targetWidthMm = 58;
+      targetHeightMm = Math.max(50, calculatedHeightMm);
+    } else if (this.paperFormat === '100mm') {
+      targetWidthMm = 100;
+      targetHeightMm = Math.max(50, calculatedHeightMm);
+    } else if (this.paperFormat === 'sticker_38x25') {
+      targetWidthMm = 38;
+      targetHeightMm = 25;
+    } else if (this.paperFormat === 'sticker_50x30') {
+      targetWidthMm = 50;
+      targetHeightMm = 30;
+    } else if (this.paperFormat === 'sticker_50x25') {
+      targetWidthMm = 50;
+      targetHeightMm = 25;
+    } else if (this.paperFormat === 'sticker_75x50') {
+      targetWidthMm = 75;
+      targetHeightMm = 50;
+    } else if (this.paperFormat === 'sticker_25x15') {
+      targetWidthMm = 25;
+      targetHeightMm = 15;
+    } else if (this.paperFormat === '2up_label') {
+      targetWidthMm = 76;
+      targetHeightMm = 25;
+    }
+
+    const isSticker = this.paperFormat.startsWith('sticker_') || this.paperFormat === '2up_label';
+    const cards = paperTarget.querySelectorAll('.barcode-sticker-card');
+
+    const jsPDFClass = (window.jspdf && window.jspdf.jsPDF) ? window.jspdf.jsPDF : window.jsPDF;
+
+    if (window.html2canvas && jsPDFClass) {
+      if (isSticker && cards.length > 0) {
+        // Multi-sticker card PDF export (1 page per sticker, 0 deg rotation)
+        const formatArg = targetWidthMm > targetHeightMm ? [targetHeightMm, targetWidthMm] : [targetWidthMm, targetHeightMm];
+        const orientationArg = targetWidthMm > targetHeightMm ? 'l' : 'p';
+        const doc = new jsPDFClass({
+          unit: 'mm',
+          format: formatArg,
+          orientation: orientationArg,
+          compress: true
+        });
+
+        let chain = Promise.resolve();
+        cards.forEach((card, idx) => {
+          chain = chain.then(() => {
+            return window.html2canvas(card, {
+              scale: 3,
+              backgroundColor: '#ffffff',
+              useCORS: true,
+              logging: false,
+              scrollX: 0,
+              scrollY: 0
+            }).then(canvas => {
+              const imgData = canvas.toDataURL('image/jpeg', 0.98);
+              if (idx > 0) {
+                doc.addPage(formatArg, orientationArg);
+              }
+              doc.addImage(imgData, 'JPEG', 0, 0, targetWidthMm, targetHeightMm, undefined, 'FAST');
+            });
+          });
+        });
+
+        chain.then(() => {
+          doc.save(fileName);
+        }).catch(err => {
+          console.error("PDF multi-card render error:", err);
+          window.print();
+        });
+
+      } else {
+        // Single invoice or document PDF export
+        window.html2canvas(paperTarget, {
+          scale: 3,
+          backgroundColor: '#ffffff',
+          useCORS: true,
+          logging: false,
+          scrollX: 0,
+          scrollY: 0
+        }).then(canvas => {
+          const imgData = canvas.toDataURL('image/jpeg', 0.98);
+          const formatArg = targetWidthMm > targetHeightMm ? [targetHeightMm, targetWidthMm] : [targetWidthMm, targetHeightMm];
+          const orientationArg = targetWidthMm > targetHeightMm ? 'l' : 'p';
+          const doc = new jsPDFClass({
+            unit: 'mm',
+            format: formatArg,
+            orientation: orientationArg,
+            compress: true
+          });
+          doc.addImage(imgData, 'JPEG', 0, 0, targetWidthMm, targetHeightMm, undefined, 'FAST');
+          doc.save(fileName);
+        }).catch(err => {
+          console.error("PDF single render error:", err);
+          window.print();
+        });
+      }
+    } else if (window.html2pdf) {
+      const formatArg = targetWidthMm > targetHeightMm ? [targetHeightMm, targetWidthMm] : [targetWidthMm, targetHeightMm];
+      const orientationArg = targetWidthMm > targetHeightMm ? 'l' : 'p';
       const opt = {
-        margin: [2, 2, 2, 2],
+        margin: [0, 0, 0, 0],
         filename: fileName,
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, logging: false },
-        jsPDF: { unit: 'mm', format: this.paperFormat === '80mm' ? [80, 297] : (this.paperFormat === '58mm' ? [58, 297] : 'a4'), orientation: 'portrait' }
+        html2canvas: { scale: 3, useCORS: true, logging: false, scrollX: 0, scrollY: 0 },
+        jsPDF: { unit: 'mm', format: formatArg, orientation: orientationArg }
       };
       window.html2pdf().set(opt).from(paperTarget).save();
     } else {
@@ -1123,20 +1332,30 @@ class SmartPrintHub {
 
     const fileName = `${this.currentTitle.replace(/[^a-zA-Z0-9_\-]/g, '_')}_${Date.now()}.png`;
 
-    const renderCanvasAndDownload = () => {
-      if (window.html2canvas) {
-        window.html2canvas(paperTarget, { scale: 2, backgroundColor: '#ffffff', useCORS: true }).then(canvas => {
-          const link = document.createElement('a');
-          link.download = fileName;
-          link.href = canvas.toDataURL('image/png');
-          link.click();
-        });
-      } else {
-        alert('PNG ডাউনলোড সেশনের জন্য html2canvas লাইব্রেরি লোড হচ্ছে। অনুগ্রহ করে আবার চেষ্টা করুন।');
-      }
-    };
+    if (window.html2canvas) {
+      const prevTransform = paperTarget.style.transform;
+      paperTarget.style.transform = 'none';
 
-    renderCanvasAndDownload();
+      window.html2canvas(paperTarget, {
+        scale: 3,
+        backgroundColor: '#ffffff',
+        useCORS: true,
+        logging: false,
+        scrollX: 0,
+        scrollY: 0
+      }).then(canvas => {
+        paperTarget.style.transform = prevTransform;
+        const link = document.createElement('a');
+        link.download = fileName;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+      }).catch(err => {
+        paperTarget.style.transform = prevTransform;
+        console.error("PNG download error:", err);
+      });
+    } else {
+      alert('PNG ডাউনলোড প্রক্রিয়ার জন্য html2canvas লোড হচ্ছে, অনুগ্রহ করে আবার চেষ্টা করুন।');
+    }
   }
 
   // --- COPY CONTENT TEXT TO CLIPBOARD ---

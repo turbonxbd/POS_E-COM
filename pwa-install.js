@@ -52,7 +52,7 @@ if (typeof BroadcastChannel !== 'undefined') {
     updateChannel.onmessage = (event) => {
       if (event.data && (event.data.type === 'APP_UPDATE_PUBLISHED' || event.data.type === 'global_app_update')) {
         console.log('[PWA] Live app update published by Super Admin!');
-        showAppUpdateBanner(event.data.version || 'v2.7.0');
+        showAppUpdateBanner(event.data.version || 'v5.0.0');
       }
     };
   } catch (e) {}
@@ -165,7 +165,7 @@ function showPWAInstallPromptNotice() {
 }
 
 // Show Glassmorphism App Update Floating Banner
-function showAppUpdateBanner(version = 'v2.7.0') {
+function showAppUpdateBanner(version = 'v5.0.0') {
   if (document.getElementById('pwaAppUpdateBanner')) return;
 
   const banner = document.createElement('div');
@@ -236,13 +236,13 @@ window.checkAppUpdate = async function () {
       if (reg) {
         await reg.update();
         if (reg.waiting || reg.installing) {
-          showAppUpdateBanner('v2.7.0');
+          showAppUpdateBanner('v5.0.0');
           return;
         }
       }
     } catch (e) {}
   }
-  alert('✅ আপনার অ্যাপটি সম্পূর্ণ আপ-টু-ডেট (v2.7.0) রয়েছে! কোনো নতুন আপডেট পেন্ডিং নেই।');
+  alert('✅ আপনার অ্যাপটি সম্পূর্ণ আপ-টু-ডেট (v5.0.0) রয়েছে! কোনো নতুন আপডেট পেন্ডিং নেই।');
 };
 
 // Attach Event Listeners on Page Ready

@@ -533,9 +533,13 @@ body {
   cursor: pointer;
   transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.25s ease, box-shadow 0.25s ease;
   position: relative;
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transform: translateZ(0);
 }
 .product-card:hover {
-  transform: translateY(-4px);
+  transform: translateY(-4px) translateZ(0);
   border-color: var(--accent-green);
   box-shadow: 0 12px 25px -5px rgba(16, 185, 129, 0.25);
 }
@@ -551,9 +555,12 @@ body {
   height: 100%;
   object-fit: cover;
   transition: transform 0.35s ease;
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 .product-card:hover .product-img-wrap img {
-  transform: scale(1.08);
+  transform: scale(1.08) translateZ(0);
 }
 .stock-tag {
   position: absolute;
@@ -2744,83 +2751,7 @@ body {
   white-space: nowrap;
   border-radius: 8px;
 }
-/* ROBUST PRINT ISOLATION RULES FOR @media print */
-@media print {
-  body * {
-    visibility: hidden !important;
-  }
-  #printableReceipt, #printableReceipt *, .receipt-paper, .receipt-paper *, #smartPrintHubModal, #smartPrintHubModal * {
-    visibility: visible !important;
-  }
-  .cashier-app, .admin-app, .sidebar, .top-header, .modal-backdrop {
-    display: none !important;
-  }
-  #printableReceipt, .receipt-paper {
-    position: absolute !important;
-    left: 0 !important;
-    top: 0 !important;
-    width: 100% !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    box-shadow: none !important;
-    border: none !important;
-    background: #ffffff !important;
-    color: #000000 !important;
-  }
-  #smartPrintHubModal {
-    position: absolute !important;
-    left: 0 !important;
-    top: 0 !important;
-    width: 100% !important;
-    height: auto !important;
-    background: #ffffff !important;
-    color: #000000 !important;
-    display: block !important;
-    opacity: 1 !important;
-    visibility: visible !important;
-    overflow: visible !important;
-    margin: 0 !important;
-    padding: 0 !important;
-  }
-  #smartPrintHubModal .print-hub-header,  #smartPrintHubModal .print-hub-toolbar,  #smartPrintHubModal .print-hub-settings-drawer,  #smartPrintHubModal .printer-chassis,  #smartPrintHubModal .print-progress-wrapper,  #smartPrintHubModal .laser-scan-line,  #smartPrintHubModal .print-hub-footer {
-    display: none !important;
-  }
-  #smartPrintHubModal .modal-content,  #smartPrintHubModal .print-hub-body,  #smartPrintHubModal .paper-tray-viewport {
-    background: #ffffff !important;
-    border: none !important;
-    box-shadow: none !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    max-width: 100% !important;
-    max-height: none !important;
-    overflow: visible !important;
-    display: block !important;
-  }
-  .printed-paper-sheet {
-    box-shadow: none !important;
-    border: none !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    transform: none !important;
-    opacity: 1 !important;
-    padding: 0 !important;
-    margin: 0 auto !important;
-    background: #ffffff !important;
-    color: #000000 !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-  }
-  .barcode-sticker-card {
-    page-break-inside: avoid !important;
-    break-inside: avoid !important;
-    border: 1px dashed #333 !important;
-    color: #000 !important;
-    background: #fff !important;
-    box-shadow: none !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-  }
-}
+
 /* ==========================================================================   RESPONSIVE & ADAPTIVE LAYOUT SYSTEM ��� SINGLE SOURCE OF TRUTH   Desktop (��� 1025px) | Tablet (769���1024px) | Mobile (��� 768px) | XS (��� 480px)   ========================================================================== */
 /* --------------------------------------------------------------------------   BASE COMPONENTS (all screens)   -------------------------------------------------------------------------- */
 /* Mobile menu button ��� hidden by default on desktop */
@@ -3832,18 +3763,41 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 }
 /* ==========================================================================   @media print ��� Isolation rules   ========================================================================== */
 @media print {
-  body > *:not(#smartPrintHubModal):not(#receiptModal):not(#adminReceiptModal) {
+  html, body {
+    direction: ltr !important;
+    writing-mode: horizontal-tb !important;
+    transform: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  body.printing-barcode > *:not(#smartPrintHubModal) {
     display: none !important;
   }
-  .modal:not(#smartPrintHubModal):not(#receiptModal):not(#adminReceiptModal) {
+  body.printing-barcode #receiptModal,
+  body.printing-barcode #adminReceiptModal {
     display: none !important;
   }
+
+  body.printing-invoice > *:not(#receiptModal):not(#adminReceiptModal) {
+    display: none !important;
+  }
+  body.printing-invoice #smartPrintHubModal {
+    display: none !important;
+  }
+
+  body:not(.printing-barcode):not(.printing-invoice) > *:not(#smartPrintHubModal):not(#receiptModal):not(#adminReceiptModal) {
+    display: none !important;
+  }
+
   #receiptModal, #adminReceiptModal, #smartPrintHubModal {
     position: absolute !important;
     left: 0 !important;
     top: 0 !important;
-    width: 100% !important;
-    height: auto !important;
     background: #ffffff !important;
     color: #000000 !important;
     display: block !important;
@@ -3855,11 +3809,13 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
     border: none !important;
     box-shadow: none !important;
   }
+
   #smartPrintHubModal .print-hub-header, #smartPrintHubModal .print-hub-toolbar, #smartPrintHubModal .print-hub-settings-drawer, #smartPrintHubModal .printer-chassis, #smartPrintHubModal .print-progress-wrapper, #smartPrintHubModal .laser-scan-line, #smartPrintHubModal .print-hub-footer,
   #receiptModal .modal-header, #receiptModal .modal-footer, #receiptModal .close-modal, #receiptModal .thermal-slot-header, #receiptModal .thermal-paper-slot-mouth, #receiptModal .thermal-feed-scanline,
   #adminReceiptModal .modal-header, #adminReceiptModal .modal-footer, #adminReceiptModal .close-modal, #adminReceiptModal .thermal-slot-header, #adminReceiptModal .thermal-paper-slot-mouth, #adminReceiptModal .thermal-feed-scanline {
     display: none !important;
   }
+
   #smartPrintHubModal .modal-content, #smartPrintHubModal .print-hub-body, #smartPrintHubModal .paper-tray-viewport,
   #receiptModal .modal-content, #receiptModal .modal-body, #receiptModal .receipt-feed-container, #receiptModal .receipt-feed-viewport,
   #adminReceiptModal .modal-content, #adminReceiptModal .modal-body, #adminReceiptModal .receipt-feed-container, #adminReceiptModal .receipt-feed-viewport {
@@ -3869,33 +3825,62 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
     box-shadow: none !important;
     padding: 0 !important;
     margin: 0 !important;
-    max-width: 100% !important;
     max-height: none !important;
     overflow: visible !important;
     display: block !important;
   }
-  .printed-paper-sheet {
-    box-shadow: none !important;
-    border: none !important;
-    width: 100% !important;
-    max-width: 100% !important;
+
+  #printableReceipt {
+    position: relative !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 80mm !important;
+    max-width: 80mm !important;
+    min-width: 80mm !important;
+    height: auto !important;
+    margin: 0 auto !important;
+    padding: 2mm 3mm !important;
+    box-sizing: border-box !important;
+    background: #ffffff !important;
+    color: #000000 !important;
     transform: none !important;
     opacity: 1 !important;
-    padding: 0 !important;
-    margin: 0 auto !important;
-    background: #fff !important;
-    color: #000 !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
+    display: block !important;
+    visibility: visible !important;
+    writing-mode: horizontal-tb !important;
+    direction: ltr !important;
+    page-break-before: avoid !important;
+    page-break-after: avoid !important;
+    page-break-inside: avoid !important;
+    break-before: avoid !important;
+    break-after: avoid !important;
+    break-inside: avoid !important;
   }
+
+  #printableReceipt *,
+  .receipt-table, .receipt-totals-table, .receipt-header, .receipt-footer, .receipt-info-grid,
+  .receipt-table tr, .receipt-table td, .receipt-table th,
+  .receipt-totals-table tr, .receipt-totals-table td {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    page-break-before: avoid !important;
+    page-break-after: avoid !important;
+    writing-mode: horizontal-tb !important;
+    direction: ltr !important;
+  }
+
   .barcode-sticker-card {
     page-break-inside: avoid !important;
     break-inside: avoid !important;
-    border: 1px dashed #333 !important;
     background: #fff !important;
     box-shadow: none !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+  }
+  .barcode-sticker-card:last-child,
+  .barcode-sticker-card:last-of-type {
+    page-break-after: avoid !important;
+    break-after: avoid !important;
   }
 }
 

@@ -114,12 +114,32 @@ class AdminPanel {
     setInterval(() => this.checkAccountStatusSecurityGuard(), 3000);
     window.addEventListener('storage', () => this.checkAccountStatusSecurityGuard());
 
-    window.addEventListener('pos_online_sync_completed', () => {
-      this.products = JSON.parse(localStorage.getItem('pos_products')) || [];
-      this.categories = JSON.parse(localStorage.getItem('pos_categories')) || [];
-      this.coupons = JSON.parse(localStorage.getItem('pos_coupons')) || [];
-      this.customers = JSON.parse(localStorage.getItem('pos_customers')) || [];
-      this.sales = JSON.parse(localStorage.getItem('pos_sales')) || [];
+    const reloadAdminState = () => {
+      const activeStoreId = localStorage.getItem('pos_active_store_id') || 'store_demo_101';
+      const isGuestStore = activeStoreId === 'store_demo_101';
+
+      const tenantProdKey = `pos_tenant_${activeStoreId}_pos_products`;
+      const tenantSalesKey = `pos_tenant_${activeStoreId}_pos_sales`;
+      const tenantSettingsKey = `pos_tenant_${activeStoreId}_pos_settings`;
+      const tenantCatKey = `pos_tenant_${activeStoreId}_pos_categories`;
+      const tenantCouponKey = `pos_tenant_${activeStoreId}_pos_coupons`;
+      const tenantCustKey = `pos_tenant_${activeStoreId}_pos_customers`;
+
+      let rawProd = localStorage.getItem(tenantProdKey) || localStorage.getItem('pos_products');
+      let rawSales = localStorage.getItem(tenantSalesKey) || localStorage.getItem('pos_sales');
+      let rawSettings = localStorage.getItem(tenantSettingsKey) || localStorage.getItem('pos_settings');
+      let rawCats = localStorage.getItem(tenantCatKey) || localStorage.getItem('pos_categories');
+      let rawCoupons = localStorage.getItem(tenantCouponKey) || localStorage.getItem('pos_coupons');
+      let rawCusts = localStorage.getItem(tenantCustKey) || localStorage.getItem('pos_customers');
+
+      this.products = rawProd && rawProd !== '[]' ? JSON.parse(rawProd) : (isGuestStore && typeof INITIAL_PRODUCTS !== 'undefined' ? INITIAL_PRODUCTS : []);
+      this.sales = rawSales && rawSales !== '[]' ? JSON.parse(rawSales) : [];
+      this.settings = rawSettings && rawSettings !== '{}' ? JSON.parse(rawSettings) : (typeof DEFAULT_SETTINGS !== 'undefined' ? DEFAULT_SETTINGS : {});
+      applyMerchantCustomWallpaper(this.settings);
+
+      this.categories = rawCats && rawCats !== '[]' ? JSON.parse(rawCats) : (isGuestStore && typeof INITIAL_CATEGORIES !== 'undefined' ? INITIAL_CATEGORIES : []);
+      this.coupons = rawCoupons && rawCoupons !== '[]' ? JSON.parse(rawCoupons) : [];
+      this.customers = rawCusts && rawCusts !== '[]' ? JSON.parse(rawCusts) : [];
 
       this.populateCategoryDropdowns();
       this.renderInventoryTable();
@@ -127,6 +147,18 @@ class AdminPanel {
       this.renderCategoryProductsTable();
       this.renderSalesLog();
       this.renderDashboard();
+      this.renderSettingsForm();
+      this.renderCoupons();
+      this.renderAdminCustomers();
+      this.updateSidebarStoreProfile();
+    };
+
+    window.addEventListener('storage', reloadAdminState);
+    window.addEventListener('pos_cloud_update', reloadAdminState);
+    window.addEventListener('pos_tenant_changed', reloadAdminState);
+
+    window.addEventListener('pos_online_sync_completed', () => {
+      reloadAdminState();
       this.showToast('🟢 ইন্টারনেট কানেক্ট হয়েছে! অফলাইনের সকল ডেটা (প্রোডাক্ট, ক্যাটাগরি, সেলস ও সেটিংস) সার্ভারে অটোমেটিক আপডেট করা হয়েছে!');
     });
 
@@ -174,14 +206,20 @@ class AdminPanel {
       const tenantCouponKey = `pos_tenant_${activeStoreId}_pos_coupons`;
       const tenantCustKey = `pos_tenant_${activeStoreId}_pos_customers`;
 
-      let savedProd = localStorage.getItem(tenantProdKey) || localStorage.getItem('pos_products');
-      let savedSales = localStorage.getItem(tenantSalesKey) || localStorage.getItem('pos_sales');
-      let savedSettings = localStorage.getItem(tenantSettingsKey) || localStorage.getItem('pos_settings');
-      let savedCats = localStorage.getItem(tenantCatKey) || localStorage.getItem('pos_categories');
-      let savedCoupons = localStorage.getItem(tenantCouponKey) || localStorage.getItem('pos_coupons');
-      let savedCusts = localStorage.getItem(tenantCustKey) || localStorage.getItem('pos_customers');
+      let rawTenantProd = localStorage.getItem(tenantProdKey);
+      let rawGlobalProd = localStorage.getItem('pos_products');
+      let parsedTenant = (rawTenantProd && rawTenantProd !== '[]') ? JSON.parse(rawTenantProd) : null;
+      let parsedGlobal = (rawGlobalProd && rawGlobalProd !== '[]') ? JSON.parse(rawGlobalProd) : null;
 
-      this.products = savedProd && savedProd !== '[]' ? JSON.parse(savedProd) : (isGuestStore && typeof INITIAL_PRODUCTS !== 'undefined' ? INITIAL_PRODUCTS : []);
+      if (Array.isArray(parsedTenant) && parsedTenant.length > 0) {
+        this.products = parsedTenant;
+        localStorage.setItem('pos_products', JSON.stringify(parsedTenant));
+      } else if (Array.isArray(parsedGlobal) && parsedGlobal.length > 0) {
+        this.products = parsedGlobal;
+        localStorage.setItem(tenantProdKey, JSON.stringify(parsedGlobal));
+      } else {
+        this.products = (isGuestStore && typeof INITIAL_PRODUCTS !== 'undefined') ? INITIAL_PRODUCTS : [];
+      }
       this.sales = savedSales && savedSales !== '[]' ? JSON.parse(savedSales) : [];
       this.settings = savedSettings && savedSettings !== '{}' ? JSON.parse(savedSettings) : (typeof DEFAULT_SETTINGS !== 'undefined' ? DEFAULT_SETTINGS : {});
       this.categories = savedCats && savedCats !== '[]' ? JSON.parse(savedCats) : (isGuestStore && typeof INITIAL_CATEGORIES !== 'undefined' ? INITIAL_CATEGORIES : []);
@@ -530,6 +568,7 @@ class AdminPanel {
       this.renderCategoryCards();
       this.renderCategoryProductsTable();
     } else if (tabId === 'adminBarcodes') {
+      this.initBarcodeGeneratorOptions();
       const paperFormatSelect = document.getElementById('barcodePaperFormatSelect');
       if (paperFormatSelect) {
         const savedFormat = localStorage.getItem('pos_barcode_paper_format') || 'sticker_38x25';
@@ -1017,46 +1056,36 @@ class AdminPanel {
   }
 
   quickPrintVariantBarcode(prodId, variantId) {
-    const prod = this.products.find(p => p.id === prodId);
-    if (!prod) return;
-    const variant = (prod.variants || []).find(v => v.variantId === variantId);
+    const prod = this.products.find(p => String(p.id) === String(prodId));
+    if (!prod) {
+      this.showToast('পণ্যটি সিস্টেমে পাওয়া যায়নি!', 'error');
+      return;
+    }
+    const variant = (prod.variants || []).find(v => String(v.variantId) === String(variantId)) || (prod.variants || [])[0];
 
-    // 1. Switch to Barcode Generator tab in left-side menu
+    // 1. Switch to Barcode Generator tab
     this.switchTab('adminBarcodes');
 
-    // 2. Select product & variant and set custom copy count
+    // 2. Select product & variant in Barcode Studio controls for customization
     setTimeout(() => {
+      this.initBarcodeGeneratorOptions();
       const prodSelect = document.getElementById('barcodeProdSelect');
       const variantSelect = document.getElementById('barcodeVariantSelect');
-      const modeSelect = document.getElementById('barcodePrintModeSelect');
-      const customGrp = document.getElementById('barcodeCustomCountGroup');
-      const countInput = document.getElementById('barcodeBatchCount');
 
       if (prodSelect) {
         prodSelect.value = prodId;
-        this.onBarcodeProductChange();
-
-        if (variantSelect && variantId) {
-          variantSelect.value = variantId;
+        const targetVarId = variant ? variant.variantId : (variantId || 'ALL');
+        this.onBarcodeProductChange(false, targetVarId);
+        if (variantSelect && variant) {
+          variantSelect.value = variant.variantId;
+          this.renderBarcodeBatchPreview();
         }
 
-        if (modeSelect) {
-          modeSelect.value = 'custom';
-          if (customGrp) customGrp.style.display = 'block';
-        }
-
-        if (countInput) {
-          countInput.value = variant ? Math.max(1, Math.min(variant.stock || 6, 50)) : 6;
-          countInput.focus();
-          countInput.select();
-        }
-
-        this.renderBarcodeBatchPreview();
-
-        const vName = variant ? ` (${variant.color || ''} ${variant.size || ''})` : '';
-        this.showToast(`'${prod.name}${vName}' বারকোড জেনারেটরে সেট হয়েছে! স্টিকার সংখ্যা কাস্টমাইজ করে প্রিন্ট বাটনে ক্লিক করুন।`);
+        const vName = variant ? ` (${variant.color || ''} ${variant.size ? '| ' + variant.size : ''})` : '';
+        const vStock = variant ? variant.stock : (prod.variants || []).reduce((acc, v) => acc + (v.stock || 0), 0);
+        this.showToast(`🏷️ '${prod.name}${vName}' বারকোড জেনারেটরে সিলেক্ট করা হয়েছে! কাস্টমাইজ করে প্রিন্ট দিন। (মজুদ: ${vStock} টি)`);
       }
-    }, 100);
+    }, 50);
   }
 
   // 3. RICH SQUARE IMAGE CATEGORY CARDS & PRODUCT HUB VIEW
@@ -1413,12 +1442,14 @@ class AdminPanel {
     if (shouldPrintBarcodes) {
       this.switchTab('adminBarcodes');
       setTimeout(() => {
+        this.initBarcodeGeneratorOptions();
         const prodSelect = document.getElementById('barcodeProdSelect');
         if (prodSelect) {
           prodSelect.value = targetProdId;
+          this.onBarcodeProductChange();
           this.renderBarcodeBatchPreview();
         }
-      }, 200);
+      }, 100);
     }
   }
 
@@ -1632,12 +1663,13 @@ class AdminPanel {
 
       this.switchTab('adminBarcodes');
       setTimeout(() => {
+        this.initBarcodeGeneratorOptions();
         const prodSelect = document.getElementById('barcodeProdSelect');
         if (prodSelect) {
           prodSelect.value = prodId;
           this.onBarcodeProductChange(true);
         }
-      }, 200);
+      }, 100);
     }
   }
 
@@ -1774,7 +1806,7 @@ class AdminPanel {
     if (prodSelect) {
       prodSelect.addEventListener('change', () => {
         this.activeRestockContext = null;
-        this.onBarcodeProductChange();
+        this.onBarcodeProductChange(false, 'ALL');
       });
     }
     if (variantSelect) {
@@ -1799,24 +1831,42 @@ class AdminPanel {
     if (customInput) customInput.addEventListener('input', () => this.renderBarcodeBatchPreview());
   }
 
-  initBarcodeGeneratorOptions() {
+  initBarcodeGeneratorOptions(preserveVariantId = null) {
     const prodSelect = document.getElementById('barcodeProdSelect');
     if (!prodSelect) return;
 
-    prodSelect.innerHTML = this.products.map(p => `<option value="${p.id}">${p.name} (${p.category})</option>`).join('');
-    this.onBarcodeProductChange();
+    if (!this.products || this.products.length === 0) {
+      prodSelect.innerHTML = '<option value="">কোনো পণ্য উপলব্ধ নেই</option>';
+      return;
+    }
+
+    const currentSelectedId = prodSelect.value;
+    const currentVariantId = preserveVariantId !== null ? preserveVariantId : document.getElementById('barcodeVariantSelect')?.value;
+
+    prodSelect.innerHTML = this.products.map(p => `<option value="${p.id}">${p.name} (${p.category || 'General'})</option>`).join('');
+
+    if (currentSelectedId && this.products.some(p => p.id === currentSelectedId)) {
+      prodSelect.value = currentSelectedId;
+    } else {
+      prodSelect.selectedIndex = 0;
+    }
+    this.onBarcodeProductChange(false, currentVariantId);
   }
 
-  onBarcodeProductChange(fromRestock = false) {
+  onBarcodeProductChange(fromRestock = false, targetVariantId = null) {
     const prodId = document.getElementById('barcodeProdSelect')?.value;
     const prod = this.products.find(p => p.id === prodId);
     const variantSelect = document.getElementById('barcodeVariantSelect');
 
     if (variantSelect && prod) {
+      const activeVariantVal = targetVariantId !== null ? targetVariantId : variantSelect.value;
+
       variantSelect.innerHTML = `<option value="ALL">সকল ভেরিয়েন্ট (All Variants)</option>` + 
         (prod.variants || []).map(v => `<option value="${v.variantId}">${v.color || 'Std'} - ${v.size || 'N/A'} (৳${v.price})</option>`).join('');
 
-      if (fromRestock && this.activeRestockContext && this.activeRestockContext.prodId === prodId) {
+      if (activeVariantVal && (activeVariantVal === 'ALL' || (prod.variants || []).some(v => v.variantId === activeVariantVal))) {
+        variantSelect.value = activeVariantVal;
+      } else if (fromRestock && this.activeRestockContext && this.activeRestockContext.prodId === prodId) {
         const restockedKeys = Object.keys(this.activeRestockContext.restockedMap || {});
         if (restockedKeys.length === 1) {
           variantSelect.value = restockedKeys[0];
@@ -1880,12 +1930,12 @@ class AdminPanel {
       case 'sticker_38x25':
         cardWidth = '160px';
         cardMinHeight = '105px';
-        cardPadding = '4px 3px';
+        cardPadding = '6px 5px 6px 5px';
         titleFontSize = '0.62rem';
         variantFontSize = '0.54rem';
         priceFontSize = '0.72rem';
         bcWidth = 1.05;
-        bcHeight = 26;
+        bcHeight = 22;
         bcFontSize = 8.5;
         bcMargin = 0;
         break;
@@ -2000,13 +2050,13 @@ class AdminPanel {
 
       for (let i = 0; i < copyCount; i++) {
         html += `
-          <div class="barcode-sticker-card" style="width:${cardWidth}; min-height:${cardMinHeight}; max-width:100%; box-sizing:border-box; padding:${cardPadding}; background:#fff; color:#000; border-radius:8px; text-align:center; border:1px solid #000; box-shadow:0 3px 10px rgba(0,0,0,0.12); overflow:hidden; display:flex; flex-direction:column; align-items:center; justify-content:center; transition: all 0.2s ease;">
-            <div style="${dynamicTitleStyle} width:100%; text-align:center; color:#000; display:-webkit-box; -webkit-line-clamp:${titleLineClamp}; -webkit-box-orient:vertical; overflow:hidden; word-break:break-word;">${prod.name}</div>
-            <div style="font-size:${variantFontSize}; font-weight:600; color:#4b5563; margin-top:1px; margin-bottom:2px; line-height:1.1;">${v.color || ''} ${v.size ? '| ' + v.size : ''}</div>
-            <div style="width:100%; overflow:hidden; display:flex; justify-content:center; margin:2px 0;">
+          <div class="barcode-sticker-card" style="width:${cardWidth}; min-height:${cardMinHeight}; max-width:100%; box-sizing:border-box; padding:${cardPadding}; background:#fff; color:#000; border-radius:8px; text-align:center; border:1px solid #000; box-shadow:0 3px 10px rgba(0,0,0,0.12); overflow:hidden; display:flex; flex-direction:column; align-items:center; justify-content:space-between; transition: all 0.2s ease;">
+            <div style="${dynamicTitleStyle} width:100%; text-align:center; color:#000; display:-webkit-box; -webkit-line-clamp:${titleLineClamp}; -webkit-box-orient:vertical; overflow:hidden; word-break:break-word; margin-top:2px; margin-bottom:1px; padding-top:1px;">${prod.name}</div>
+            <div style="font-size:${variantFontSize}; font-weight:600; color:#4b5563; margin-top:1px; margin-bottom:1px; line-height:1.05;">${v.color || ''} ${v.size ? '| ' + v.size : ''}</div>
+            <div style="width:100%; overflow:visible; display:flex; justify-content:center; margin:1px 0;">
               <svg id="bcSvg_${svgIndex}" style="max-width:100%; height:auto; display:block; margin:0 auto; shape-rendering:crispEdges; image-rendering:pixelated;"></svg>
             </div>
-            <div style="font-size:${priceFontSize}; font-weight:800; color:#000; margin-top:1px; line-height:1.1;">
+            <div style="font-size:${priceFontSize}; font-weight:800; color:#000; margin-top:1px; margin-bottom:2px; line-height:1.05; padding-bottom:1px;">
               ${priceFormatted}
             </div>
           </div>
@@ -2030,7 +2080,9 @@ class AdminPanel {
               fontSize: bcFontSize,
               fontOptions: "bold",
               font: "monospace",
-              margin: bcMargin,
+              marginTop: 1,
+              marginBottom: 4,
+              textMargin: 3,
               background: "#ffffff",
               lineColor: "#000000",
               displayValue: true
@@ -2235,7 +2287,22 @@ class AdminPanel {
   }
 
   saveProducts() {
-    localStorage.setItem('pos_products', JSON.stringify(this.products));
+    const activeStoreId = localStorage.getItem('pos_active_store_id') || 'store_demo_101';
+    const tenantProdKey = `pos_tenant_${activeStoreId}_pos_products`;
+    const prodJson = JSON.stringify(this.products || []);
+
+    localStorage.setItem(tenantProdKey, prodJson);
+    localStorage.setItem('pos_products', prodJson);
+
+    if (window.posFirebase) {
+      if (typeof window.posFirebase.saveDoc === 'function') {
+        window.posFirebase.saveDoc('pos_products', this.products);
+      } else if (typeof window.posFirebase.pushKeyToCloud === 'function') {
+        window.posFirebase.pushKeyToCloud('pos_products', prodJson);
+      }
+    }
+
+    window.dispatchEvent(new CustomEvent('pos_cloud_update', { detail: { key: 'pos_products', data: this.products } }));
   }
 
   openModal(id) {
@@ -4102,7 +4169,7 @@ class AdminPanel {
 
         if (autoTriggerSystemPrint) {
           if (window.printHub && typeof window.printHub.executeHardwarePrint === 'function') {
-            window.printHub.executeHardwarePrint(null, null, (errMsg) => {
+            window.printHub.executeHardwarePrint('invoice', null, null, (errMsg) => {
               if (statusText) statusText.innerText = '❌ প্রিন্টার কানেক্টেড নেই বা ইনভয়েস প্রিন্ট ব্যর্থ হয়েছে!';
               if (typeof this.showToast === 'function') {
                 this.showToast(`❌ প্রিন্টার কানেক্টেড নেই বা ইনভয়েস প্রিন্ট ব্যর্থ হয়েছে! (${errMsg})`, 'error');
@@ -4138,12 +4205,15 @@ class AdminPanel {
       } catch(e) {}
     }
 
+    const pxHeight = Math.max(paperEl.offsetHeight || 0, paperEl.getBoundingClientRect().height || 0);
+    const calculatedHeightMm = Math.ceil(pxHeight * 0.2645833) + 4;
+
     const opt = {
-      margin: [4, 4, 4, 4],
+      margin: [2, 2, 2, 2],
       filename: `Memo_${invId.replace(/[^a-zA-Z0-9_\-]/g, '_')}.pdf`,
       image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', scrollY: 0 },
-      jsPDF: { unit: 'mm', format: [80, 190], orientation: 'portrait' }
+      html2canvas: { scale: 3, useCORS: true, backgroundColor: '#ffffff', scrollY: 0 },
+      jsPDF: { unit: 'mm', format: [80, Math.max(60, calculatedHeightMm)], orientation: 'portrait' }
     };
 
     if (window.html2pdf) {
@@ -4166,7 +4236,11 @@ class AdminPanel {
         pdfBtn.disabled = false;
         pdfBtn.innerHTML = '<i class="fa-solid fa-file-pdf"></i> PDF Download';
       }
-      window.print();
+      if (window.printHub && typeof window.printHub.executeHardwarePrint === 'function') {
+        window.printHub.executeHardwarePrint('invoice');
+      } else {
+        window.print();
+      }
     }
   }
 

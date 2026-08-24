@@ -216,7 +216,7 @@ class CashierTerminal {
     this.scannerBuffer = '';
     this.scannerTimeout = null;
     this.audioCtx = null;
-    this.activeTab = 'cashierDashboardView';
+    this.activeTab = 'cashierTerminalView';
     this.currentDateFilter = 'today';
     this.customStartDate = null;
     this.customEndDate = null;
@@ -239,15 +239,11 @@ class CashierTerminal {
     this.initEventListeners();
     this.initLiveClock();
     this.initDatePicker();
-    this.renderDashboardView();
-    this.renderProducts();
+    this.switchTab('cashierTerminalView');
     this.updateDiscountTaxUI();
     this.populateCustomerSelect();
     this.setupCustomerLookupInModals();
     this.setupCartCustomerEvents();
-    this.renderCart();
-    this.renderShiftSales();
-    this.renderCashierCustomers();
     this.setupHardwareScanner();
     this.setupBarcodePanel();
     this.renderQuickBarcodeChips();
@@ -264,27 +260,37 @@ class CashierTerminal {
       const tenantSettingsKey = `pos_tenant_${activeStoreId}_pos_settings`;
       const tenantCustKey = `pos_tenant_${activeStoreId}_pos_customers`;
 
-      let savedProd = localStorage.getItem(tenantProdKey) || localStorage.getItem('pos_products');
-      let savedSales = localStorage.getItem(tenantSalesKey) || localStorage.getItem('pos_sales');
-      let savedSettings = localStorage.getItem(tenantSettingsKey) || localStorage.getItem('pos_settings');
-      let savedCusts = localStorage.getItem(tenantCustKey) || localStorage.getItem('pos_customers');
+      let rawTenantProd = localStorage.getItem(tenantProdKey);
+      let rawGlobalProd = localStorage.getItem('pos_products');
+      let parsedTenant = (rawTenantProd && rawTenantProd !== '[]') ? JSON.parse(rawTenantProd) : null;
+      let parsedGlobal = (rawGlobalProd && rawGlobalProd !== '[]') ? JSON.parse(rawGlobalProd) : null;
 
-      this.products = savedProd && savedProd !== '[]' ? JSON.parse(savedProd) : (isGuestStore && typeof INITIAL_PRODUCTS !== 'undefined' ? INITIAL_PRODUCTS : []);
+      if (Array.isArray(parsedTenant) && parsedTenant.length > 0) {
+        this.products = parsedTenant;
+        localStorage.setItem('pos_products', JSON.stringify(parsedTenant));
+      } else if (Array.isArray(parsedGlobal) && parsedGlobal.length > 0) {
+        this.products = parsedGlobal;
+        localStorage.setItem(tenantProdKey, JSON.stringify(parsedGlobal));
+      } else {
+        this.products = (isGuestStore && typeof INITIAL_PRODUCTS !== 'undefined') ? INITIAL_PRODUCTS : [];
+      }
       this.sales = savedSales && savedSales !== '[]' ? JSON.parse(savedSales) : [];
       this.settings = savedSettings && savedSettings !== '{}' ? JSON.parse(savedSettings) : (typeof DEFAULT_SETTINGS !== 'undefined' ? DEFAULT_SETTINGS : {});
       applyMerchantCustomWallpaper(this.settings);
       this.customers = savedCusts && savedCusts !== '[]' ? JSON.parse(savedCusts) : [];
 
-      this.updateDiscountTaxUI();
       this.populateCustomerSelect();
       this.renderCart();
       if (this.activeTab === 'cashierDashboardView') this.renderDashboardView();
       if (this.activeTab === 'cashierProductsView') this.renderProducts();
       
-      this.discountType = this.settings.defaultDiscountMode || 'percent';
-      this.discountValue = this.settings.defaultDiscountValue !== undefined ? parseFloat(this.settings.defaultDiscountValue) || 0 : 0;
-      this.taxType = this.settings.defaultTaxMode || 'percent';
-      this.taxValue = this.settings.defaultTax !== undefined ? parseFloat(this.settings.defaultTax) || 0 : 0;
+      if (this.cart.length === 0 && !this._userHasCustomDiscount && !this._userHasCustomTax) {
+        this.discountType = this.settings.defaultDiscountMode || 'percent';
+        this.discountValue = this.settings.defaultDiscountValue !== undefined ? parseFloat(this.settings.defaultDiscountValue) || 0 : 0;
+        this.taxType = this.settings.defaultTaxMode || 'percent';
+        this.taxValue = this.settings.defaultTax !== undefined ? parseFloat(this.settings.defaultTax) || 0 : 0;
+        this.updateDiscountTaxUI();
+      }
       
       if (this.activeTab === 'cashierDashboardView') this.renderDashboardView();
       else if (this.activeTab === 'cashierTerminalView') this.renderProducts();
@@ -850,7 +856,16 @@ class CashierTerminal {
   // Render Products Grid for Cashier
   renderProducts() {
     const grid = document.getElementById('productsGrid');
-    const searchVal = document.getElementById('productSearchInput').value.toLowerCase().trim();
+    if (!grid) return;
+
+    const prodHash = JSON.stringify(this.products || []) + '_' + this.activeCategory;
+    if (grid.matches(':hover') && this._lastProductsRenderHash === prodHash) {
+      return;
+    }
+    this._lastProductsRenderHash = prodHash;
+
+    const searchInput = document.getElementById('productSearchInput');
+    const searchVal = searchInput ? searchInput.value.toLowerCase().trim() : '';
 
     const filtered = this.products.filter(p => {
       const matchCat = this.activeCategory === 'all' || p.category === this.activeCategory;
@@ -1037,6 +1052,8 @@ class CashierTerminal {
 
   clearCart() {
     this.cart = [];
+    this._userHasCustomDiscount = false;
+    this._userHasCustomTax = false;
     this.discountType = 'percent';
     this.discountValue = 0;
     this.taxType = 'percent';
@@ -1109,7 +1126,9 @@ class CashierTerminal {
       } else {
         discInput.removeAttribute('max');
       }
-      discInput.value = this.discountValue;
+      if (document.activeElement !== discInput) {
+        discInput.value = this.discountValue;
+      }
     }
 
     const taxPills = document.querySelectorAll('#taxModeToggle .btn-toggle-mode');
@@ -1126,7 +1145,9 @@ class CashierTerminal {
       } else {
         taxInput.removeAttribute('max');
       }
-      taxInput.value = this.taxValue;
+      if (document.activeElement !== taxInput) {
+        taxInput.value = this.taxValue;
+      }
     }
   }
 
@@ -2014,6 +2035,9 @@ class CashierTerminal {
 
     const labels = Object.keys(hourlyData);
     const data = Object.values(hourlyData);
+    const shiftChartHash = labels.join(',') + '_' + data.join(',');
+    if (this._lastShiftChartHash === shiftChartHash && this.shiftChart) return;
+    this._lastShiftChartHash = shiftChartHash;
 
     if (this.shiftChart) this.shiftChart.destroy();
 
@@ -2036,6 +2060,8 @@ class CashierTerminal {
         }]
       },
       options: {
+        animation: { duration: 250, easing: 'easeOutQuart' },
+        resizeDelay: 100,
         responsive: true,
         maintainAspectRatio: false,
         layout: {
@@ -2106,14 +2132,20 @@ class CashierTerminal {
     });
 
     if (tabId === 'cashierDashboardView') {
-      this.renderDashboardView();
+      requestAnimationFrame(() => {
+        setTimeout(() => this.renderDashboardView(), 40);
+      });
     } else if (tabId === 'cashierTerminalView') {
       this.renderProducts();
       this.renderCart();
     } else if (tabId === 'cashierAnalyticsView') {
-      this.renderAnalyticsView();
+      requestAnimationFrame(() => {
+        setTimeout(() => this.renderAnalyticsView(), 40);
+      });
     } else if (tabId === 'cashierShiftView') {
-      this.renderShiftSales();
+      requestAnimationFrame(() => {
+        setTimeout(() => this.renderShiftSales(), 40);
+      });
     } else if (tabId === 'cashierCustomersView') {
       this.renderCashierCustomers();
     }
@@ -2279,6 +2311,9 @@ class CashierTerminal {
 
     const labels = Object.keys(hourlyData);
     const data = Object.values(hourlyData);
+    const dashChartHash = labels.join(',') + '_' + data.join(',') + '_' + (this.currentDateFilter || '');
+    if (this._lastDashboardChartHash === dashChartHash && this.dashboardChart) return;
+    this._lastDashboardChartHash = dashChartHash;
 
     if (this.dashboardChart) this.dashboardChart.destroy();
 
@@ -2301,6 +2336,8 @@ class CashierTerminal {
         }]
       },
       options: {
+        animation: { duration: 250, easing: 'easeOutQuart' },
+        resizeDelay: 100,
         responsive: true,
         maintainAspectRatio: false,
         layout: {
@@ -2484,6 +2521,12 @@ class CashierTerminal {
       }
     });
 
+    const labels = Object.keys(hourlyData);
+    const data = Object.values(hourlyData);
+    const hourlyChartHash = labels.join(',') + '_' + data.join(',') + '_' + (this.currentDateFilter || '');
+    if (this._lastAnalyticsHourlyChartHash === hourlyChartHash && this.analyticsHourlyChart) return;
+    this._lastAnalyticsHourlyChartHash = hourlyChartHash;
+
     if (this.analyticsHourlyChart) this.analyticsHourlyChart.destroy();
 
     this.analyticsHourlyChart = new Chart(canvas.getContext('2d'), {
@@ -2505,6 +2548,8 @@ class CashierTerminal {
         }]
       },
       options: {
+        animation: { duration: 250, easing: 'easeOutQuart' },
+        resizeDelay: 100,
         responsive: true,
         maintainAspectRatio: false,
         layout: {
@@ -2569,6 +2614,10 @@ class CashierTerminal {
       });
     }
 
+    const payChartHash = `${cashTotal}_${epayTotal}_${this.currentDateFilter || ''}`;
+    if (this._lastAnalyticsPaymentChartHash === payChartHash && this.analyticsPaymentChart) return;
+    this._lastAnalyticsPaymentChartHash = payChartHash;
+
     if (this.analyticsPaymentChart) this.analyticsPaymentChart.destroy();
 
     this.analyticsPaymentChart = new Chart(canvas.getContext('2d'), {
@@ -2583,6 +2632,8 @@ class CashierTerminal {
         }]
       },
       options: {
+        animation: { duration: 250, easing: 'easeOutQuart' },
+        resizeDelay: 100,
         responsive: true,
         maintainAspectRatio: false,
         cutout: '68%',
@@ -2643,6 +2694,9 @@ class CashierTerminal {
 
     const labels = Object.keys(catTotals);
     const data = Object.values(catTotals);
+    const catChartHash = labels.join(',') + '_' + data.join(',') + '_' + (this.currentDateFilter || '');
+    if (this._lastAnalyticsCategoryChartHash === catChartHash && this.analyticsCategoryChart) return;
+    this._lastAnalyticsCategoryChartHash = catChartHash;
 
     if (this.analyticsCategoryChart) this.analyticsCategoryChart.destroy();
 
@@ -2663,6 +2717,8 @@ class CashierTerminal {
         }]
       },
       options: {
+        animation: { duration: 250, easing: 'easeOutQuart' },
+        resizeDelay: 100,
         responsive: true,
         maintainAspectRatio: false,
         layout: {
@@ -2842,6 +2898,7 @@ class CashierTerminal {
     if (discInput) {
       discInput.addEventListener('input', (e) => {
         this.discountValue = parseFloat(e.target.value) || 0;
+        this._userHasCustomDiscount = true;
         this.renderCart();
       });
     }
@@ -2852,6 +2909,7 @@ class CashierTerminal {
         const btn = e.target.closest('.btn-toggle-mode');
         if (btn && btn.dataset.mode) {
           this.discountType = btn.dataset.mode;
+          this._userHasCustomDiscount = true;
           this.updateDiscountTaxUI();
           this.renderCart();
         }
@@ -2862,6 +2920,7 @@ class CashierTerminal {
     if (taxInput) {
       taxInput.addEventListener('input', (e) => {
         this.taxValue = parseFloat(e.target.value) || 0;
+        this._userHasCustomTax = true;
         this.renderCart();
       });
     }
@@ -3907,7 +3966,7 @@ class CashierTerminal {
 
         if (autoTriggerSystemPrint) {
           if (window.printHub && typeof window.printHub.executeHardwarePrint === 'function') {
-            window.printHub.executeHardwarePrint(null, null, (errMsg) => {
+            window.printHub.executeHardwarePrint('invoice', null, null, (errMsg) => {
               if (statusText) statusText.innerText = '❌ প্রিন্টার কানেক্টেড নেই বা ইনভয়েস প্রিন্ট ব্যর্থ হয়েছে!';
               if (typeof this.showToast === 'function') {
                 this.showToast(`❌ প্রিন্টার কানেক্টেড নেই বা ইনভয়েস প্রিন্ট ব্যর্থ হয়েছে! (${errMsg})`, 'error');
@@ -3942,12 +4001,15 @@ class CashierTerminal {
       } catch(e) {}
     }
 
+    const pxHeight = Math.max(paperEl.offsetHeight || 0, paperEl.getBoundingClientRect().height || 0);
+    const calculatedHeightMm = Math.ceil(pxHeight * 0.2645833) + 4;
+
     const opt = {
-      margin: [4, 4, 4, 4],
+      margin: [2, 2, 2, 2],
       filename: `Memo_${invId.replace(/[^a-zA-Z0-9_\-]/g, '_')}.pdf`,
       image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', scrollY: 0 },
-      jsPDF: { unit: 'mm', format: [80, 190], orientation: 'portrait' }
+      html2canvas: { scale: 3, useCORS: true, backgroundColor: '#ffffff', scrollY: 0 },
+      jsPDF: { unit: 'mm', format: [80, Math.max(60, calculatedHeightMm)], orientation: 'portrait' }
     };
 
     if (window.html2pdf) {
@@ -3970,7 +4032,11 @@ class CashierTerminal {
         pdfBtn.disabled = false;
         pdfBtn.innerHTML = '<i class="fa-solid fa-file-pdf"></i> PDF Download';
       }
-      window.print();
+      if (window.printHub && typeof window.printHub.executeHardwarePrint === 'function') {
+        window.printHub.executeHardwarePrint('invoice');
+      } else {
+        window.print();
+      }
     }
   }
 

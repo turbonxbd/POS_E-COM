@@ -403,8 +403,8 @@
             <div class="form-group col-3">
               <label><i class="fa-solid fa-copy"></i> প্রিন্ট মোড / কপি সংখ্যা:</label>
               <select id="barcodePrintModeSelect" class="form-control">
-                <option value="custom">ম্যানুয়াল ফিক্সড কপি (Custom Copies)</option>
-                <option value="auto_stock">মজুদ কোয়ান্টিটি অনুযায়ী অটো প্রিন্ট (Auto Stock Quantity)</option>
+                <option value="auto_stock" selected>📦 মজুদ কোয়ান্টিটি অনুযায়ী অটো প্রিন্ট (Auto Stock Quantity)</option>
+                <option value="custom">✏️ কাস্টম কপি সংখ্যা (Custom Copy Quantity)</option>
               </select>
             </div>
             <div class="form-group col-3">
@@ -422,7 +422,7 @@
             </div>
           </div>
 
-          <div class="form-group mb-3" id="barcodeCustomCountGroup" style="display: block;">
+          <div class="form-group mb-3" id="barcodeCustomCountGroup" style="display: none;">
             <div style="display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; background: var(--bg-sidebar); padding: 0.85rem 1.25rem; border-radius: 12px; border: 1px solid var(--border-color);">
               <div>
                 <label style="font-weight: 700; margin: 0; color: var(--accent-blue);"><i class="fa-solid fa-calculator"></i> প্রতি ভেরিয়েন্টের জন্য স্টিকার কপি সংখ্যা:</label>

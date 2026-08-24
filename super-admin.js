@@ -1366,12 +1366,12 @@ function initCMSForms() {
   });
 
   document.getElementById('btnPublishAppUpdate')?.addEventListener('click', () => {
-    currentCMS.appVersion = 'v2.6.0';
+    currentCMS.appVersion = 'v5.0.0';
     saveCMSDataToCloud();
 
     try {
       const bc = new BroadcastChannel('pos_app_update_channel');
-      bc.postMessage({ type: 'APP_UPDATE_PUBLISHED', version: 'v2.6.0' });
+      bc.postMessage({ type: 'APP_UPDATE_PUBLISHED', version: 'v5.0.0' });
     } catch (e) {}
 
     alert('🚀 সকল মার্চেন্ট ও ক্যাশিয়ার অ্যাপে নতুন অ্যাপ আপডেট সিগন্যাল প্রকাশ করা হয়েছে! ইউজারের ইনস্টল করা অ্যাপে "🚀 নতুন আপডেট পাওয়া গেছে!" পপআপ ব্যানার দেখা যাবে।');
