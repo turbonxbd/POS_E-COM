@@ -3761,7 +3761,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
  grid-template-columns: repeat(2, 1fr) !important;
  }
 }
-/* ==========================================================================   @media print ��� Isolation rules   ========================================================================== */
+/* ==========================================================================   @media print — Isolation rules   ========================================================================== */
 @media print {
   html, body {
     direction: ltr !important;
@@ -3769,10 +3769,22 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
     transform: none !important;
     margin: 0 !important;
     padding: 0 !important;
+    height: auto !important;
+    min-height: 0 !important;
     background: #ffffff !important;
     color: #000000 !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+  }
+
+  /* Expand scrollable receipt viewport — removes max-height:600px viewport constraint
+     so full content (10, 20, 30+ products) prints without blank extra page */
+  .receipt-feed-viewport, .receipt-feed-container {
+    max-height: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    padding: 0 !important;
   }
 
   body.printing-barcode > *:not(#smartPrintHubModal) {
@@ -3839,7 +3851,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
     min-width: 80mm !important;
     height: auto !important;
     margin: 0 auto !important;
-    padding: 2mm 3mm !important;
+    padding: 2mm 2mm !important;
     box-sizing: border-box !important;
     background: #ffffff !important;
     color: #000000 !important;
@@ -3881,6 +3893,21 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
   .barcode-sticker-card:last-of-type {
     page-break-after: avoid !important;
     break-after: avoid !important;
+  }
+
+  /* Keep receipt barcode + footer together — never push to a second page */
+  .receipt-footer {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    page-break-before: avoid !important;
+    break-before: avoid !important;
+  }
+  #rcptBarcodeSvg {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    page-break-before: avoid !important;
+    break-before: avoid !important;
+    display: block !important;
   }
 }
 

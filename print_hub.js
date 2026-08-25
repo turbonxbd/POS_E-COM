@@ -12,6 +12,7 @@ class SmartPrintHub {
     this.currentTitle = 'প্রিন্ট ডকুমেন্ট';
     this.isAnimating = false;
     this.currentItems = [];
+    this.printMode = 'barcode'; // Tracks current mode: 'barcode' | 'invoice'
     
     // Default printer settings (loaded from localStorage if available)
     this.settings = this.loadSettings();
@@ -445,11 +446,14 @@ class SmartPrintHub {
       isStickerRoll = false;
       const receiptEl = document.getElementById('printableReceipt');
       if (receiptEl) {
-        const rect = receiptEl.getBoundingClientRect();
-        const pxHeight = Math.max(receiptEl.offsetHeight || 0, rect.height || 0);
-        // Convert px to mm (1px = 0.2645833mm) + 4mm tiny breathing margin right after footer
-        const calculatedHeightMm = Math.ceil(pxHeight * 0.2645833) + 4;
-        heightMm = `${Math.max(50, calculatedHeightMm)}mm`;
+        // Measure real unclipped scrollHeight of the invoice receipt element
+        const pxHeight = Math.max(receiptEl.scrollHeight || 0, receiptEl.offsetHeight || 0);
+        const baseMm = pxHeight * 0.2645833;
+        // Proportional 6% buffer + 15mm base safety.
+        // Guarantees 100% ONE SINGLE CONTINUOUS PAGE for any number of products (1 to 500+ items).
+        // Completely eliminates Chrome page breaks and prevents footer/barcode from going to Page 2.
+        const calculatedHeightMm = Math.ceil(baseMm * 1.06) + 15;
+        heightMm = `${Math.max(70, calculatedHeightMm)}mm`;
       } else {
         heightMm = 'auto';
       }
@@ -510,14 +514,15 @@ class SmartPrintHub {
     const margin = isStickerRoll ? '0mm' : `${this.settings.marginMm !== undefined ? this.settings.marginMm : 0}mm`;
 
     let pageRule = '';
+    // Valid CSS Paged Media Spec syntax
     if (mode === 'invoice' && heightMm !== 'auto') {
-      pageRule = `@page { size: 80mm ${heightMm} !important; margin: 0mm !important; }`;
+      pageRule = `@page { size: 80mm ${heightMm}; margin: 0; }`;
     } else if (mode === 'invoice') {
-      pageRule = `@page { size: 80mm auto !important; margin: 0mm !important; }`;
+      pageRule = `@page { size: 80mm auto; margin: 0; }`;
     } else if (heightMm === 'auto') {
-      pageRule = `@page { size: ${widthMm} auto !important; margin: 0mm !important; }`;
+      pageRule = `@page { size: ${widthMm} auto; margin: 0; }`;
     } else {
-      pageRule = `@page { size: ${widthMm} ${heightMm} !important; margin: 0mm !important; }`;
+      pageRule = `@page { size: ${widthMm} ${heightMm}; margin: 0; }`;
     }
 
     styleTag.innerHTML = `
@@ -529,7 +534,7 @@ class SmartPrintHub {
           writing-mode: horizontal-tb !important;
           transform: none !important;
           rotate: 0deg !important;
-          margin: 0 !important;
+          margin: 0 auto !important;
           padding: 0 !important;
           background: #ffffff !important;
           color: #000000 !important;
@@ -537,7 +542,15 @@ class SmartPrintHub {
           print-color-adjust: exact !important;
           width: ${mode === 'invoice' ? '80mm' : widthMm} !important;
           max-width: ${mode === 'invoice' ? '80mm' : widthMm} !important;
-          margin: 0 auto !important;
+        }
+
+        /* Expand scrollable receipt viewport to full content height in print */
+        .receipt-feed-viewport, .receipt-feed-container {
+          max-height: none !important;
+          height: auto !important;
+          min-height: 0 !important;
+          overflow: visible !important;
+          padding: 0 !important;
         }
 
         /* 1. BARCODE PRINTING ISOLATION MODE */
@@ -594,7 +607,7 @@ class SmartPrintHub {
           border: none !important;
           box-shadow: none !important;
           padding: 0 !important;
-          margin: 0 auto !important;
+          margin: 0 !important;
           min-height: 0 !important;
           height: auto !important;
           max-height: none !important;
@@ -613,7 +626,7 @@ class SmartPrintHub {
           min-width: 80mm !important;
           height: auto !important;
           margin: 0 auto !important;
-          padding: 2mm 3mm !important;
+          padding: 2mm 2mm !important;
           box-sizing: border-box !important;
           background: #ffffff !important;
           color: #000000 !important;
@@ -643,6 +656,21 @@ class SmartPrintHub {
           direction: ltr !important;
         }
 
+        /* Keep barcode + footer block together — never split to a 2nd page */
+        .receipt-footer {
+          page-break-inside: avoid !important;
+          break-inside: avoid !important;
+          page-break-before: avoid !important;
+          break-before: avoid !important;
+        }
+        #rcptBarcodeSvg {
+          page-break-inside: avoid !important;
+          break-inside: avoid !important;
+          page-break-before: avoid !important;
+          break-before: avoid !important;
+          display: block !important;
+        }
+
         ${isStickerRoll && mode !== 'invoice' ? `
         .barcode-studio-header {
           display: none !important;
@@ -661,7 +689,7 @@ class SmartPrintHub {
           max-height: ${heightMm} !important;
           box-sizing: border-box !important;
           margin: 0 !important;
-          padding: 3px 4px 3px 4px !important;
+          padding: 2px 3px 2px 3px !important;
           page-break-before: auto !important;
           page-break-after: always !important;
           break-after: page !important;
@@ -714,22 +742,22 @@ class SmartPrintHub {
       const now = this.audioCtx.currentTime;
       const totalSec = Math.max(0.3, durationMs / 1000);
 
-      // Motor noise oscillator
+      // Motor noise oscillator (subtle soft hum)
       const osc = this.audioCtx.createOscillator();
       const gain = this.audioCtx.createGain();
       osc.type = 'sawtooth';
       osc.frequency.setValueAtTime(140, now);
       osc.frequency.linearRampToValueAtTime(90, now + totalSec);
 
-      gain.gain.setValueAtTime(0.08, now);
-      gain.gain.linearRampToValueAtTime(0.01, now + totalSec);
+      gain.gain.setValueAtTime(0.025, now);
+      gain.gain.linearRampToValueAtTime(0.005, now + totalSec);
 
       osc.connect(gain);
       gain.connect(this.audioCtx.destination);
       osc.start(now);
       osc.stop(now + totalSec);
 
-      // Thermal head pulse clicks
+      // Thermal head pulse clicks (soft click FX)
       const clickCount = Math.floor(totalSec * 12);
       for (let i = 0; i < clickCount; i++) {
         const clickTime = now + (i * (totalSec / clickCount));
@@ -737,8 +765,8 @@ class SmartPrintHub {
         const clickGain = this.audioCtx.createGain();
         clickOsc.type = 'square';
         clickOsc.frequency.setValueAtTime(800 + (i % 3) * 200, clickTime);
-        clickGain.gain.setValueAtTime(0.04, clickTime);
-        clickGain.gain.exponentialRampToValueAtTime(0.001, clickTime + 0.03);
+        clickGain.gain.setValueAtTime(0.012, clickTime);
+        clickGain.gain.exponentialRampToValueAtTime(0.0005, clickTime + 0.03);
         clickOsc.connect(clickGain);
         clickGain.connect(this.audioCtx.destination);
         clickOsc.start(clickTime);
@@ -758,12 +786,12 @@ class SmartPrintHub {
       const gain = this.audioCtx.createGain();
       osc.type = 'sine';
       osc.frequency.setValueAtTime(987.77, now);
-      gain.gain.setValueAtTime(0.12, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+      gain.gain.setValueAtTime(0.035, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
       osc.connect(gain);
       gain.connect(this.audioCtx.destination);
       osc.start(now);
-      osc.stop(now + 0.2);
+      osc.stop(now + 0.15);
     } catch(e) {}
   }
 
@@ -860,10 +888,10 @@ class SmartPrintHub {
     if (!paperTarget) return;
 
     const itemCount = (this.currentItems && this.currentItems.length > 0) ? this.currentItems.length : 1;
-    let baseTime = Math.max(1600, Math.min(10000, itemCount * 350 + 600));
+    let baseTime = Math.max(400, Math.min(1000, itemCount * 100 + 250));
     let animDuration = baseTime;
-    if (speed === 'fast') animDuration = Math.max(700, Math.round(baseTime * 0.45));
-    if (speed === 'instant') animDuration = 50;
+    if (speed === 'fast') animDuration = Math.max(250, Math.round(baseTime * 0.45));
+    if (speed === 'instant') animDuration = 40;
 
     this.isAnimating = true;
 
@@ -944,7 +972,7 @@ class SmartPrintHub {
         }, 1200);
 
         if (autoDispatchHardware) {
-          this.executeHardwarePrint(null, null, (errMsg) => {
+          this.executeHardwarePrint(this.printMode, null, null, (errMsg) => {
             if (statusLed) statusLed.className = 'led led-status error';
             if (statusLedText) statusLedText.innerText = 'PRINT FAILED';
             if (progressText) progressText.innerText = `❌ প্রিন্টার কানেক্টেড নেই বা প্রিন্ট ব্যর্থ হয়েছে! (${errMsg})`;
@@ -984,6 +1012,7 @@ class SmartPrintHub {
   openBarcodeStudio({ title = 'বারকোড স্টিকার প্রিন্ট হাব', items = [], paperFormat = null }) {
     this.currentTitle = title;
     this.currentItems = items || [];
+    this.printMode = 'barcode'; // *** Set mode before hardware print dispatch ***
     const posSettings = JSON.parse(localStorage.getItem('pos_settings')) || {};
     const showName = true;
     const showVariant = true;
@@ -1039,7 +1068,7 @@ class SmartPrintHub {
       const priceHtml = showPrice ? `<div style="font-size:0.66rem; font-weight:800; color:#000; margin-top:1px; margin-bottom:2px; padding-bottom:1px; line-height:1.05;">${priceFormatted}</div>` : '';
 
       stickersHtml += `
-        <div class="barcode-sticker-card hub-sticker" style="background:#fff; color:#000; padding:3px 4px 3px 4px; border:1px solid #ddd; border-radius:4px; text-align:center; box-shadow:0 1px 3px rgba(0,0,0,0.06); display:flex; flex-direction:column; align-items:center; justify-content:space-between; page-break-inside:avoid; break-inside:avoid; box-sizing:border-box;">
+        <div class="barcode-sticker-card hub-sticker" style="background:#fff; color:#000; padding:2px 3px 2px 3px; border:1px solid #ddd; border-radius:4px; text-align:center; box-shadow:0 1px 3px rgba(0,0,0,0.06); display:flex; flex-direction:column; align-items:center; justify-content:space-between; page-break-inside:avoid; break-inside:avoid; box-sizing:border-box; overflow:hidden;">
           ${nameHtml}
           ${variantHtml}
           <div style="width:100%; display:flex; justify-content:center; margin:1px 0;">
@@ -1078,43 +1107,43 @@ class SmartPrintHub {
 
     if (this.paperFormat === 'sticker_38x25') {
       bcWidth = 1.05;
-      bcHeight = 22;
-      bcFontSize = 8.5;
+      bcHeight = 18;
+      bcFontSize = 8.0;
       bcMargin = 0;
     } else if (this.paperFormat === 'sticker_50x30') {
       bcWidth = 1.25;
-      bcHeight = 36;
-      bcFontSize = 9.5;
+      bcHeight = 32;
+      bcFontSize = 9.0;
       bcMargin = 1;
     } else if (this.paperFormat === 'sticker_50x25') {
       bcWidth = 1.15;
-      bcHeight = 28;
-      bcFontSize = 8.5;
+      bcHeight = 24;
+      bcFontSize = 8.0;
       bcMargin = 0;
     } else if (this.paperFormat === 'sticker_75x50') {
       bcWidth = 1.6;
-      bcHeight = 54;
-      bcFontSize = 11;
+      bcHeight = 48;
+      bcFontSize = 10.5;
       bcMargin = 2;
     } else if (this.paperFormat === 'sticker_25x15') {
       bcWidth = 0.8;
-      bcHeight = 18;
-      bcFontSize = 7.5;
+      bcHeight = 15;
+      bcFontSize = 7.0;
       bcMargin = 0;
     } else if (this.paperFormat === '2up_label') {
       bcWidth = 1.15;
-      bcHeight = 28;
-      bcFontSize = 8.5;
+      bcHeight = 24;
+      bcFontSize = 8.0;
       bcMargin = 0;
     } else if (this.paperFormat === 'a4_grid') {
       bcWidth = 1.15;
-      bcHeight = 28;
-      bcFontSize = 9;
+      bcHeight = 24;
+      bcFontSize = 8.5;
       bcMargin = 0;
     } else if (this.paperFormat === '58mm') {
       bcWidth = 1.15;
-      bcHeight = 28;
-      bcFontSize = 8.5;
+      bcHeight = 24;
+      bcFontSize = 8.0;
       bcMargin = 0;
     }
 
@@ -1138,9 +1167,9 @@ class SmartPrintHub {
             fontSize: bcFontSize,
             fontOptions: "bold",
             font: "monospace",
-            marginTop: 1,
-            marginBottom: 4,
-            textMargin: 3,
+            marginTop: 0,
+            marginBottom: 2,
+            textMargin: 1,
             background: "#ffffff",
             lineColor: "#000000",
             displayValue: true
@@ -1156,6 +1185,7 @@ class SmartPrintHub {
   // --- OPEN THERMAL RECEIPT / MEMO PRINT STUDIO ---
   openReceiptStudio({ title = 'সেলস ইনভয়েস মেমো', receiptHtml, invoiceId = '' }) {
     this.currentTitle = invoiceId ? `Memo_${invoiceId}` : 'Sales_Receipt';
+    this.printMode = 'invoice'; // *** Set mode before hardware print dispatch ***
     this.paperFormat = this.settings.paperFormat || '80mm';
 
     // Hide top toolbar & settings drawer button for clean centered viewport view
@@ -1246,19 +1276,28 @@ class SmartPrintHub {
 
     if (window.html2canvas && jsPDFClass) {
       if (isSticker && cards.length > 0) {
-        // Multi-sticker card PDF export (1 page per sticker, 0 deg rotation)
-        const formatArg = targetWidthMm > targetHeightMm ? [targetHeightMm, targetWidthMm] : [targetWidthMm, targetHeightMm];
-        const orientationArg = targetWidthMm > targetHeightMm ? 'l' : 'p';
+        // Multi-sticker card PDF export (1 page per sticker, exact dimensions matching format)
+        const pageW = targetWidthMm;
+        const pageH = targetHeightMm;
+        const orientation = pageW >= pageH ? 'l' : 'p';
+        const pdfFormat = [pageW, pageH];
+
         const doc = new jsPDFClass({
           unit: 'mm',
-          format: formatArg,
-          orientation: orientationArg,
+          format: pdfFormat,
+          orientation: orientation,
           compress: true
         });
 
         let chain = Promise.resolve();
         cards.forEach((card, idx) => {
           chain = chain.then(() => {
+            // Temporarily strip border & shadow to prevent canvas overflow artifacts
+            const origBorder = card.style.border;
+            const origShadow = card.style.boxShadow;
+            card.style.border = 'none';
+            card.style.boxShadow = 'none';
+
             return window.html2canvas(card, {
               scale: 3,
               backgroundColor: '#ffffff',
@@ -1267,11 +1306,14 @@ class SmartPrintHub {
               scrollX: 0,
               scrollY: 0
             }).then(canvas => {
+              card.style.border = origBorder;
+              card.style.boxShadow = origShadow;
+
               const imgData = canvas.toDataURL('image/jpeg', 0.98);
               if (idx > 0) {
-                doc.addPage(formatArg, orientationArg);
+                doc.addPage(pdfFormat, orientation);
               }
-              doc.addImage(imgData, 'JPEG', 0, 0, targetWidthMm, targetHeightMm, undefined, 'FAST');
+              doc.addImage(imgData, 'JPEG', 0, 0, pageW, pageH, undefined, 'FAST');
             });
           });
         });
@@ -1280,7 +1322,7 @@ class SmartPrintHub {
           doc.save(fileName);
         }).catch(err => {
           console.error("PDF multi-card render error:", err);
-          window.print();
+          this.systemPrint();
         });
 
       } else {

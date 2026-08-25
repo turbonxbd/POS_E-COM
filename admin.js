@@ -112,35 +112,34 @@ class AdminPanel {
   init() {
     this.checkAccountStatusSecurityGuard();
     setInterval(() => this.checkAccountStatusSecurityGuard(), 3000);
-    window.addEventListener('storage', () => this.checkAccountStatusSecurityGuard());
 
     const reloadAdminState = () => {
       const activeStoreId = localStorage.getItem('pos_active_store_id') || 'store_demo_101';
       const isGuestStore = activeStoreId === 'store_demo_101';
 
-      const tenantProdKey = `pos_tenant_${activeStoreId}_pos_products`;
-      const tenantSalesKey = `pos_tenant_${activeStoreId}_pos_sales`;
+      const tenantProdKey     = `pos_tenant_${activeStoreId}_pos_products`;
+      const tenantSalesKey    = `pos_tenant_${activeStoreId}_pos_sales`;
       const tenantSettingsKey = `pos_tenant_${activeStoreId}_pos_settings`;
-      const tenantCatKey = `pos_tenant_${activeStoreId}_pos_categories`;
-      const tenantCouponKey = `pos_tenant_${activeStoreId}_pos_coupons`;
-      const tenantCustKey = `pos_tenant_${activeStoreId}_pos_customers`;
+      const tenantCatKey      = `pos_tenant_${activeStoreId}_pos_categories`;
+      const tenantCouponKey   = `pos_tenant_${activeStoreId}_pos_coupons`;
+      const tenantCustKey     = `pos_tenant_${activeStoreId}_pos_customers`;
 
-      let rawProd = localStorage.getItem(tenantProdKey) || localStorage.getItem('pos_products');
-      let rawSales = localStorage.getItem(tenantSalesKey) || localStorage.getItem('pos_sales');
-      let rawSettings = localStorage.getItem(tenantSettingsKey) || localStorage.getItem('pos_settings');
-      let rawCats = localStorage.getItem(tenantCatKey) || localStorage.getItem('pos_categories');
-      let rawCoupons = localStorage.getItem(tenantCouponKey) || localStorage.getItem('pos_coupons');
-      let rawCusts = localStorage.getItem(tenantCustKey) || localStorage.getItem('pos_customers');
+      // Always prefer tenant-scoped key; fall back to global key
+      const rawProd     = localStorage.getItem(tenantProdKey)     || localStorage.getItem('pos_products');
+      const rawSales    = localStorage.getItem(tenantSalesKey)    || localStorage.getItem('pos_sales');
+      const rawSettings = localStorage.getItem(tenantSettingsKey) || localStorage.getItem('pos_settings');
+      const rawCats     = localStorage.getItem(tenantCatKey)      || localStorage.getItem('pos_categories');
+      const rawCoupons  = localStorage.getItem(tenantCouponKey)   || localStorage.getItem('pos_coupons');
+      const rawCusts    = localStorage.getItem(tenantCustKey)     || localStorage.getItem('pos_customers');
 
-      this.products = rawProd && rawProd !== '[]' ? JSON.parse(rawProd) : (isGuestStore && typeof INITIAL_PRODUCTS !== 'undefined' ? INITIAL_PRODUCTS : []);
-      this.sales = rawSales && rawSales !== '[]' ? JSON.parse(rawSales) : [];
-      this.settings = rawSettings && rawSettings !== '{}' ? JSON.parse(rawSettings) : (typeof DEFAULT_SETTINGS !== 'undefined' ? DEFAULT_SETTINGS : {});
+      try { this.products  = rawProd     && rawProd     !== '[]' ? JSON.parse(rawProd)     : (isGuestStore && typeof INITIAL_PRODUCTS  !== 'undefined' ? INITIAL_PRODUCTS  : []); } catch(e) { this.products  = []; }
+      try { this.sales     = rawSales    && rawSales    !== '[]' ? JSON.parse(rawSales)    : []; }                                                                                    catch(e) { this.sales     = []; }
+      try { this.settings  = rawSettings && rawSettings !== '{}' ? JSON.parse(rawSettings) : (typeof DEFAULT_SETTINGS !== 'undefined' ? DEFAULT_SETTINGS : {}); }                   catch(e) { this.settings  = {}; }
+      try { this.categories= rawCats     && rawCats     !== '[]' ? JSON.parse(rawCats)     : (isGuestStore && typeof INITIAL_CATEGORIES !== 'undefined' ? INITIAL_CATEGORIES : []); } catch(e) { this.categories= []; }
+      try { this.coupons   = rawCoupons  && rawCoupons  !== '[]' ? JSON.parse(rawCoupons)  : []; }                                                                                    catch(e) { this.coupons   = []; }
+      try { this.customers = rawCusts    && rawCusts    !== '[]' ? JSON.parse(rawCusts)    : []; }                                                                                    catch(e) { this.customers = []; }
+
       applyMerchantCustomWallpaper(this.settings);
-
-      this.categories = rawCats && rawCats !== '[]' ? JSON.parse(rawCats) : (isGuestStore && typeof INITIAL_CATEGORIES !== 'undefined' ? INITIAL_CATEGORIES : []);
-      this.coupons = rawCoupons && rawCoupons !== '[]' ? JSON.parse(rawCoupons) : [];
-      this.customers = rawCusts && rawCusts !== '[]' ? JSON.parse(rawCusts) : [];
-
       this.populateCategoryDropdowns();
       this.renderInventoryTable();
       this.renderCategoryCards();
@@ -153,9 +152,10 @@ class AdminPanel {
       this.updateSidebarStoreProfile();
     };
 
-    window.addEventListener('storage', reloadAdminState);
-    window.addEventListener('pos_cloud_update', reloadAdminState);
-    window.addEventListener('pos_tenant_changed', reloadAdminState);
+    // Single source of truth handler — registered ONCE for all cloud/storage/tenant events
+    window.addEventListener('storage',              reloadAdminState);
+    window.addEventListener('pos_cloud_update',     reloadAdminState);
+    window.addEventListener('pos_tenant_changed',   reloadAdminState);
 
     window.addEventListener('pos_online_sync_completed', () => {
       reloadAdminState();
@@ -194,38 +194,53 @@ class AdminPanel {
       };
     } catch (e) {}
 
-    // Real-time storage & cloud sync across tabs/windows
+    // NOTE: reloadAdminState above is the single authoritative handler for all sync events.
+    // BroadcastChannel handler below handles same-browser tab cross-communication only.
     const reloadState = () => {
       const activeStoreId = localStorage.getItem('pos_active_store_id') || 'store_demo_101';
       const isGuestStore = activeStoreId === 'store_demo_101';
 
-      const tenantProdKey = `pos_tenant_${activeStoreId}_pos_products`;
-      const tenantSalesKey = `pos_tenant_${activeStoreId}_pos_sales`;
+      const tenantProdKey     = `pos_tenant_${activeStoreId}_pos_products`;
+      const tenantSalesKey    = `pos_tenant_${activeStoreId}_pos_sales`;
       const tenantSettingsKey = `pos_tenant_${activeStoreId}_pos_settings`;
-      const tenantCatKey = `pos_tenant_${activeStoreId}_pos_categories`;
-      const tenantCouponKey = `pos_tenant_${activeStoreId}_pos_coupons`;
-      const tenantCustKey = `pos_tenant_${activeStoreId}_pos_customers`;
+      const tenantCatKey      = `pos_tenant_${activeStoreId}_pos_categories`;
+      const tenantCouponKey   = `pos_tenant_${activeStoreId}_pos_coupons`;
+      const tenantCustKey     = `pos_tenant_${activeStoreId}_pos_customers`;
 
-      let rawTenantProd = localStorage.getItem(tenantProdKey);
-      let rawGlobalProd = localStorage.getItem('pos_products');
-      let parsedTenant = (rawTenantProd && rawTenantProd !== '[]') ? JSON.parse(rawTenantProd) : null;
-      let parsedGlobal = (rawGlobalProd && rawGlobalProd !== '[]') ? JSON.parse(rawGlobalProd) : null;
+      // --- Products: prefer tenant key over global, NEVER overwrite non-empty with empty ---
+      const rawTenantProd  = localStorage.getItem(tenantProdKey);
+      const rawGlobalProd  = localStorage.getItem('pos_products');
+      const parsedTenant   = (rawTenantProd  && rawTenantProd  !== '[]') ? (() => { try { return JSON.parse(rawTenantProd); } catch(e) { return null; } })() : null;
+      const parsedGlobal   = (rawGlobalProd  && rawGlobalProd  !== '[]') ? (() => { try { return JSON.parse(rawGlobalProd); } catch(e) { return null; } })() : null;
 
       if (Array.isArray(parsedTenant) && parsedTenant.length > 0) {
         this.products = parsedTenant;
-        localStorage.setItem('pos_products', JSON.stringify(parsedTenant));
       } else if (Array.isArray(parsedGlobal) && parsedGlobal.length > 0) {
         this.products = parsedGlobal;
-        localStorage.setItem(tenantProdKey, JSON.stringify(parsedGlobal));
-      } else {
+      } else if (!this.products || this.products.length === 0) {
         this.products = (isGuestStore && typeof INITIAL_PRODUCTS !== 'undefined') ? INITIAL_PRODUCTS : [];
       }
-      this.sales = savedSales && savedSales !== '[]' ? JSON.parse(savedSales) : [];
-      this.settings = savedSettings && savedSettings !== '{}' ? JSON.parse(savedSettings) : (typeof DEFAULT_SETTINGS !== 'undefined' ? DEFAULT_SETTINGS : {});
-      this.categories = savedCats && savedCats !== '[]' ? JSON.parse(savedCats) : (isGuestStore && typeof INITIAL_CATEGORIES !== 'undefined' ? INITIAL_CATEGORIES : []);
-      this.coupons = savedCoupons && savedCoupons !== '[]' ? JSON.parse(savedCoupons) : [];
-      this.customers = savedCusts && savedCusts !== '[]' ? JSON.parse(savedCusts) : [];
+      // Always keep both keys consistent after reading
+      if (this.products && this.products.length > 0) {
+        const prodJson = JSON.stringify(this.products);
+        if (rawTenantProd !== prodJson) localStorage.setItem(tenantProdKey, prodJson);
+        if (rawGlobalProd !== prodJson) localStorage.setItem('pos_products', prodJson);
+      }
 
+      // --- Other keys: read from tenant key, fall back to global ---
+      const rawSales    = localStorage.getItem(tenantSalesKey)    || localStorage.getItem('pos_sales');
+      const rawSettings = localStorage.getItem(tenantSettingsKey) || localStorage.getItem('pos_settings');
+      const rawCats     = localStorage.getItem(tenantCatKey)      || localStorage.getItem('pos_categories');
+      const rawCoupons  = localStorage.getItem(tenantCouponKey)   || localStorage.getItem('pos_coupons');
+      const rawCusts    = localStorage.getItem(tenantCustKey)     || localStorage.getItem('pos_customers');
+
+      this.sales     = (rawSales    && rawSales    !== '[]') ? JSON.parse(rawSales)    : [];
+      this.settings  = (rawSettings && rawSettings !== '{}') ? JSON.parse(rawSettings) : (typeof DEFAULT_SETTINGS !== 'undefined' ? DEFAULT_SETTINGS : {});
+      this.categories= (rawCats     && rawCats     !== '[]') ? JSON.parse(rawCats)     : (isGuestStore && typeof INITIAL_CATEGORIES !== 'undefined' ? INITIAL_CATEGORIES : []);
+      this.coupons   = (rawCoupons  && rawCoupons  !== '[]') ? JSON.parse(rawCoupons)  : [];
+      this.customers = (rawCusts    && rawCusts    !== '[]') ? JSON.parse(rawCusts)    : [];
+
+      applyMerchantCustomWallpaper(this.settings);
       this.updateSidebarStoreProfile();
       this.populateCategoryDropdowns();
       this.renderCoupons();
@@ -236,9 +251,7 @@ class AdminPanel {
       this.refreshCurrentView();
     };
 
-    window.addEventListener('storage', reloadState);
-    window.addEventListener('pos_cloud_update', reloadState);
-    window.addEventListener('pos_tenant_changed', reloadState);
+    // reloadAdminState above is the single authoritative handler — no duplicate registration needed here.
 
     document.addEventListener('click', (e) => {
       if (e.target.closest('.close-modal')) {
@@ -2278,7 +2291,8 @@ class AdminPanel {
 
     if (typeof JsBarcode !== 'undefined') {
       JsBarcode("#rcptBarcodeSvg", sale.id, {
-        format: "CODE128", width: 1.8, height: 48, displayValue: true, fontSize: 13, fontOptions: "bold", font: "monospace", margin: 8,
+        format: "CODE128", width: 1.8, height: 48, displayValue: true, fontSize: 13, fontOptions: "bold", font: "monospace",
+        marginTop: 8, marginBottom: 8, marginLeft: 18, marginRight: 18,
         background: "#ffffff", lineColor: "#000000"
       });
     }
@@ -2358,30 +2372,42 @@ class AdminPanel {
       });
     }
 
-    // Canvas Image Compression Helper for Device Gallery Photos
-    const compressGalleryImage = (file, maxDimension = 800, quality = 0.8, callback) => {
+    // Canvas Image Compression Helper — Auto-scales any resolution down to max 1080px
+    // Automatically outputs WebP (smaller size) where browser supports it, else JPEG
+    const compressGalleryImage = (file, maxDimension = 1080, quality = 0.85, callback) => {
       if (!file) return;
       const reader = new FileReader();
       reader.onload = (e) => {
         const img = new Image();
         img.onload = () => {
-          let width = img.width;
+          let width  = img.width;
           let height = img.height;
+
+          // Scale down if either dimension exceeds maxDimension
           if (width > maxDimension || height > maxDimension) {
             if (width > height) {
               height = Math.round((height * maxDimension) / width);
-              width = maxDimension;
+              width  = maxDimension;
             } else {
-              width = Math.round((width * maxDimension) / height);
+              width  = Math.round((width * maxDimension) / height);
               height = maxDimension;
             }
           }
+
           const canvas = document.createElement('canvas');
-          canvas.width = width;
+          canvas.width  = width;
           canvas.height = height;
           const ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0, width, height);
-          const dataUrl = canvas.toDataURL('image/jpeg', quality);
+
+          // Smart quality: bigger original → more compression to save Firebase space
+          const megapixels = (img.width * img.height) / 1_000_000;
+          const smartQuality = megapixels > 8 ? 0.75 : megapixels > 4 ? 0.80 : quality;
+
+          // Prefer WebP (30-40% smaller than JPEG), fall back to JPEG
+          const supportsWebP = canvas.toDataURL('image/webp').startsWith('data:image/webp');
+          const format  = supportsWebP ? 'image/webp' : 'image/jpeg';
+          const dataUrl = canvas.toDataURL(format, smartQuality);
           callback(dataUrl);
         };
         img.src = e.target.result;
@@ -2400,7 +2426,7 @@ class AdminPanel {
       settingLogoFileInput.addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (file) {
-          compressGalleryImage(file, 800, 0.8, (dataUrl) => {
+          compressGalleryImage(file, 1080, 0.85, (dataUrl) => {
             const hiddenVal = document.getElementById('settingStoreLogo');
             if (hiddenVal) hiddenVal.value = dataUrl;
             if (settingLogoPreview) settingLogoPreview.src = dataUrl;
@@ -2524,6 +2550,7 @@ class AdminPanel {
     });
 
     // Product Image Device/Gallery File Upload Listener
+    // Images are uploaded to Firebase Storage → CDN URL stored (keeps Firestore tiny → unlimited products)
     const prodUploadBtn = document.getElementById('prodFormUploadBtn');
     const prodFileInput = document.getElementById('prodFormFileInput');
     const prodFormImgPreview = document.getElementById('prodFormImgPreview');
@@ -2532,18 +2559,43 @@ class AdminPanel {
       if (prodFormImgPreview) prodFormImgPreview.addEventListener('click', () => prodFileInput.click());
       prodFileInput.addEventListener('change', (e) => {
         const file = e.target.files[0];
-        if (file) {
-          compressGalleryImage(file, 800, 0.8, (dataUrl) => {
-            document.getElementById('prodFormImage').value = dataUrl;
-            if (prodFormImgPreview) prodFormImgPreview.src = dataUrl;
-            const fileNameEl = document.getElementById('prodImgFileName');
+        if (!file) return;
+
+        const fileNameEl = document.getElementById('prodImgFileName');
+        const hiddenImg   = document.getElementById('prodFormImage');
+
+        // Step 1: Compress image first
+        compressGalleryImage(file, 1080, 0.85, async (dataUrl) => {
+          // Show preview immediately from compressed dataUrl
+          if (prodFormImgPreview) prodFormImgPreview.src = dataUrl;
+          if (fileNameEl) fileNameEl.innerText = `⏫ আপলোড হচ্ছে...`;
+
+          // Step 2: Upload to Firebase Storage, get CDN URL
+          const storeId   = localStorage.getItem('pos_active_store_id') || 'store_default';
+          const safeName  = `prod_${Date.now()}`;
+
+          try {
+            const finalUrl = await window.uploadImageToStorage(
+              dataUrl, storeId, safeName,
+              (pct) => { if (fileNameEl) fileNameEl.innerText = `⏫ আপলোড: ${pct}%`; }
+            );
+            if (hiddenImg) hiddenImg.value = finalUrl;
+            if (fileNameEl) {
+              fileNameEl.innerText = window.isStorageUrl && window.isStorageUrl(finalUrl)
+                ? `✅ ${file.name} (Cloud-এ সেভ হয়েছে)`
+                : file.name;
+            }
+          } catch (err) {
+            // Fallback: store base64
+            if (hiddenImg) hiddenImg.value = dataUrl;
             if (fileNameEl) fileNameEl.innerText = file.name;
-          });
-        }
+          }
+        });
       });
     }
 
     // Category Image Device/Gallery File Upload Listener
+    // Images are uploaded to Firebase Storage → CDN URL stored
     const catUploadBtn = document.getElementById('catFormUploadBtn');
     const catFileInput = document.getElementById('catFormFileInput');
     const catFormImgPreview = document.getElementById('catFormImgPreview');
@@ -2552,14 +2604,34 @@ class AdminPanel {
       if (catFormImgPreview) catFormImgPreview.addEventListener('click', () => catFileInput.click());
       catFileInput.addEventListener('change', (e) => {
         const file = e.target.files[0];
-        if (file) {
-          compressGalleryImage(file, 800, 0.8, (dataUrl) => {
-            document.getElementById('catImgUrl').value = dataUrl;
-            if (catFormImgPreview) catFormImgPreview.src = dataUrl;
-            const fileNameEl = document.getElementById('catImgFileName');
+        if (!file) return;
+
+        const fileNameEl = document.getElementById('catImgFileName');
+        const hiddenCat  = document.getElementById('catImgUrl');
+
+        compressGalleryImage(file, 1080, 0.85, async (dataUrl) => {
+          if (catFormImgPreview) catFormImgPreview.src = dataUrl;
+          if (fileNameEl) fileNameEl.innerText = `⏫ আপলোড হচ্ছে...`;
+
+          const storeId  = localStorage.getItem('pos_active_store_id') || 'store_default';
+          const safeName = `cat_${Date.now()}`;
+
+          try {
+            const finalUrl = await window.uploadImageToStorage(
+              dataUrl, storeId, safeName,
+              (pct) => { if (fileNameEl) fileNameEl.innerText = `⏫ আপলোড: ${pct}%`; }
+            );
+            if (hiddenCat) hiddenCat.value = finalUrl;
+            if (fileNameEl) {
+              fileNameEl.innerText = window.isStorageUrl && window.isStorageUrl(finalUrl)
+                ? `✅ ${file.name} (Cloud-এ সেভ হয়েছে)`
+                : file.name;
+            }
+          } catch (err) {
+            if (hiddenCat) hiddenCat.value = dataUrl;
             if (fileNameEl) fileNameEl.innerText = file.name;
-          });
-        }
+          }
+        });
       });
     }
 
@@ -4076,7 +4148,7 @@ class AdminPanel {
 
     if (typeof JsBarcode !== 'undefined') {
       try {
-        JsBarcode("#rcptBarcodeSvg", sale.id, { format: "CODE128", width: 1.8, height: 48, displayValue: true, fontSize: 13, fontOptions: "bold", font: "monospace", margin: 8, background: "#ffffff", lineColor: "#000000" });
+        JsBarcode("#rcptBarcodeSvg", sale.id, { format: "CODE128", width: 1.8, height: 48, displayValue: true, fontSize: 13, fontOptions: "bold", font: "monospace", marginTop: 8, marginBottom: 8, marginLeft: 18, marginRight: 18, background: "#ffffff", lineColor: "#000000" });
       } catch(e) {}
     }
 
@@ -4117,7 +4189,7 @@ class AdminPanel {
     if (statusText) statusText.innerText = '🖨️ প্রিন্ট হচ্ছে...';
     if (scanline) scanline.style.display = 'block';
 
-    const duration = 2200;
+    const duration = 450;
     if (window.printHub && window.printHub.playPrinterAudio) {
       window.printHub.playPrinterAudio(duration);
     }
@@ -4201,12 +4273,12 @@ class AdminPanel {
 
     if (typeof JsBarcode !== 'undefined') {
       try {
-        JsBarcode("#rcptBarcodeSvg", invId, { format: "CODE128", width: 1.8, height: 48, displayValue: true, fontSize: 13, fontOptions: "bold", font: "monospace", margin: 8, background: "#ffffff", lineColor: "#000000" });
+        JsBarcode("#rcptBarcodeSvg", invId, { format: "CODE128", width: 1.8, height: 48, displayValue: true, fontSize: 13, fontOptions: "bold", font: "monospace", marginTop: 8, marginBottom: 8, marginLeft: 18, marginRight: 18, background: "#ffffff", lineColor: "#000000" });
       } catch(e) {}
     }
 
-    const pxHeight = Math.max(paperEl.offsetHeight || 0, paperEl.getBoundingClientRect().height || 0);
-    const calculatedHeightMm = Math.ceil(pxHeight * 0.2645833) + 4;
+    const pxHeight = Math.max(paperEl.scrollHeight || paperEl.offsetHeight || 0, paperEl.getBoundingClientRect().height || 0);
+    const calculatedHeightMm = Math.ceil((pxHeight * 0.2645833) * 1.06) + 15;
 
     const opt = {
       margin: [2, 2, 2, 2],

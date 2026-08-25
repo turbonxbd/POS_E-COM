@@ -262,22 +262,26 @@ class CashierTerminal {
 
       let rawTenantProd = localStorage.getItem(tenantProdKey);
       let rawGlobalProd = localStorage.getItem('pos_products');
-      let parsedTenant = (rawTenantProd && rawTenantProd !== '[]') ? JSON.parse(rawTenantProd) : null;
-      let parsedGlobal = (rawGlobalProd && rawGlobalProd !== '[]') ? JSON.parse(rawGlobalProd) : null;
+      let parsedTenant  = (rawTenantProd && rawTenantProd !== '[]') ? (() => { try { return JSON.parse(rawTenantProd); } catch(e) { return null; } })() : null;
+      let parsedGlobal  = (rawGlobalProd && rawGlobalProd !== '[]') ? (() => { try { return JSON.parse(rawGlobalProd); } catch(e) { return null; } })() : null;
 
       if (Array.isArray(parsedTenant) && parsedTenant.length > 0) {
         this.products = parsedTenant;
-        localStorage.setItem('pos_products', JSON.stringify(parsedTenant));
       } else if (Array.isArray(parsedGlobal) && parsedGlobal.length > 0) {
         this.products = parsedGlobal;
-        localStorage.setItem(tenantProdKey, JSON.stringify(parsedGlobal));
-      } else {
+      } else if (!this.products || this.products.length === 0) {
         this.products = (isGuestStore && typeof INITIAL_PRODUCTS !== 'undefined') ? INITIAL_PRODUCTS : [];
       }
-      this.sales = savedSales && savedSales !== '[]' ? JSON.parse(savedSales) : [];
-      this.settings = savedSettings && savedSettings !== '{}' ? JSON.parse(savedSettings) : (typeof DEFAULT_SETTINGS !== 'undefined' ? DEFAULT_SETTINGS : {});
+
+      // --- Other keys: read from tenant key, fall back to global ---
+      const rawSales    = localStorage.getItem(tenantSalesKey)    || localStorage.getItem('pos_sales');
+      const rawSettings = localStorage.getItem(tenantSettingsKey) || localStorage.getItem('pos_settings');
+      const rawCusts    = localStorage.getItem(tenantCustKey)     || localStorage.getItem('pos_customers');
+
+      this.sales     = (rawSales    && rawSales    !== '[]') ? JSON.parse(rawSales)    : [];
+      this.settings  = (rawSettings && rawSettings !== '{}') ? JSON.parse(rawSettings) : (typeof DEFAULT_SETTINGS !== 'undefined' ? DEFAULT_SETTINGS : {});
       applyMerchantCustomWallpaper(this.settings);
-      this.customers = savedCusts && savedCusts !== '[]' ? JSON.parse(savedCusts) : [];
+      this.customers = (rawCusts    && rawCusts    !== '[]') ? JSON.parse(rawCusts)    : [];
 
       this.populateCustomerSelect();
       this.renderCart();
@@ -1738,7 +1742,8 @@ class CashierTerminal {
 
     if (typeof JsBarcode !== 'undefined') {
       JsBarcode("#rcptBarcodeSvg", saleRecord.id, {
-        format: "CODE128", width: 1.8, height: 48, displayValue: true, fontSize: 13, fontOptions: "bold", font: "monospace", margin: 8,
+        format: "CODE128", width: 1.8, height: 48, displayValue: true, fontSize: 13, fontOptions: "bold", font: "monospace",
+        marginTop: 8, marginBottom: 8, marginLeft: 18, marginRight: 18,
         background: "#ffffff", lineColor: "#000000"
       });
     }
@@ -3910,7 +3915,7 @@ class CashierTerminal {
     if (statusText) statusText.innerText = '🖨️ প্রিন্ট হচ্ছে...';
     if (scanline) scanline.style.display = 'block';
 
-    const duration = 2200;
+    const duration = 450;
     if (window.printHub && window.printHub.playPrinterAudio) {
       window.printHub.playPrinterAudio(duration);
     }
@@ -3995,14 +4000,15 @@ class CashierTerminal {
     if (typeof JsBarcode !== 'undefined') {
       try {
         JsBarcode("#rcptBarcodeSvg", invId, {
-          format: "CODE128", width: 1.8, height: 48, displayValue: true, fontSize: 13, fontOptions: "bold", font: "monospace", margin: 8,
+          format: "CODE128", width: 1.8, height: 48, displayValue: true, fontSize: 13, fontOptions: "bold", font: "monospace",
+          marginTop: 8, marginBottom: 8, marginLeft: 18, marginRight: 18,
           background: "#ffffff", lineColor: "#000000"
         });
       } catch(e) {}
     }
 
-    const pxHeight = Math.max(paperEl.offsetHeight || 0, paperEl.getBoundingClientRect().height || 0);
-    const calculatedHeightMm = Math.ceil(pxHeight * 0.2645833) + 4;
+    const pxHeight = Math.max(paperEl.scrollHeight || paperEl.offsetHeight || 0, paperEl.getBoundingClientRect().height || 0);
+    const calculatedHeightMm = Math.ceil((pxHeight * 0.2645833) * 1.06) + 15;
 
     const opt = {
       margin: [2, 2, 2, 2],

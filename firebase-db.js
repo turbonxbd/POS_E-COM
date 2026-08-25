@@ -1,4 +1,5 @@
 // SmartPOS - Multi-Tenant Firebase Cloud Firestore Sync & Data Security Engine
+// v5.0.0 — Server-as-Source-of-Truth Architecture
 // Handles 100% isolated merchant store databases, tenant namespacing, and data loss prevention
 
 const firebaseConfig = {
@@ -28,6 +29,8 @@ class FirebasePOSSync {
     this.globalKeys = ['pos_subscriptions', 'pos_subscription', 'pos_landing_cms', 'pos_active_store_id', 'pos_session_logged_in', 'pos_theme', 'pos_master_authenticated'];
     this.isApplyingRemoteChange = false;
     this.unsubscribers = [];
+    // Per-key local write timestamps for conflict resolution
+    this._localUpdatedAt = {};
 
     // Ensure tenant-isolated LocalStorage state is active
     this.syncTenantLocalStorageCache();
@@ -47,12 +50,11 @@ class FirebasePOSSync {
       this.hookLocalStorage();
     }
 
-    // Auto-Sync offline sales, products, categories, coupons & settings when Internet connection is restored
+    // Auto-Sync offline data when Internet connection is restored
     window.addEventListener('online', async () => {
-      console.log('[Firebase Cloud Sync] Internet reconnected! Auto-syncing offline data to cloud...');
+      console.log('[Firebase Cloud Sync] Internet reconnected! Auto-syncing offline data...');
       if (this.storeId && this.db) {
         try {
-          // 1. Sync all tenant data keys (products, categories, sales, settings, gateways, customers)
           for (const key of this.keys) {
             const tenantKey = this.getTenantStorageKey(key);
             const localVal = localStorage.getItem(tenantKey) || localStorage.getItem(key);
@@ -61,7 +63,6 @@ class FirebasePOSSync {
             }
           }
 
-          // 2. Sync tenant master subscription profile (including updated password and shop details)
           const activeSub = JSON.parse(localStorage.getItem('pos_subscription')) || {};
           const tenantSettings = JSON.parse(localStorage.getItem(`pos_tenant_${this.storeId}_pos_settings`)) || JSON.parse(localStorage.getItem('pos_settings')) || {};
 
@@ -75,7 +76,7 @@ class FirebasePOSSync {
             }, { merge: true }).catch(() => {});
           }
 
-          console.log('[Firebase Cloud Sync] 🎉 Offline products, categories, sales & settings successfully synced to cloud!');
+          console.log('[Firebase Cloud Sync] Offline sync completed!');
           window.dispatchEvent(new CustomEvent('pos_online_sync_completed', { detail: { storeId: this.storeId } }));
         } catch (err) {
           console.warn('[Firebase Cloud Sync Warning]:', err);
@@ -84,19 +85,18 @@ class FirebasePOSSync {
     });
   }
 
-  // Get tenant-namespaced LocalStorage key to prevent cross-merchant cache pollution
+  // Get tenant-namespaced LocalStorage key
   getTenantStorageKey(key) {
     if (this.globalKeys.includes(key)) return key;
     return `pos_tenant_${this.storeId}_${key}`;
   }
 
-  // Strict tenant data sanitizer: guarantees items belonging to other stores are NEVER leaked
+  // Strict tenant data sanitizer
   sanitizeTenantData(key, rawJsonString) {
     if (!rawJsonString) return null;
     try {
       const parsed = JSON.parse(rawJsonString);
       if (Array.isArray(parsed)) {
-        // Filter array items: keep item if storeId matches current storeId OR is unassigned legacy
         const filtered = parsed.filter(item => !item.storeId || item.storeId === this.storeId);
         return JSON.stringify(filtered);
       }
@@ -106,7 +106,7 @@ class FirebasePOSSync {
     }
   }
 
-  // Synchronize local memory cache with active merchant store namespace & Auto-Migrate Legacy Data ONLY for Guest Store
+  // Synchronize local memory cache with active merchant store namespace
   syncTenantLocalStorageCache() {
     this.isApplyingRemoteChange = true;
     const isGuestStore = !this.storeId || this.storeId === 'store_demo_101' || this.storeId === 'store_default';
@@ -115,12 +115,11 @@ class FirebasePOSSync {
       const tenantKey = this.getTenantStorageKey(key);
       let tenantData = localStorage.getItem(tenantKey);
 
-      // Sanitize existing tenantData to eliminate any items from other stores
       if (tenantData) {
         tenantData = this.sanitizeTenantData(key, tenantData);
       }
 
-      // AUTO-MIGRATION FALLBACK: Only for Guest Store (store_demo_101)!
+      // AUTO-MIGRATION: Only for Guest Store!
       if (isGuestStore && (!tenantData || tenantData === '[]' || tenantData === '{}')) {
         const legacyData = localStorage.getItem(key) || localStorage.getItem(`${key}_raw_backup`);
         if (legacyData && legacyData !== '[]' && legacyData !== '{}') {
@@ -148,28 +147,31 @@ class FirebasePOSSync {
   setStoreId(newStoreId) {
     if (!newStoreId || newStoreId === this.storeId) return;
 
-    // Create cloud backup snapshot of current store before switching
     this.createBackupSnapshot();
 
-    // Unsubscribe from previous store listeners
     this.unsubscribers.forEach(unsub => typeof unsub === 'function' && unsub());
     this.unsubscribers = [];
 
+    // Clear global alias keys to prevent old store data bleeding into new store UI
+    this.keys.forEach(key => {
+      const emptyVal = key === 'pos_settings' ? '{}' : '[]';
+      localStorage.setItem(key, emptyVal);
+    });
+
     this.storeId = newStoreId;
+    this._localUpdatedAt = {};
     localStorage.setItem('pos_active_store_id', newStoreId);
 
-    // Switch tenant LocalStorage cache namespace
     this.syncTenantLocalStorageCache();
 
     console.log(`[Firebase Cloud] Switched active store to: ${newStoreId}`);
     this.initCloudSync();
 
-    // Notify all UI components to re-render with new merchant's isolated data
     window.dispatchEvent(new Event('storage'));
     window.dispatchEvent(new CustomEvent('pos_tenant_changed', { detail: { storeId: newStoreId } }));
   }
 
-  // Hook into LocalStorage to auto-push local changes & prevent accidental deletion
+  // Hook into LocalStorage to auto-push local changes
   hookLocalStorage() {
     const originalSetItem = localStorage.setItem.bind(localStorage);
     const originalGetItem = localStorage.getItem.bind(localStorage);
@@ -177,15 +179,14 @@ class FirebasePOSSync {
     const self = this;
 
     localStorage.setItem = function (key, value) {
+      originalSetItem(key, value);
+
       if (self.keys.includes(key) && !self.isApplyingRemoteChange) {
         const tenantKey = self.getTenantStorageKey(key);
         originalSetItem(tenantKey, value);
         originalSetItem(`${key}_raw_backup`, value);
-      }
-
-      originalSetItem(key, value);
-
-      if (self.keys.includes(key) && !self.isApplyingRemoteChange) {
+        // Track local write time for conflict resolution
+        self._localUpdatedAt[key] = Date.now();
         self.pushKeyToCloud(key, value);
       }
     };
@@ -205,7 +206,6 @@ class FirebasePOSSync {
       if (self.keys.includes(key)) {
         const currentVal = originalGetItem(key);
         if (currentVal && currentVal !== '[]') {
-          console.warn(`[Data Safeguard] Preventing permanent deletion of ${key}. Creating safety backup.`);
           originalSetItem(`${key}_soft_deleted_backup_${Date.now()}`, currentVal);
         }
       }
@@ -213,18 +213,25 @@ class FirebasePOSSync {
     };
   }
 
-  // Push single key data to Firestore under isolated store document path
+  // Push single key data to Firestore with 1MB size guard
   async pushKeyToCloud(key, jsonStringValue) {
-    if (!this.db || !this.storeId) return;
+    if (!this.db || !this.storeId || this.storeId === 'store_demo_101') return;
+
+    // Firestore document 1MB limit protection
+    const byteSize = new Blob([jsonStringValue]).size;
+    if (byteSize > 900000) {
+      console.warn(`[Firebase Cloud] WARNING: ${key} data is ${(byteSize / 1024).toFixed(0)}KB — approaching 1MB Firestore limit! Compress product images.`);
+      window.dispatchEvent(new CustomEvent('pos_storage_size_warning', { detail: { key, byteSize } }));
+    }
+    if (byteSize > 1048000) {
+      console.error(`[Firebase Cloud] BLOCKED: ${key} (${(byteSize / 1024).toFixed(0)}KB) exceeds 1MB Firestore limit. Compress product images to fix.`);
+      return;
+    }
+
     try {
       let parsedData;
-      try {
-        parsedData = JSON.parse(jsonStringValue);
-      } catch (e) {
-        parsedData = jsonStringValue;
-      }
+      try { parsedData = JSON.parse(jsonStringValue); } catch (e) { parsedData = jsonStringValue; }
 
-      // Add merchant tenant scoping to products to prevent barcode collisions
       if (key === 'pos_products' && Array.isArray(parsedData)) {
         parsedData = parsedData.map(p => ({
           ...p,
@@ -236,16 +243,18 @@ class FirebasePOSSync {
       await this.db.collection('stores').doc(this.storeId).collection('pos_data').doc(key).set({
         storeId: this.storeId,
         data: parsedData,
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        clientUpdatedAt: Date.now()
       }, { merge: true });
 
-      console.log(`[Firebase Cloud] Synced ${key} for Store [${this.storeId}]`);
+      console.log(`[Firebase Cloud] Synced ${key} (${(byteSize / 1024).toFixed(1)}KB) for Store [${this.storeId}]`);
     } catch (error) {
       console.error(`[Firebase Cloud Error] Failed to push ${key}:`, error);
     }
   }
 
-  // Listen to live Cloud changes via Firestore onSnapshot for active store & global CMS
+  // Listen to live Cloud changes via Firestore onSnapshot
+  // *** SERVER IS THE SINGLE SOURCE OF TRUTH ***
   initCloudSync() {
     if (!this.db || !this.storeId) return;
 
@@ -254,64 +263,74 @@ class FirebasePOSSync {
 
       const unsub = docRef.onSnapshot(doc => {
         if (!doc.exists) {
-          // If Firestore document doesn't exist yet, seed from LocalStorage if available
-          const localVal = localStorage.getItem(key);
-          if (localVal && localVal !== '[]') {
-            this.pushKeyToCloud(key, localVal);
+          // Document doesn't exist yet — only seed from local if this device JUST wrote (within 30 sec)
+          // This prevents old stale device data from overwriting intentional empty state on server
+          const localTs = this._localUpdatedAt[key] || 0;
+          const isVeryRecentLocalWrite = (Date.now() - localTs) < 30000;
+          if (isVeryRecentLocalWrite) {
+            const tenantKey = this.getTenantStorageKey(key);
+            const localVal = localStorage.getItem(tenantKey) || localStorage.getItem(key);
+            if (localVal && localVal !== '[]' && localVal !== '{}') {
+              console.log(`[Firebase Cloud] Seeding fresh local ${key} to new cloud document...`);
+              this.pushKeyToCloud(key, localVal);
+            }
           }
+          // DO NOT seed stale local data — server empty state is intentional (e.g., all products deleted)
           return;
         }
 
         const remotePayload = doc.data();
-        if (remotePayload && remotePayload.data !== undefined) {
-          const remoteJson = JSON.stringify(remotePayload.data);
-          const currentLocalJson = localStorage.getItem(key);
+        if (!remotePayload || remotePayload.data === undefined) return;
 
-          // PROTECT LOCAL MERCHANT DATA: Never overwrite local non-empty products with empty remote array!
-          const isRemoteEmpty = !remotePayload.data || (Array.isArray(remotePayload.data) && remotePayload.data.length === 0);
-          const isLocalNotEmpty = currentLocalJson && currentLocalJson !== '[]' && currentLocalJson !== '{}';
+        // Timestamp-based conflict resolution:
+        // If THIS DEVICE wrote more recently than server ts, skip (our write is inflight to server)
+        const serverClientTs = remotePayload.clientUpdatedAt || 0;
+        const localTs = this._localUpdatedAt[key] || 0;
+        if (localTs > serverClientTs + 2000) {
+          console.log(`[Firebase Cloud] Skipping stale snapshot for ${key} (local is ${localTs - serverClientTs}ms newer)`);
+          return;
+        }
 
-          if (isRemoteEmpty && isLocalNotEmpty) {
-            console.log(`[Data Safeguard] Remote ${key} is empty, but local has data! Seeding local data to cloud...`);
-            this.pushKeyToCloud(key, currentLocalJson);
-            return;
-          }
+        // SERVER WINS — always apply server data to local cache
+        let finalData = remotePayload.data;
 
-          let finalData = remotePayload.data;
-
-          // Smart Sales Merger: Merge remote sales with any un-synced local sales by unique Invoice ID
-          if (key === 'pos_sales' && Array.isArray(remotePayload.data)) {
-            let localSales = [];
-            try { localSales = JSON.parse(currentLocalJson || '[]'); } catch (e) {}
-            if (Array.isArray(localSales) && localSales.length > 0) {
-              const salesMap = new Map();
-              remotePayload.data.forEach(s => { if (s && (s.id || s.timestamp)) salesMap.set(s.id || s.timestamp, s); });
-              localSales.forEach(s => { if (s && (s.id || s.timestamp) && !salesMap.has(s.id || s.timestamp)) salesMap.set(s.id || s.timestamp, s); });
-              finalData = Array.from(salesMap.values()).sort((a,b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
-              
-              if (finalData.length > remotePayload.data.length) {
-                console.log(`[Data Safeguard] Found ${finalData.length - remotePayload.data.length} offline local sales! Pushing merged array to cloud...`);
-                this.pushKeyToCloud('pos_sales', JSON.stringify(finalData));
+        // Smart Sales Merger: preserve unsynced offline sales
+        if (key === 'pos_sales' && Array.isArray(remotePayload.data)) {
+          const tenantKey = this.getTenantStorageKey(key);
+          let localSales = [];
+          try { localSales = JSON.parse(localStorage.getItem(tenantKey) || localStorage.getItem(key) || '[]'); } catch (e) {}
+          if (Array.isArray(localSales) && localSales.length > 0) {
+            const salesMap = new Map();
+            remotePayload.data.forEach(s => { if (s && (s.id || s.timestamp)) salesMap.set(s.id || s.timestamp, s); });
+            // Only add local sales missing from server (unsynced offline)
+            localSales.forEach(s => {
+              if (s && (s.id || s.timestamp) && !salesMap.has(s.id || s.timestamp)) {
+                salesMap.set(s.id || s.timestamp, s);
               }
+            });
+            const merged = Array.from(salesMap.values()).sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
+            if (merged.length > remotePayload.data.length) {
+              console.log(`[Firebase Cloud] Merging ${merged.length - remotePayload.data.length} offline sales to server...`);
+              this.pushKeyToCloud('pos_sales', JSON.stringify(merged));
             }
+            finalData = merged;
           }
+        }
 
-          const finalJson = JSON.stringify(finalData);
+        const finalJson = JSON.stringify(finalData);
+        const tenantKey = this.getTenantStorageKey(key);
+        const currentTenantJson = localStorage.getItem(tenantKey);
 
-          // Update local cache if data has changed remotely
-          if (finalJson !== currentLocalJson) {
-            this.isApplyingRemoteChange = true;
-            const tenantKey = this.getTenantStorageKey(key);
-            localStorage.setItem(tenantKey, finalJson);
-            localStorage.setItem(key, finalJson);
-            localStorage.setItem(`${key}_raw_backup`, finalJson);
-            this.isApplyingRemoteChange = false;
+        if (finalJson !== currentTenantJson) {
+          this.isApplyingRemoteChange = true;
+          localStorage.setItem(tenantKey, finalJson);
+          localStorage.setItem(key, finalJson);
+          localStorage.setItem(`${key}_raw_backup`, finalJson);
+          this.isApplyingRemoteChange = false;
 
-            // Trigger window storage & custom cloud update events to update UI
-            window.dispatchEvent(new Event('storage'));
-            window.dispatchEvent(new CustomEvent('pos_cloud_update', { detail: { key, data: finalData } }));
-            console.log(`[Firebase Cloud] Live update for ${key} in Store [${this.storeId}]`);
-          }
+          window.dispatchEvent(new Event('storage'));
+          window.dispatchEvent(new CustomEvent('pos_cloud_update', { detail: { key, data: finalData } }));
+          console.log(`[Firebase Cloud] Live update applied for ${key} in Store [${this.storeId}]`);
         }
       }, err => {
         console.error(`[Firebase Cloud Listener Error] ${key}:`, err);
@@ -320,7 +339,7 @@ class FirebasePOSSync {
       this.unsubscribers.push(unsub);
     });
 
-    // Synchronize Super Admin CMS Pricing & Content in Realtime
+    // CMS Sync
     try {
       const cmsDocRef = this.db.collection('landing_cms').doc('content');
       const cmsUnsub = cmsDocRef.onSnapshot(doc => {
@@ -337,7 +356,7 @@ class FirebasePOSSync {
       this.unsubscribers.push(cmsUnsub);
     } catch (e) {}
 
-    // Synchronize All Subscriptions in Realtime across Cashier, Merchant Admin, and Super Admin
+    // Subscriptions Sync
     try {
       const activeStoreId = this.storeId || localStorage.getItem('pos_active_store_id');
       const settings = JSON.parse(localStorage.getItem('pos_settings')) || {};
@@ -354,7 +373,6 @@ class FirebasePOSSync {
               allSubs.push(data);
             }
 
-            // Check if this doc matches active merchant
             if (doc.id === activeStoreId || doc.id === this.storeId || (settings.storeName && data.storeName === settings.storeName)) {
               let activeSub = JSON.parse(localStorage.getItem('pos_subscription')) || {};
               activeSub = { ...activeSub, ...data };
@@ -375,7 +393,7 @@ class FirebasePOSSync {
     } catch (e) {}
   }
 
-  // Create automated cloud backup snapshot of current store data
+  // Create automated cloud backup snapshot
   async createBackupSnapshot() {
     if (!this.db || !this.storeId) return;
     try {
@@ -409,68 +427,37 @@ class FirebasePOSSync {
 
     const freshSettings = {
       storeName: storeProfile.storeName || 'My New Shop',
-      ownerName: ownerName,
-      storeOwner: ownerName,
-      phone: phone,
-      storePhone: phone,
-      personalPhone: phone,
-      email: email,
-      storeEmail: email,
-      personalEmail: email,
-      storeAddress: storeAddress,
+      ownerName, storeOwner: ownerName,
+      phone, storePhone: phone, personalPhone: phone,
+      email, storeEmail: email, personalEmail: email,
+      storeAddress,
       storeLogo: storeProfile.storeLogo || '',
       adminPin: storeProfile.adminPin || '1234',
       receiptHeaderNote: `${storeAddress} | Mobile: ${phone}`,
       receiptFooterNote: storeProfile.receiptFooterNote || 'ধন্যবাদ! আবার আসবেন।',
-      defaultTaxMode: 'percent',
-      defaultTax: 0,
-      defaultDiscountMode: 'percent',
-      defaultDiscountValue: 0
+      defaultTaxMode: 'percent', defaultTax: 0,
+      defaultDiscountMode: 'percent', defaultDiscountValue: 0
     };
 
     const freshDataMap = {
-      pos_products: [],
-      pos_sales: [],
-      pos_customers: [],
-      pos_categories: [],
-      pos_coupons: [],
-      pos_settings: freshSettings
+      pos_products: [], pos_sales: [], pos_customers: [],
+      pos_categories: [], pos_coupons: [], pos_settings: freshSettings
     };
 
-    const fullProfile = {
-      ...storeProfile,
-      storeId,
-      ownerName,
-      phone,
-      email,
-      isFreshSignup: true
-    };
-
-    // Save profile to master stores directory
     await this.db.collection('stores').doc(storeId).set({
-      profile: fullProfile,
-      storeId: storeId,
-      storeName: storeProfile.storeName,
-      ownerName: ownerName,
-      phone: phone,
-      email: email,
-      isFreshSignup: true,
-      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      profile: { ...storeProfile, storeId, ownerName, phone, email, isFreshSignup: true },
+      storeId, storeName: storeProfile.storeName, ownerName, phone, email,
+      isFreshSignup: true, createdAt: firebase.firestore.FieldValue.serverTimestamp()
     }, { merge: true });
 
-    // Seed empty arrays & settings to Firestore
     for (const [key, data] of Object.entries(freshDataMap)) {
       await this.db.collection('stores').doc(storeId).collection('pos_data').doc(key).set({
-        storeId: storeId,
-        data: data,
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        storeId, data, updatedAt: firebase.firestore.FieldValue.serverTimestamp(), clientUpdatedAt: Date.now()
       }, { merge: true });
     }
 
-    // Set local storage for this active store session
     this.isApplyingRemoteChange = true;
     localStorage.setItem('pos_active_store_id', storeId);
-    
     this.storeId = storeId;
     this.keys.forEach(key => {
       const val = JSON.stringify(freshDataMap[key] !== undefined ? freshDataMap[key] : (key === 'pos_settings' ? freshSettings : []));
@@ -478,13 +465,130 @@ class FirebasePOSSync {
       localStorage.setItem(tenantKey, val);
       localStorage.setItem(key, val);
     });
-
     this.isApplyingRemoteChange = false;
 
     this.setStoreId(storeId);
     console.log(`[Firebase Cloud] Successfully initialized fresh empty store [${storeId}]`);
   }
+
+  // Force-pull latest data from server for a specific key (bypass local cache)
+  async forcePullFromServer(key) {
+    if (!this.db || !this.storeId) return null;
+    try {
+      const doc = await this.db.collection('stores').doc(this.storeId).collection('pos_data').doc(key).get();
+      if (doc.exists && doc.data() && doc.data().data !== undefined) {
+        const remoteData = doc.data().data;
+        const remoteJson = JSON.stringify(remoteData);
+        const tenantKey = this.getTenantStorageKey(key);
+        this.isApplyingRemoteChange = true;
+        localStorage.setItem(tenantKey, remoteJson);
+        localStorage.setItem(key, remoteJson);
+        localStorage.setItem(`${key}_raw_backup`, remoteJson);
+        this.isApplyingRemoteChange = false;
+        window.dispatchEvent(new CustomEvent('pos_cloud_update', { detail: { key, data: remoteData } }));
+        console.log(`[Firebase Cloud] Force-pulled fresh ${key} from server.`);
+        return remoteData;
+      }
+    } catch (e) {
+      console.warn(`[Firebase Cloud] Force-pull failed for ${key}:`, e);
+    }
+    return null;
+  }
+
+  // Compatibility alias for saveProducts() and other admin/cashier callers
+  saveDoc(key, data) {
+    return this.pushKeyToCloud(key, JSON.stringify(data));
+  }
 }
 
-// Instantiate global sync engine
+// Instantiate global sync engine — expose under BOTH names for full compatibility
 window.POS_FIREBASE = new FirebasePOSSync();
+window.posFirebase  = window.POS_FIREBASE;
+
+
+// ============================================================
+// FIREBASE STORAGE — Image Upload Engine
+// Uploads product/category images to Firebase Storage CDN
+// Returns a permanent public URL instead of base64 string
+// This keeps Firestore documents tiny → unlimited products
+// ============================================================
+
+/**
+ * Upload a base64 dataURL image to Firebase Storage.
+ * @param {string} dataUrl   - base64 data URL (data:image/...)
+ * @param {string} storeId   - merchant store ID (for folder isolation)
+ * @param {string} fileName  - unique filename (e.g. prod_123.webp)
+ * @param {function} onProgress - optional progress callback (0-100)
+ * @returns {Promise<string>} - resolves with public download URL
+ */
+async function uploadImageToStorage(dataUrl, storeId, fileName, onProgress) {
+  if (!dataUrl || !dataUrl.startsWith('data:')) {
+    // Already a URL — return as-is
+    return dataUrl;
+  }
+
+  if (typeof firebase === 'undefined' || !firebase.storage) {
+    console.warn('[Firebase Storage] SDK not loaded — storing as base64 fallback');
+    return dataUrl;
+  }
+
+  try {
+    const storage = firebase.storage();
+
+    // Convert base64 dataURL → Blob
+    const response = await fetch(dataUrl);
+    const blob = await response.blob();
+
+    // Determine file extension from mime type
+    const mime = blob.type || 'image/jpeg';
+    const ext  = mime.includes('webp') ? 'webp' : mime.includes('png') ? 'png' : 'jpg';
+    const safeName = fileName ? fileName.replace(/[^a-zA-Z0-9_\-]/g, '_') : `img_${Date.now()}`;
+    const storagePath = `merchant_images/${storeId || 'shared'}/${safeName}.${ext}`;
+
+    const storageRef = storage.ref(storagePath);
+    const uploadTask = storageRef.put(blob, { contentType: mime });
+
+    return await new Promise((resolve, reject) => {
+      uploadTask.on(
+        'state_changed',
+        (snapshot) => {
+          const pct = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
+          if (typeof onProgress === 'function') onProgress(pct);
+        },
+        (error) => {
+          console.error('[Firebase Storage] Upload error:', error);
+          // Graceful fallback: store base64 instead of failing completely
+          resolve(dataUrl);
+        },
+        async () => {
+          try {
+            const downloadURL = await uploadTask.snapshot.ref.getDownloadURL();
+            console.log(`[Firebase Storage] ✅ Uploaded: ${storagePath} → ${downloadURL}`);
+            resolve(downloadURL);
+          } catch (e) {
+            console.error('[Firebase Storage] getDownloadURL error:', e);
+            resolve(dataUrl); // Fallback to base64
+          }
+        }
+      );
+    });
+
+  } catch (err) {
+    console.error('[Firebase Storage] uploadImageToStorage failed:', err);
+    return dataUrl; // Always fallback gracefully
+  }
+}
+
+/**
+ * Check if an image field value is a remote URL (Storage CDN)
+ * or a local base64 string. Used for backward compat rendering.
+ */
+function isStorageUrl(value) {
+  return typeof value === 'string' && (value.startsWith('http://') || value.startsWith('https://'));
+}
+
+// Expose globally for admin.js and cashier.js usage
+window.uploadImageToStorage = uploadImageToStorage;
+window.isStorageUrl = isStorageUrl;
+
+
