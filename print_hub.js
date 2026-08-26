@@ -689,7 +689,7 @@ class SmartPrintHub {
           max-height: ${heightMm} !important;
           box-sizing: border-box !important;
           margin: 0 !important;
-          padding: 2px 3px 2px 3px !important;
+          padding: 0 !important;
           page-break-before: auto !important;
           page-break-after: always !important;
           break-after: page !important;
@@ -698,10 +698,18 @@ class SmartPrintHub {
           overflow: hidden !important;
           border: none !important;
           box-shadow: none !important;
+          display: block !important;
+          transform: none !important;
+        }
+        .barcode-sticker-card .sticker-rotate-wrap {
+          width: 100% !important;
+          height: 100% !important;
           display: flex !important;
           flex-direction: column !important;
           align-items: center !important;
           justify-content: space-between !important;
+          box-sizing: border-box !important;
+          padding: 2px 3px !important;
           transform: rotate(180deg) !important;
           transform-origin: center center !important;
         }
@@ -1070,13 +1078,15 @@ class SmartPrintHub {
       const priceHtml = showPrice ? `<div style="font-size:0.66rem; font-weight:800; color:#000; margin-top:1px; margin-bottom:2px; padding-bottom:1px; line-height:1.05;">${priceFormatted}</div>` : '';
 
       stickersHtml += `
-        <div class="barcode-sticker-card hub-sticker" style="background:#fff; color:#000; padding:2px 3px 2px 3px; border:1px solid #ddd; border-radius:4px; text-align:center; box-shadow:0 1px 3px rgba(0,0,0,0.06); display:flex; flex-direction:column; align-items:center; justify-content:space-between; page-break-inside:avoid; break-inside:avoid; box-sizing:border-box; overflow:hidden;">
-          ${nameHtml}
-          ${variantHtml}
-          <div style="width:100%; display:flex; justify-content:center; margin:1px 0;">
-            <svg id="hubBcSvg_${idx}" style="max-width:100%; height:auto; display:block; margin:0 auto; shape-rendering:crispEdges; image-rendering:pixelated;"></svg>
+        <div class="barcode-sticker-card hub-sticker" style="background:#fff; color:#000; border:1px solid #ddd; border-radius:4px; text-align:center; box-shadow:0 1px 3px rgba(0,0,0,0.06); page-break-inside:avoid; break-inside:avoid; box-sizing:border-box; overflow:hidden;">
+          <div class="sticker-rotate-wrap" style="width:100%; display:flex; flex-direction:column; align-items:center; justify-content:space-between; padding:2px 3px; box-sizing:border-box;">
+            ${nameHtml}
+            ${variantHtml}
+            <div style="width:100%; display:flex; justify-content:center; margin:1px 0;">
+              <svg id="hubBcSvg_${idx}" style="max-width:100%; height:auto; display:block; margin:0 auto; shape-rendering:crispEdges; image-rendering:pixelated;"></svg>
+            </div>
+            ${priceHtml}
           </div>
-          ${priceHtml}
         </div>
       `;
     });
