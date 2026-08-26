@@ -3,6 +3,32 @@
 let deferredPrompt = null;
 let swRegistration = null;
 
+const CURRENT_APP_VERSION = '6.5.0';
+
+// Global Live Remote Version Checking Engine (Polls version.json directly from GitHub Pages)
+async function checkRemoteVersionUpdate() {
+  try {
+    const response = await fetch(`./version.json?nocache=${Date.now()}`, {
+      cache: 'no-store',
+      headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' }
+    });
+    if (response.ok) {
+      const data = await response.json();
+      if (data && data.version && data.version !== CURRENT_APP_VERSION) {
+        console.log(`[PWA Live Update Engine] New deployment detected: v${data.version} (current: v${CURRENT_APP_VERSION}). Updating all active tabs now!`);
+        forceAppUpdate();
+      }
+    }
+  } catch (e) {
+    console.warn('[PWA Live Update Engine] Version check warning:', e);
+  }
+}
+
+// Auto-check version immediately on page load
+checkRemoteVersionUpdate();
+// Poll for GitHub Pages deployment updates every 60 seconds automatically
+setInterval(checkRemoteVersionUpdate, 60000);
+
 // Register Service Worker & Listen for New Live Code Updates
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
@@ -47,9 +73,11 @@ if ('serviceWorker' in navigator) {
     window.addEventListener('online', () => {
       console.log('[PWA] Internet reconnected! Checking for new app updates...');
       if (swRegistration) swRegistration.update();
+      checkRemoteVersionUpdate();
     });
     window.addEventListener('focus', () => {
       if (swRegistration) swRegistration.update();
+      checkRemoteVersionUpdate();
     });
   });
 }

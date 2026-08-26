@@ -1,5 +1,5 @@
 // SmartPOS - Service Worker Caching & Instant Automatic Background Update Engine
-const CACHE_NAME = 'smartpos-v6.3.0-live';
+const CACHE_NAME = 'smartpos-v6.5.0-ULTRA-LIVE';
 const ASSETS_TO_CACHE = [
   './portal.html',
   './cashier.html',
@@ -18,6 +18,7 @@ const ASSETS_TO_CACHE = [
   './pwa-install.js',
   './subscription-modal.js',
   './manifest.json',
+  './version.json',
   './icons/icon.svg'
 ];
 
@@ -64,6 +65,12 @@ self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
   const url = event.request.url;
+
+  // Always fetch version.json live without cache to detect instant GitHub deployment updates
+  if (url.includes('version.json')) {
+    event.respondWith(fetch(event.request, { cache: 'no-store' }));
+    return;
+  }
 
   // Ignore chrome-extensions, Firebase WebSockets, and Firestore long-polling requests
   if (url.includes('chrome-extension') || url.includes('firestore.googleapis.com') || url.includes('firebaseio.com')) {
