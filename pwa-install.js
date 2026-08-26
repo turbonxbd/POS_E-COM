@@ -3,7 +3,7 @@
 let deferredPrompt = null;
 let swRegistration = null;
 
-const CURRENT_APP_VERSION = '6.5.0';
+const CURRENT_APP_VERSION = '7.0.0';
 
 // Global Live Remote Version Checking Engine (Polls version.json directly from GitHub Pages)
 async function checkRemoteVersionUpdate() {
