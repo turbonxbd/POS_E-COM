@@ -1273,31 +1273,32 @@
             </div>
           </div>
 
-          <!-- Direct Device / Gallery File Upload -->
-          <div class="form-group mt-3" style="background: var(--bg-sidebar); padding: 1.25rem; border-radius: 14px; border: 1px dashed var(--border-highlight);">
-            <label style="font-weight: 700; color: var(--accent-green); display: flex; justify-content: space-between; align-items: center;">
-              <span><i class="fa-solid fa-image"></i> পণ্যের ছবি (Upload Product Photo) *</span>
-              <small class="text-muted">আপনার ডিভাইস বা মোবাইলের গ্যালারি থেকে সরাসরি ছবি যোগ করুন</small>
-            </label>
+          <!-- Direct Device / Gallery File Upload (Supports Drag-and-Drop & Multiple Product Photos) -->
+          <div class="form-group mt-3" id="prodImgDropZone" style="background: linear-gradient(145deg, rgba(30, 41, 59, 0.4), rgba(15, 23, 42, 0.6)); padding: 1.25rem; border-radius: 16px; border: 2px dashed var(--accent-blue, #3b82f6); transition: all 0.25s ease-in-out; cursor: pointer; position: relative;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+              <label style="font-weight: 700; color: var(--accent-green, #10b981); display: flex; align-items: center; gap: 0.5rem; margin: 0; cursor: pointer;">
+                <i class="fa-solid fa-camera-retro" style="font-size: 1.1rem;"></i> পণ্যের ছবি সমূহ (Upload Product Photos) *
+              </label>
+              <small class="text-muted" style="font-size: 0.8rem; background: rgba(59, 130, 246, 0.1); padding: 3px 8px; border-radius: 6px; border: 1px solid rgba(59, 130, 246, 0.2);"><i class="fa-solid fa-hand-pointer"></i> ফাইল ড্রপ করুন অথবা ব্রাউজ করুন</small>
+            </div>
 
-            <div style="display: flex; gap: 1rem; align-items: center; margin-top: 0.75rem; flex-wrap: wrap;">
-              <!-- File Input (Hidden) -->
-              <input type="file" id="prodFormFileInput" accept="image/*" style="display: none;">
+            <div style="display: flex; gap: 1rem; align-items: center; margin-top: 0.85rem; flex-wrap: wrap;">
+              <!-- File Input (Hidden, Multiple) -->
+              <input type="file" id="prodFormFileInput" accept="image/*" multiple style="display: none;">
 
               <!-- Upload Button -->
-              <button type="button" class="btn btn-primary" id="prodFormUploadBtn">
-                <i class="fa-solid fa-cloud-arrow-up"></i> গ্যালারি থেকে ছবি আপলোড করুন
+              <button type="button" class="btn btn-primary" id="prodFormUploadBtn" style="display: inline-flex; align-items: center; gap: 0.5rem; font-weight: 600; padding: 0.6rem 1.2rem; border-radius: 10px; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);">
+                <i class="fa-solid fa-cloud-arrow-up"></i> গ্যালারি থেকে ছবি যোগ করুন
               </button>
 
-              <!-- Image Value Storage -->
+              <!-- Image Values Storage -->
               <input type="hidden" id="prodFormImage">
-
-              <!-- Live Image Preview -->
-              <div id="prodImgPreviewWrapper" style="display: flex; align-items: center; gap: 0.75rem;">
-                <img id="prodFormImgPreview" src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'><rect width='100' height='100' fill='%231e293b'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='%2394a3b8' font-family='sans-serif' font-size='12'>No Image</text></svg>" style="width: 56px; height: 56px; border-radius: 12px; object-fit: cover; border: 2px solid var(--accent-green);">
-                <small id="prodImgFileName" class="text-muted" style="font-size: 0.82rem;">গ্যালারি থেকে ছবি সিলেক্ট করুন</small>
-              </div>
+              <input type="hidden" id="prodFormImagesJSON">
             </div>
+
+            <!-- Multi-Image Gallery Grid -->
+            <div id="prodGalleryPreviewGrid" style="display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 1rem;"></div>
+            <small id="prodImgFileName" class="text-muted mt-2 display-block" style="font-size: 0.82rem; font-weight: 500;"><i class="fa-solid fa-image"></i> গ্যালারি থেকে একাধিক ছবি সিলেক্ট করুন (প্রথম ছবিটিকে মেইন ছবি হিসেবে ধরা হবে)</small>
           </div>
 
           <!-- DYNAMIC VARIANTS SECTION -->

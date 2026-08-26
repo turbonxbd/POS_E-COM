@@ -643,11 +643,13 @@ class POSApp {
 
   // Complete & Record Sale Transaction
   completeSale(saleRecord) {
+    const now = Date.now();
     // 1. Deduct Stock
     saleRecord.items.forEach(item => {
       const prod = this.products.find(p => p.id === item.id);
       if (prod) {
         prod.stock = Math.max(0, prod.stock - item.quantity);
+        prod.lastStockUpdatedAt = now;
       }
     });
 
@@ -655,6 +657,11 @@ class POSApp {
     this.sales.unshift(saleRecord);
     localStorage.setItem('pos_products', JSON.stringify(this.products));
     localStorage.setItem('pos_sales', JSON.stringify(this.sales));
+
+    if (window.posFirebase && typeof window.posFirebase.saveDoc === 'function') {
+      window.posFirebase.saveDoc('pos_products', this.products);
+      window.posFirebase.saveDoc('pos_sales', this.sales);
+    }
 
     // 3. Play success sound & trigger confetti celebration!
     this.playAudioBeep('success');

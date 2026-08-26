@@ -706,9 +706,7 @@ class SmartPrintHub {
           transform: none !important;
         }
 
-        /* ── Inner wrap: absolutely fills card, rotates content 180° ── */
-        /* Using absolute positioning keeps it out of the layout flow   */
-        /* so page-break on the outer card is never disrupted.          */
+        /* ── Inner wrap: fills card, normal right-side up orientation ── */
         .barcode-sticker-card .sticker-rotate-wrap {
           position: absolute !important;
           top: 0 !important;
@@ -721,7 +719,7 @@ class SmartPrintHub {
           justify-content: space-evenly !important;
           box-sizing: border-box !important;
           padding: 1mm 1.5mm !important;
-          transform: rotate(180deg) !important;
+          transform: none !important;
           transform-origin: center center !important;
         }
 
@@ -1080,33 +1078,49 @@ class SmartPrintHub {
     items.forEach((item, idx) => {
       let priceFormatted = '';
       if (item.mrp && parseFloat(item.mrp) > parseFloat(item.price)) {
-        priceFormatted = `Price:&nbsp;<span style="position: relative; display: inline-block; vertical-align: baseline; color: #333333 !important; font-weight: 700; font-size: 0.88em; margin-right: 5px; line-height: 1.1;">৳${parseFloat(item.mrp).toFixed(0)}<span style="position: absolute; left: -2px; right: -2px; top: 52%; height: 1.2px; background: #000000 !important; background-color: #000000 !important; display: block; transform: translateY(-50%) rotate(-7deg); transform-origin: center; pointer-events: none; z-index: 10;"></span></span>&nbsp;<strong style="color: #000000 !important; font-weight: 900; font-size: 1.05em; display: inline-block; vertical-align: baseline; line-height: 1.1;">৳${parseFloat(item.price).toFixed(0)}</strong>`;
+        priceFormatted = `Price:&nbsp;<span style="display: inline-flex; align-items: baseline; gap: 4px; flex-wrap: nowrap; vertical-align: baseline;"><del style="color: #444444 !important; font-weight: 600; font-size: 0.88em; text-decoration: line-through; margin-right: 2px;">৳${parseFloat(item.mrp).toFixed(0)}</del><strong style="color: #000000 !important; font-weight: 900; font-size: 1.05em; line-height: 1.1;">৳${parseFloat(item.price).toFixed(0)}</strong></span>`;
       } else {
         priceFormatted = `Price:&nbsp;<strong style="color: #000000 !important; font-weight: 900; font-size: 1.05em; display: inline-block; vertical-align: baseline; line-height: 1.1;">৳${parseFloat(item.price).toFixed(0)}</strong>`;
       }
 
-      const nameStr = item.name || '';
-      const len = nameStr.trim().length;
-      let fontStyling = 'font-size:0.56rem; font-weight:700; line-height:1.08; margin-top:2px; margin-bottom:1px; padding:1px 0 0 0;';
-      if (len > 32) {
-        fontStyling = 'font-size:0.48rem; font-weight:600; line-height:1.05; margin-top:2px; margin-bottom:1px; padding:1px 0 0 0;';
-      } else if (len > 22) {
-        fontStyling = 'font-size:0.52rem; font-weight:700; line-height:1.06; margin-top:2px; margin-bottom:1px; padding:1px 0 0 0;';
+      let productName = (item.name || item.productName || item.title || '').trim();
+      if (!productName && item.barcode) {
+        const allProds = (window.admin && window.admin.products) || (window.cashier && window.cashier.products) || [];
+        const found = allProds.find(p => p.variants && p.variants.some(v => String(v.barcode).trim() === String(item.barcode).trim()));
+        if (found) productName = found.name;
+      }
+      if (!productName) productName = 'পণ্য (Product)';
+
+      let rawVariant = (item.variantDetails || `${item.color || ''} ${item.size ? '| ' + item.size : ''}`).trim();
+      if (rawVariant === '|' || rawVariant === 'Standard / N/A' || rawVariant === 'Standard N/A') {
+        rawVariant = '';
       }
 
-      const nameHtml = showName ? `<div style="${fontStyling} width:100%; text-align:center; color:#000; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; word-break:break-word;">${item.name}</div>` : '';
-      const variantHtml = (showVariant && item.variantDetails) ? `<div style="font-size:0.50rem; font-weight:600; color:#333; margin-top:1px; margin-bottom:1px; line-height:1.05;">${item.variantDetails}</div>` : '';
-      const priceHtml = showPrice ? `<div style="font-size:0.66rem; font-weight:800; color:#000; margin-top:1px; margin-bottom:2px; padding-bottom:1px; line-height:1.05;">${priceFormatted}</div>` : '';
+      const len = productName.length;
+      let fontStyling = 'font-size:0.58rem; font-weight:800; line-height:1.1; margin-top:1px; margin-bottom:1px; color:#000000 !important;';
+      if (len > 32) {
+        fontStyling = 'font-size:0.46rem; font-weight:700; line-height:1.05; margin-top:1px; margin-bottom:1px; color:#000000 !important;';
+      } else if (len > 20) {
+        fontStyling = 'font-size:0.52rem; font-weight:800; line-height:1.08; margin-top:1px; margin-bottom:1px; color:#000000 !important;';
+      }
+
+      const nameHtml = `<div style="${fontStyling} width:100%; text-align:center; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; word-break:break-word;">${productName}</div>`;
+      const variantHtml = rawVariant ? `<div style="font-size:0.46rem; font-weight:600; color:#333333 !important; margin-top:0px; margin-bottom:0px; line-height:1.0; width:100%; text-align:center;">${rawVariant}</div>` : '';
+      const priceHtml = showPrice ? `<div style="font-size:0.62rem; font-weight:800; color:#000000 !important; margin-top:0px; margin-bottom:0px; padding-bottom:0px; line-height:1.0; width:100%; text-align:center;">${priceFormatted}</div>` : '';
 
       stickersHtml += `
         <div class="barcode-sticker-card hub-sticker" style="background:#fff; color:#000; border:1px solid #ddd; border-radius:4px; text-align:center; box-shadow:0 1px 3px rgba(0,0,0,0.06); page-break-inside:avoid; break-inside:avoid; box-sizing:border-box; overflow:hidden; position:relative;">
-          <div class="sticker-rotate-wrap" style="width:100%; display:flex; flex-direction:column; align-items:center; justify-content:space-evenly; padding:2px 3px; box-sizing:border-box;">
-            ${nameHtml}
-            ${variantHtml}
-            <div style="width:100%; display:flex; justify-content:center;">
-              <svg id="hubBcSvg_${idx}" style="width:100%; height:auto; display:block; margin:0; shape-rendering:crispEdges; image-rendering:pixelated;"></svg>
+          <div class="sticker-rotate-wrap" style="width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:space-between; padding:1px 2px; box-sizing:border-box;">
+            <div style="width:100%; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; flex-shrink:0;">
+              ${nameHtml}
+              ${variantHtml}
             </div>
-            ${priceHtml}
+            <div style="width:100%; display:flex; justify-content:center; align-items:center; flex:1; min-height:0; overflow:hidden; margin:0;">
+              <svg id="hubBcSvg_${idx}" style="max-width:100%; max-height:100%; display:block; margin:0 auto; shape-rendering:crispEdges; image-rendering:pixelated;"></svg>
+            </div>
+            <div style="width:100%; flex-shrink:0; display:flex; justify-content:center; align-items:center; margin-bottom:1px;">
+              ${priceHtml}
+            </div>
           </div>
         </div>
       `;
@@ -1134,49 +1148,49 @@ class SmartPrintHub {
     if (typeof JsBarcode === 'undefined') return;
 
     let bcWidth = 1.05;
-    let bcHeight = 22;
-    let bcFontSize = 8.5;
+    let bcHeight = 18;
+    let bcFontSize = 7.5;
     let bcMargin = 0;
 
     if (this.paperFormat === 'sticker_38x25') {
       bcWidth = 0.85;   // narrower bars → fits 38mm width perfectly
-      bcHeight = 22;    // taller bars → easier to scan
-      bcFontSize = 7.5;
+      bcHeight = 16;    // 16px bar height guarantees room for 2-line title + variant + price
+      bcFontSize = 7.0;
       bcMargin = 0;
     } else if (this.paperFormat === 'sticker_50x30') {
       bcWidth = 1.25;
-      bcHeight = 32;
-      bcFontSize = 9.0;
+      bcHeight = 24;
+      bcFontSize = 8.5;
       bcMargin = 1;
     } else if (this.paperFormat === 'sticker_50x25') {
       bcWidth = 1.15;
-      bcHeight = 24;
-      bcFontSize = 8.0;
+      bcHeight = 18;
+      bcFontSize = 7.5;
       bcMargin = 0;
     } else if (this.paperFormat === 'sticker_75x50') {
       bcWidth = 1.6;
-      bcHeight = 48;
-      bcFontSize = 10.5;
+      bcHeight = 40;
+      bcFontSize = 10.0;
       bcMargin = 2;
     } else if (this.paperFormat === 'sticker_25x15') {
       bcWidth = 0.8;
-      bcHeight = 15;
-      bcFontSize = 7.0;
+      bcHeight = 12;
+      bcFontSize = 6.0;
       bcMargin = 0;
     } else if (this.paperFormat === '2up_label') {
       bcWidth = 1.15;
-      bcHeight = 24;
-      bcFontSize = 8.0;
+      bcHeight = 18;
+      bcFontSize = 7.5;
       bcMargin = 0;
     } else if (this.paperFormat === 'a4_grid') {
       bcWidth = 1.15;
-      bcHeight = 24;
-      bcFontSize = 8.5;
+      bcHeight = 20;
+      bcFontSize = 8.0;
       bcMargin = 0;
     } else if (this.paperFormat === '58mm') {
       bcWidth = 1.15;
-      bcHeight = 24;
-      bcFontSize = 8.0;
+      bcHeight = 18;
+      bcFontSize = 7.5;
       bcMargin = 0;
     }
 

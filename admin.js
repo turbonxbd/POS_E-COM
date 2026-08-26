@@ -220,11 +220,15 @@ class AdminPanel {
       } else if (!this.products || this.products.length === 0) {
         this.products = (isGuestStore && typeof INITIAL_PRODUCTS !== 'undefined') ? INITIAL_PRODUCTS : [];
       }
-      // Always keep both keys consistent after reading
+      // Always keep both keys consistent after reading (prevent cloud feedback loop)
       if (this.products && this.products.length > 0) {
         const prodJson = JSON.stringify(this.products);
-        if (rawTenantProd !== prodJson) localStorage.setItem(tenantProdKey, prodJson);
-        if (rawGlobalProd !== prodJson) localStorage.setItem('pos_products', prodJson);
+        if (rawTenantProd !== prodJson || rawGlobalProd !== prodJson) {
+          if (window.posFirebase) window.posFirebase.isApplyingRemoteChange = true;
+          if (rawTenantProd !== prodJson) localStorage.setItem(tenantProdKey, prodJson);
+          if (rawGlobalProd !== prodJson) localStorage.setItem('pos_products', prodJson);
+          if (window.posFirebase) window.posFirebase.isApplyingRemoteChange = false;
+        }
       }
 
       // --- Other keys: read from tenant key, fall back to global ---
@@ -1239,6 +1243,81 @@ class AdminPanel {
     if (select) select.value = catName;
   }
 
+  previewFullImage(url) {
+    if (!url) return;
+    const existing = document.getElementById('globalImagePreviewModal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'globalImagePreviewModal';
+    modal.style.cssText = `position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.85); backdrop-filter:blur(8px); z-index:999999; display:flex; align-items:center; justify-content:center; padding:1.5rem; flex-direction:column; gap:1rem; cursor:pointer; animation:fadeIn 0.2s ease-out;`;
+    modal.onclick = (e) => { if (e.target === modal || e.target.tagName === 'BUTTON' || e.target.tagName === 'I') modal.remove(); };
+
+    modal.innerHTML = `
+      <div style="position:relative; max-width:90vw; max-height:85vh; border-radius:16px; overflow:hidden; border:1px solid rgba(255,255,255,0.2); box-shadow:0 25px 50px rgba(0,0,0,0.6);">
+        <img src="${url}" style="max-width:100%; max-height:85vh; display:block; object-fit:contain; border-radius:12px;">
+        <button type="button" style="position:absolute; top:12px; right:12px; background:rgba(0,0,0,0.7); color:#fff; border:none; width:36px; height:36px; border-radius:50%; font-size:1.2rem; cursor:pointer; display:flex; align-items:center; justify-content:center;"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <small style="color:var(--text-muted, #cbd5e1); font-size:0.85rem;"><i class="fa-solid fa-circle-info"></i> ক্লিক করে বড় ছবি দেখা বন্ধ করুন</small>
+    `;
+    document.body.appendChild(modal);
+  }
+
+  moveProductGalleryImage(idx, direction) {
+    if (!Array.isArray(this._currentProductImages)) return;
+    const newIdx = idx + direction;
+    if (newIdx < 0 || newIdx >= this._currentProductImages.length) return;
+    const temp = this._currentProductImages[idx];
+    this._currentProductImages[idx] = this._currentProductImages[newIdx];
+    this._currentProductImages[newIdx] = temp;
+    this.renderProductGalleryPreviews();
+  }
+
+  renderProductGalleryPreviews() {
+    const grid = document.getElementById('prodGalleryPreviewGrid');
+    const hiddenImg = document.getElementById('prodFormImage');
+    const hiddenImages = document.getElementById('prodFormImagesJSON');
+    if (!grid) return;
+
+    if (!Array.isArray(this._currentProductImages)) this._currentProductImages = [];
+
+    const mainUrl = this._currentProductImages[0] || '';
+    if (hiddenImg) hiddenImg.value = mainUrl;
+    if (hiddenImages) hiddenImages.value = JSON.stringify(this._currentProductImages);
+
+    if (this._currentProductImages.length === 0) {
+      grid.innerHTML = `
+        <div style="width:100%; text-align:center; padding:1.2rem; border:1px dashed var(--border-color, #334155); border-radius:12px; background:rgba(255,255,255,0.02);">
+          <i class="fa-solid fa-images" style="font-size:1.6rem; color:var(--accent-blue, #3b82f6); margin-bottom:0.4rem; display:block;"></i>
+          <small class="text-muted" style="font-size:0.85rem; color:var(--text-muted, #94a3b8);">কোনো ছবি যুক্ত নেই। ফটো গ্যালারি ফাইল বা ড্রপজোন থেকে সিলেক্ট করুন।</small>
+        </div>`;
+      return;
+    }
+
+    grid.innerHTML = this._currentProductImages.map((url, idx) => {
+      const isMain = idx === 0;
+      const safeUrl = (url || '').replace(/'/g, "\\'");
+      return `
+        <div class="gallery-thumb-card" style="position:relative; width:88px; height:88px; border-radius:12px; overflow:hidden; border:2px solid ${isMain ? 'var(--accent-green, #10b981)' : 'var(--border-color, #334155)'}; background:#0f172a; display:inline-flex; flex-direction:column; align-items:center; justify-content:center; box-shadow: 0 4px 12px rgba(0,0,0,0.25); transition:all 0.2s ease;">
+          <img src="${url}" onclick="admin.previewFullImage('${safeUrl}')" title="ক্লিক করে বড় করে দেখুন" style="width:100%; height:100%; object-fit:cover; cursor:pointer;" onerror="this.onerror=null; this.src='data:image/svg+xml;utf8,<svg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'88\\' height=\\'88\\' viewBox=\\'0 0 88 88\\'><rect width=\\'88\\' height=\\'88\\' fill=\\'%231e293b\\'/><text x=\\'50%\\' y=\\'50%\\' dominant-baseline=\\'middle\\' text-anchor=\\'middle\\' fill=\\'%2394a3b8\\' font-family=\\'sans-serif\\' font-size=\\'10\\'>Error</text></svg>';">
+          ${isMain ? `<span style="position:absolute; bottom:0; left:0; right:0; background:linear-gradient(90deg, #10b981, #059669); color:#fff; font-size:0.62rem; text-align:center; font-weight:700; padding:2px 0; letter-spacing:0.5px;"><i class="fa-solid fa-star"></i> মেইন ফটো</span>` : ''}
+          <div style="position:absolute; top:4px; right:4px; display:flex; gap:3px; z-index:3;">
+            ${idx > 0 ? `<button type="button" onclick="admin.moveProductGalleryImage(${idx}, -1)" title="মেইন করতে বামে সরান" style="background:rgba(15,23,42,0.85); color:#fff; border:1px solid rgba(255,255,255,0.3); border-radius:4px; width:20px; height:20px; font-size:0.6rem; cursor:pointer; display:flex; align-items:center; justify-content:center;"><i class="fa-solid fa-chevron-left"></i></button>` : ''}
+            ${idx < this._currentProductImages.length - 1 ? `<button type="button" onclick="admin.moveProductGalleryImage(${idx}, 1)" title="ডানে সরান" style="background:rgba(15,23,42,0.85); color:#fff; border:1px solid rgba(255,255,255,0.3); border-radius:4px; width:20px; height:20px; font-size:0.6rem; cursor:pointer; display:flex; align-items:center; justify-content:center;"><i class="fa-solid fa-chevron-right"></i></button>` : ''}
+            <button type="button" onclick="admin.removeProductGalleryImage(${idx})" title="ছবি মুছুন" style="background:rgba(239,68,68,0.9); color:#fff; border:none; border-radius:4px; width:20px; height:20px; font-size:0.65rem; cursor:pointer; font-weight:bold; display:flex; align-items:center; justify-content:center;"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  removeProductGalleryImage(idx) {
+    if (Array.isArray(this._currentProductImages)) {
+      this._currentProductImages.splice(idx, 1);
+      this.renderProductGalleryPreviews();
+    }
+  }
+
   openProductModal(id = null) {
     const modal = document.getElementById('productModal');
     const form = document.getElementById('productForm');
@@ -1256,9 +1335,8 @@ class AdminPanel {
         document.getElementById('prodFormId').value = p.id;
         document.getElementById('prodFormName').value = p.name;
         document.getElementById('prodFormCategory').value = p.category;
-        document.getElementById('prodFormImage').value = p.image || '';
-        document.getElementById('prodFormImgPreview').src = p.image || 'data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'100\' height=\'100\' viewBox=\'0 0 100 100\'><rect width=\'100\' height=\'100\' fill=\'%231e293b\'/><text x=\'50%\' y=\'50%\' dominant-baseline=\'middle\' text-anchor=\'middle\' fill=\'%2394a3b8\' font-family=\'sans-serif\' font-size=\'12\'>No Image</text></svg>';
-        document.getElementById('prodImgFileName').innerText = p.image ? 'সংরক্ষিত ছবি' : 'গ্যালারি থেকে ছবি সিলেক্ট করুন';
+        this._currentProductImages = Array.isArray(p.images) && p.images.length > 0 ? [...p.images] : (p.image ? [p.image] : []);
+        this.renderProductGalleryPreviews();
 
         if (p.variants && p.variants.length > 0) {
           p.variants.forEach(v => this.addVariantRow(v));
@@ -1269,9 +1347,8 @@ class AdminPanel {
     } else {
       title.innerHTML = `<i class="fa-solid fa-plus-circle"></i> নতুন পণ্য ও ভেরিয়েন্ট এন্ট্রি দিন`;
       document.getElementById('prodFormId').value = '';
-      document.getElementById('prodFormImage').value = '';
-      document.getElementById('prodFormImgPreview').src = 'data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'100\' height=\'100\' viewBox=\'0 0 100 100\'><rect width=\'100\' height=\'100\' fill=\'%231e293b\'/><text x=\'50%\' y=\'50%\' dominant-baseline=\'middle\' text-anchor=\'middle\' fill=\'%2394a3b8\' font-family=\'sans-serif\' font-size=\'12\'>No Image</text></svg>';
-      document.getElementById('prodImgFileName').innerText = 'গ্যালারি থেকে ছবি সিলেক্ট করুন';
+      this._currentProductImages = [];
+      this.renderProductGalleryPreviews();
       this.addVariantRow();
     }
 
@@ -1425,12 +1502,16 @@ class AdminPanel {
 
     let targetProdId = id;
 
+    const images = Array.isArray(this._currentProductImages) && this._currentProductImages.length > 0 ? [...this._currentProductImages] : (image ? [image] : []);
+    const primaryImage = images[0] || image || '';
+
     if (id) {
       const p = this.products.find(item => item.id === id);
       if (p) {
         p.name = name;
         p.category = category;
-        p.image = image;
+        p.image = primaryImage;
+        p.images = images;
         p.variants = variants;
       }
     } else {
@@ -1440,7 +1521,8 @@ class AdminPanel {
         name,
         category,
         unit: 'pcs',
-        image,
+        image: primaryImage,
+        images,
         variants
       };
       this.products.unshift(newProd);
@@ -2046,30 +2128,38 @@ class AdminPanel {
       const copyCount = getCopyCount(v);
       let priceFormatted = '';
       if (v.mrp && parseFloat(v.mrp) > parseFloat(v.price)) {
-        priceFormatted = `Price:&nbsp;<span style="position: relative; display: inline-block; vertical-align: baseline; color: #333333 !important; font-weight: 700; font-size: 0.88em; margin-right: 5px; line-height: 1.1;">৳${parseFloat(v.mrp).toFixed(0)}<span style="position: absolute; left: -2px; right: -2px; top: 52%; height: 1.2px; background: #000000 !important; background-color: #000000 !important; display: block; transform: translateY(-50%) rotate(-7deg); transform-origin: center; pointer-events: none; z-index: 10;"></span></span>&nbsp;<strong style="color: #000000 !important; font-weight: 900; font-size: 1.05em; display: inline-block; vertical-align: baseline; line-height: 1.1;">৳${parseFloat(v.price).toFixed(0)}</strong>`;
+        priceFormatted = `Price:&nbsp;<span style="display: inline-flex; align-items: baseline; gap: 4px; flex-wrap: nowrap; vertical-align: baseline;"><del style="color: #444444 !important; font-weight: 600; font-size: 0.88em; text-decoration: line-through; margin-right: 2px;">৳${parseFloat(v.mrp).toFixed(0)}</del><strong style="color: #000000 !important; font-weight: 900; font-size: 1.05em; line-height: 1.1;">৳${parseFloat(v.price).toFixed(0)}</strong></span>`;
       } else {
         priceFormatted = `Price:&nbsp;<strong style="color: #000000 !important; font-weight: 900; font-size: 1.05em; display: inline-block; vertical-align: baseline; line-height: 1.1;">৳${parseFloat(v.price).toFixed(0)}</strong>`;
       }
 
-      const nameStr = prod.name || '';
-      const len = nameStr.trim().length;
+      const productName = (prod.name || prod.title || 'পণ্য (Product)').trim();
+      const nameStr = productName;
+      const len = nameStr.length;
 
-      let dynamicTitleStyle = `font-size:${titleFontSize}; font-weight:700; line-height:1.1; margin-bottom:1px;`;
+      let dynamicTitleStyle = `font-size:${titleFontSize}; font-weight:800; line-height:1.1; margin-top:1px; margin-bottom:1px; color:#000000 !important;`;
       if (len > 32) {
-        dynamicTitleStyle = `font-size:calc(${titleFontSize} - 0.08rem); font-weight:600; line-height:1.05; margin-bottom:1px;`;
+        dynamicTitleStyle = `font-size:calc(${titleFontSize} - 0.08rem); font-weight:700; line-height:1.05; margin-top:1px; margin-bottom:1px; color:#000000 !important;`;
       } else if (len > 22) {
-        dynamicTitleStyle = `font-size:calc(${titleFontSize} - 0.04rem); font-weight:700; line-height:1.08; margin-bottom:1px;`;
+        dynamicTitleStyle = `font-size:calc(${titleFontSize} - 0.04rem); font-weight:800; line-height:1.08; margin-top:1px; margin-bottom:1px; color:#000000 !important;`;
+      }
+
+      let rawVariant = `${v.color || ''} ${v.size ? '| ' + v.size : ''}`.trim();
+      if (rawVariant === '|' || rawVariant === 'Standard / N/A' || rawVariant === 'Standard N/A') {
+        rawVariant = '';
       }
 
       for (let i = 0; i < copyCount; i++) {
         html += `
           <div class="barcode-sticker-card" style="width:${cardWidth}; min-height:${cardMinHeight}; max-width:100%; box-sizing:border-box; padding:${cardPadding}; background:#fff; color:#000; border-radius:8px; text-align:center; border:1px solid #000; box-shadow:0 3px 10px rgba(0,0,0,0.12); overflow:hidden; display:flex; flex-direction:column; align-items:center; justify-content:space-between; transition: all 0.2s ease;">
-            <div style="${dynamicTitleStyle} width:100%; text-align:center; color:#000; display:-webkit-box; -webkit-line-clamp:${titleLineClamp}; -webkit-box-orient:vertical; overflow:hidden; word-break:break-word; margin-top:2px; margin-bottom:1px; padding-top:1px;">${prod.name}</div>
-            <div style="font-size:${variantFontSize}; font-weight:600; color:#4b5563; margin-top:1px; margin-bottom:1px; line-height:1.05;">${v.color || ''} ${v.size ? '| ' + v.size : ''}</div>
-            <div style="width:100%; overflow:visible; display:flex; justify-content:center; margin:1px 0;">
-              <svg id="bcSvg_${svgIndex}" style="max-width:100%; height:auto; display:block; margin:0 auto; shape-rendering:crispEdges; image-rendering:pixelated;"></svg>
+            <div style="width:100%; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; flex-shrink:0;">
+              <div style="${dynamicTitleStyle} width:100%; text-align:center; display:-webkit-box; -webkit-line-clamp:${titleLineClamp}; -webkit-box-orient:vertical; overflow:hidden; word-break:break-word;">${productName}</div>
+              ${rawVariant ? `<div style="font-size:${variantFontSize}; font-weight:600; color:#333333 !important; margin-top:0px; margin-bottom:0px; line-height:1.0; width:100%; text-align:center;">${rawVariant}</div>` : ''}
             </div>
-            <div style="font-size:${priceFontSize}; font-weight:800; color:#000; margin-top:1px; margin-bottom:2px; line-height:1.05; padding-bottom:1px;">
+            <div style="width:100%; overflow:hidden; display:flex; justify-content:center; align-items:center; flex:1; min-height:0; margin:0;">
+              <svg id="bcSvg_${svgIndex}" style="max-width:100%; max-height:100%; display:block; margin:0 auto; shape-rendering:crispEdges; image-rendering:pixelated;"></svg>
+            </div>
+            <div style="font-size:${priceFontSize}; font-weight:800; color:#000000 !important; margin-top:0px; margin-bottom:1px; line-height:1.0; width:100%; flex-shrink:0; display:flex; justify-content:center; align-items:center;">
               ${priceFormatted}
             </div>
           </div>
@@ -2549,48 +2639,93 @@ class AdminPanel {
       }
     });
 
-    // Product Image Device/Gallery File Upload Listener
-    // Images are uploaded to Firebase Storage → CDN URL stored (keeps Firestore tiny → unlimited products)
+    // Product Image Device/Gallery File Upload & Drag-and-Drop Listener
     const prodUploadBtn = document.getElementById('prodFormUploadBtn');
     const prodFileInput = document.getElementById('prodFormFileInput');
-    const prodFormImgPreview = document.getElementById('prodFormImgPreview');
+    const prodDropZone  = document.getElementById('prodImgDropZone');
+
+    const handleProductImageFiles = async (filesList) => {
+      const files = Array.from(filesList || []).filter(f => f.type && f.type.startsWith('image/'));
+      if (files.length === 0) return;
+
+      const fileNameEl = document.getElementById('prodImgFileName');
+      if (fileNameEl) fileNameEl.innerHTML = `<i class="fa-solid fa-spinner fa-spin text-primary"></i> ${files.length} টি ছবি প্রক্রিয়াকরণ হচ্ছে...`;
+
+      if (!Array.isArray(this._currentProductImages)) this._currentProductImages = [];
+      const storeId = localStorage.getItem('pos_active_store_id') || 'store_default';
+
+      // 1. Process images locally with HTML5 Canvas & update UI INSTANTLY (0ms delay!)
+      const pendingUploads = [];
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        await new Promise((resolve) => {
+          compressGalleryImage(file, 1080, 0.85, (dataUrl) => {
+            const tempIndex = this._currentProductImages.length;
+            this._currentProductImages.push(dataUrl);
+            this.renderProductGalleryPreviews();
+            pendingUploads.push({ tempIndex, dataUrl, safeName: `prod_${Date.now()}_${i}` });
+            resolve();
+          });
+        });
+      }
+
+      if (fileNameEl) {
+        fileNameEl.innerHTML = `<span style="color:var(--accent-green, #10b981); font-weight:600;"><i class="fa-solid fa-circle-check"></i> ${files.length} টি ছবি গ্যালারিতে যোগ করা হয়েছে</span>`;
+      }
+
+      // 2. Upload to Storage CDN asynchronously in background & swap URL seamlessly
+      for (const item of pendingUploads) {
+        try {
+          const finalUrl = await window.uploadImageToStorage(
+            item.dataUrl, storeId, item.safeName,
+            (pct) => {
+              if (fileNameEl) fileNameEl.innerHTML = `<i class="fa-solid fa-cloud-arrow-up text-primary"></i> ক্লাউড সিঙ্ক সম্পূর্ণ: ${pct}%`;
+            }
+          );
+          if (finalUrl && this._currentProductImages[item.tempIndex] === item.dataUrl) {
+            this._currentProductImages[item.tempIndex] = finalUrl;
+          }
+        } catch (err) {
+          console.warn('[Background Storage Sync]', err);
+        }
+      }
+
+      this.renderProductGalleryPreviews();
+      if (fileNameEl) {
+        fileNameEl.innerHTML = `<span style="color:var(--accent-green, #10b981); font-weight:600;"><i class="fa-solid fa-circle-check"></i> মোট ${this._currentProductImages.length} টি ছবি রেডি রয়েছে</span>`;
+      }
+    };
+
     if (prodUploadBtn && prodFileInput) {
       prodUploadBtn.addEventListener('click', () => prodFileInput.click());
-      if (prodFormImgPreview) prodFormImgPreview.addEventListener('click', () => prodFileInput.click());
       prodFileInput.addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
+        handleProductImageFiles(e.target.files);
+        prodFileInput.value = '';
+      });
+    }
 
-        const fileNameEl = document.getElementById('prodImgFileName');
-        const hiddenImg   = document.getElementById('prodFormImage');
-
-        // Step 1: Compress image first
-        compressGalleryImage(file, 1080, 0.85, async (dataUrl) => {
-          // Show preview immediately from compressed dataUrl
-          if (prodFormImgPreview) prodFormImgPreview.src = dataUrl;
-          if (fileNameEl) fileNameEl.innerText = `⏫ আপলোড হচ্ছে...`;
-
-          // Step 2: Upload to Firebase Storage, get CDN URL
-          const storeId   = localStorage.getItem('pos_active_store_id') || 'store_default';
-          const safeName  = `prod_${Date.now()}`;
-
-          try {
-            const finalUrl = await window.uploadImageToStorage(
-              dataUrl, storeId, safeName,
-              (pct) => { if (fileNameEl) fileNameEl.innerText = `⏫ আপলোড: ${pct}%`; }
-            );
-            if (hiddenImg) hiddenImg.value = finalUrl;
-            if (fileNameEl) {
-              fileNameEl.innerText = window.isStorageUrl && window.isStorageUrl(finalUrl)
-                ? `✅ ${file.name} (Cloud-এ সেভ হয়েছে)`
-                : file.name;
-            }
-          } catch (err) {
-            // Fallback: store base64
-            if (hiddenImg) hiddenImg.value = dataUrl;
-            if (fileNameEl) fileNameEl.innerText = file.name;
-          }
+    if (prodDropZone) {
+      prodDropZone.addEventListener('click', (e) => {
+        if (e.target.closest('button') || e.target.closest('a')) return;
+        if (prodFileInput) prodFileInput.click();
+      });
+      ['dragenter', 'dragover'].forEach(evt => {
+        prodDropZone.addEventListener(evt, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          prodDropZone.classList.add('drag-over');
         });
+      });
+      ['dragleave', 'drop'].forEach(evt => {
+        prodDropZone.addEventListener(evt, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          prodDropZone.classList.remove('drag-over');
+        });
+      });
+      prodDropZone.addEventListener('drop', (e) => {
+        const files = e.dataTransfer ? e.dataTransfer.files : [];
+        if (files.length > 0) handleProductImageFiles(files);
       });
     }
 

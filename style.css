@@ -4409,5 +4409,36 @@ body.has-custom-wallpaper .nav-item.active {
 
 /* End of SmartPOS Style Sheet */
 
+/* Web Design Mastery — Enhanced Product Photo Upload & Image Display Engine */
+#prodImgDropZone.drag-over {
+  border-color: var(--accent-green, #10b981) !important;
+  background: linear-gradient(145deg, rgba(16, 185, 129, 0.18), rgba(15, 23, 42, 0.85)) !important;
+  box-shadow: 0 0 24px rgba(16, 185, 129, 0.35) !important;
+  transform: scale(1.01);
+}
+
+.gallery-thumb-card:hover {
+  transform: translateY(-3px) scale(1.03);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45) !important;
+  border-color: var(--accent-blue, #3b82f6) !important;
+}
+
+.product-card .product-img-wrap img:hover {
+  transform: scale(1.08);
+}
+
+.cart-item-thumb img {
+  transition: transform 0.3s ease;
+}
+
+.cart-item-thumb img:hover {
+  transform: scale(1.15);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
 
 
