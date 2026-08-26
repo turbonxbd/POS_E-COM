@@ -79,14 +79,14 @@ class SmartPrintHub {
             <div class="toolbar-item">
               <label><i class="fa-solid fa-scroll"></i> পেপার ও স্টিকার ফরম্যাট:</label>
               <select id="printHubFormatSelect" class="form-control form-control-sm">
-                <option value="sticker_38x25" selected>🏷️ 38mm × 25mm কসমেটিকস ও পোশাক ১-আপ রোল (Small Roll)</option>
+                <option value="sticker_38x25" selected>🏷️ BARCODE L (1.50 in × 1.00 in / 38mm × 25mm Label)</option>
                 <option value="sticker_50x30">🏷️ 50mm × 30mm স্টিকার রোল (BD Standard 1-Up Roll)</option>
                 <option value="sticker_50x25">🏷️ 50mm × 25mm গ্যাজেট ও জুয়েলারি ১-আপ রোল (Medium Roll)</option>
                 <option value="sticker_75x50">🏷️ 75mm × 50mm কার্টন ও শিপিং লেবেল (Large Shipping Label)</option>
                 <option value="sticker_25x15">🏷️ 25mm × 15mm ফার্মেসী ও অ্যাকসেসোরিজ ট্যাগ (Micro Tag)</option>
                 <option value="2up_label">🏷️ 2-Up ডাবল কলাম স্টিকার (2 Labels Per Row)</option>
                 <option value="a4_grid">📄 A4 বারকোড স্টিকার শিট (A4 Multi-Sticker Grid)</option>
-                <option value="80mm">🧾 80mm POS থার্মাল রসিদ (Standard POS Receipt)</option>
+                <option value="80mm">🧾 POS (3.00 in / 76.2mm Continuous Receipt Roll)</option>
                 <option value="58mm">🧾 58mm মিনি থার্মাল রসিদ (Mini POS Receipt)</option>
                 <option value="100mm">🧾 100mm লেবেল / ইনভয়েস রোল (100mm Wide Roll)</option>
                 <option value="custom">⚙️ কাস্টম পেপার সাইজ (Custom Width/Height)</option>
@@ -437,12 +437,13 @@ class SmartPrintHub {
       document.head.appendChild(styleTag);
     }
 
-    let widthMm = '80mm';
+    const invoiceWidth = '3.00in'; // 76.2mm - exact match for Gprinter GP-3120TUC stock 'POS (3.00 in x 5.00 in)'
+    let widthMm = invoiceWidth;
     let heightMm = 'auto';
     let isStickerRoll = false;
 
     if (mode === 'invoice') {
-      widthMm = '80mm';
+      widthMm = invoiceWidth;
       isStickerRoll = false;
       const receiptEl = document.getElementById('printableReceipt');
       if (receiptEl) {
@@ -464,8 +465,8 @@ class SmartPrintHub {
       }
       switch(this.paperFormat) {
         case 'sticker_38x25':
-          widthMm = '38mm';
-          heightMm = '25mm';
+          widthMm = '1.50in';  // 38.1mm - Gprinter GP-3120TUC 'BARCODE L (1.50 in x 1.00 in)'
+          heightMm = '1.00in'; // 25.4mm - Gprinter GP-3120TUC 'BARCODE L (1.50 in x 1.00 in)'
           isStickerRoll = true;
           break;
         case 'sticker_50x30':
@@ -503,8 +504,8 @@ class SmartPrintHub {
           isStickerRoll = true;
           break;
         default:
-          widthMm = '38mm';
-          heightMm = '25mm';
+          widthMm = '1.50in';
+          heightMm = '1.00in';
           isStickerRoll = true;
           break;
       }
@@ -516,9 +517,9 @@ class SmartPrintHub {
     let pageRule = '';
     // Valid CSS Paged Media Spec syntax
     if (mode === 'invoice' && heightMm !== 'auto') {
-      pageRule = `@page { size: 80mm ${heightMm}; margin: 0; }`;
+      pageRule = `@page { size: ${invoiceWidth} ${heightMm}; margin: 0; }`;
     } else if (mode === 'invoice') {
-      pageRule = `@page { size: 80mm auto; margin: 0; }`;
+      pageRule = `@page { size: ${invoiceWidth} auto; margin: 0; }`;
     } else if (heightMm === 'auto') {
       pageRule = `@page { size: ${widthMm} auto; margin: 0; }`;
     } else {
@@ -540,8 +541,8 @@ class SmartPrintHub {
           color: #000000 !important;
           -webkit-print-color-adjust: exact !important;
           print-color-adjust: exact !important;
-          width: ${mode === 'invoice' ? '80mm' : widthMm} !important;
-          max-width: ${mode === 'invoice' ? '80mm' : widthMm} !important;
+          width: ${mode === 'invoice' ? invoiceWidth : widthMm} !important;
+          max-width: ${mode === 'invoice' ? invoiceWidth : widthMm} !important;
         }
 
         /* Expand scrollable receipt viewport to full content height in print */
@@ -579,8 +580,8 @@ class SmartPrintHub {
           position: absolute !important;
           left: 0 !important;
           top: 0 !important;
-          width: ${mode === 'invoice' ? '80mm' : widthMm} !important;
-          max-width: ${mode === 'invoice' ? '80mm' : widthMm} !important;
+          width: ${mode === 'invoice' ? invoiceWidth : widthMm} !important;
+          max-width: ${mode === 'invoice' ? invoiceWidth : widthMm} !important;
           height: auto !important;
           background: #ffffff !important;
           color: #000000 !important;
@@ -611,8 +612,8 @@ class SmartPrintHub {
           min-height: 0 !important;
           height: auto !important;
           max-height: none !important;
-          width: ${mode === 'invoice' ? '80mm' : widthMm} !important;
-          max-width: ${mode === 'invoice' ? '80mm' : widthMm} !important;
+          width: ${mode === 'invoice' ? invoiceWidth : widthMm} !important;
+          max-width: ${mode === 'invoice' ? invoiceWidth : widthMm} !important;
           overflow: visible !important;
           display: block !important;
         }
@@ -621,12 +622,12 @@ class SmartPrintHub {
           position: relative !important;
           left: 0 !important;
           top: 0 !important;
-          width: 80mm !important;
-          max-width: 80mm !important;
-          min-width: 80mm !important;
+          width: ${invoiceWidth} !important;
+          max-width: ${invoiceWidth} !important;
+          min-width: ${invoiceWidth} !important;
           height: auto !important;
           margin: 0 auto !important;
-          padding: 2mm 2mm !important;
+          padding: 1mm 1.5mm !important;
           box-sizing: border-box !important;
           background: #ffffff !important;
           color: #000000 !important;

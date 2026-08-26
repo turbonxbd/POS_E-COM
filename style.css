@@ -3846,12 +3846,12 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
     position: relative !important;
     left: 0 !important;
     top: 0 !important;
-    width: 80mm !important;
-    max-width: 80mm !important;
-    min-width: 80mm !important;
+    width: 3.00in !important;
+    max-width: 3.00in !important;
+    min-width: 3.00in !important;
     height: auto !important;
     margin: 0 auto !important;
-    padding: 2mm 2mm !important;
+    padding: 1mm 1.5mm !important;
     box-sizing: border-box !important;
     background: #ffffff !important;
     color: #000000 !important;
