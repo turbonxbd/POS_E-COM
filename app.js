@@ -658,14 +658,9 @@ class POSApp {
     localStorage.setItem('pos_products', JSON.stringify(this.products));
     localStorage.setItem('pos_sales', JSON.stringify(this.sales));
 
-    if (window.posFirebase) {
-      if (typeof window.posFirebase.saveDoc === 'function') {
-        window.posFirebase.saveDoc('pos_products', this.products);
-        window.posFirebase.saveDoc('pos_sales', this.sales);
-      } else if (typeof window.posFirebase.pushKeyToCloud === 'function') {
-        window.posFirebase.pushKeyToCloud('pos_products', JSON.stringify(this.products));
-        window.posFirebase.pushKeyToCloud('pos_sales', JSON.stringify(this.sales));
-      }
+    if (window.posFirebase && typeof window.posFirebase.saveDoc === 'function') {
+      window.posFirebase.saveDoc('pos_products', this.products);
+      window.posFirebase.saveDoc('pos_sales', this.sales);
     }
 
     // 3. Play success sound & trigger confetti celebration!

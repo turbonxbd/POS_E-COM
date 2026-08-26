@@ -2652,7 +2652,7 @@ class AdminPanel {
       if (fileNameEl) fileNameEl.innerHTML = `<i class="fa-solid fa-spinner fa-spin text-primary"></i> ${files.length} টি ছবি প্রক্রিয়াকরণ হচ্ছে...`;
 
       if (!Array.isArray(this._currentProductImages)) this._currentProductImages = [];
-          const storeId  = localStorage.getItem('pos_active_store_id') || 'store_demo_101';
+      const storeId = localStorage.getItem('pos_active_store_id') || 'store_default';
 
       // 1. Process images locally with HTML5 Canvas & update UI INSTANTLY (0ms delay!)
       const pendingUploads = [];
@@ -2748,7 +2748,7 @@ class AdminPanel {
           if (catFormImgPreview) catFormImgPreview.src = dataUrl;
           if (fileNameEl) fileNameEl.innerText = `⏫ আপলোড হচ্ছে...`;
 
-          const storeId  = localStorage.getItem('pos_active_store_id') || 'store_demo_101';
+          const storeId  = localStorage.getItem('pos_active_store_id') || 'store_default';
           const safeName = `cat_${Date.now()}`;
 
           try {
