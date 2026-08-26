@@ -524,14 +524,14 @@ function initCheckoutForm() {
       }
 
       // Final Submission Processing
-      const storeName = document.getElementById('subStoreName')?.value?.trim() || '';
-      const ownerName = document.getElementById('subOwnerName')?.value?.trim() || '';
-      const phone = document.getElementById('subPhone')?.value?.trim() || '';
-      const email = document.getElementById('subEmail')?.value?.trim() || '';
-      const storeAddress = document.getElementById('subAddress')?.value?.trim() || 'Dhaka, Bangladesh';
-      const adminPin = document.getElementById('subAdminPin')?.value?.trim() || '1234';
-      const storeLogo = document.getElementById('subLogoUrl')?.value?.trim() || '';
-      const plan = document.getElementById('selectedPlanName')?.value || '1m';
+      const storeName = document.getElementById('subStoreName').value.trim();
+      const ownerName = document.getElementById('subOwnerName').value.trim();
+      const phone = document.getElementById('subPhone').value.trim();
+      const email = document.getElementById('subEmail')?.value.trim() || '';
+      const storeAddress = document.getElementById('subAddress')?.value.trim() || 'Dhaka, Bangladesh';
+      const adminPin = document.getElementById('subAdminPin')?.value.trim() || '1234';
+      const storeLogo = document.getElementById('subLogoUrl')?.value.trim() || '';
+      const plan = document.getElementById('selectedPlanName').value;
 
       const trxId = document.getElementById('portalSubTrxId')?.value.trim() || '';
       const senderPhone = document.getElementById('portalSubSenderPhone')?.value.trim() || phone;

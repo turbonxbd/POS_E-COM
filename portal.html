@@ -103,14 +103,6 @@
             দোকানের প্যানেল অ্যাক্সেস করতে আপনার রেজিস্টার্ড ফোন নম্বর/ইমেইল এবং সিকিউরিটি পিন দিন:
           </p>
 
-          <!-- Quick Demo Credential Fill Buttons -->
-          <div class="demo-quick-fill-bar mb-3" style="display: flex; gap: 6px; flex-wrap: wrap; background: rgba(255,255,255,0.05); padding: 8px; border-radius: 12px; border: 1px dashed var(--border-color);">
-            <span style="font-size: 0.78rem; width: 100%; color: var(--accent-blue); font-weight: 700;"><i class="fa-solid fa-bolt"></i> ১-ক্লিক ডেমো এক্সেস পূরণ:</span>
-            <button type="button" class="btn btn-xs btn-outline" onclick="fillDemoAuth('01700000000', '1234')" title="গেস্ট অ্যাডমিন">👤 Admin Demo</button>
-            <button type="button" class="btn btn-xs btn-outline" onclick="fillDemoAuth('01800000000', '1234')" title="ক্যাশিয়ার কাউন্টার">🧾 Cashier Demo</button>
-            <button type="button" class="btn btn-xs btn-outline" onclick="fillDemoAuth('superadmin@smartpos.com', 'admin123')" title="সুপার অ্যাডমিন">⚡ Super Admin</button>
-          </div>
-
           <form id="portalLoginForm">
             <div class="form-group mb-3">
               <label style="font-weight: 600;"><i class="fa-solid fa-phone"></i> মোবাইল নম্বর / ইমেইল *</label>
@@ -119,12 +111,7 @@
 
             <div class="form-group mb-3">
               <label style="font-weight: 600;"><i class="fa-solid fa-lock"></i> সিকিউরিটি পিন / পাসওয়ার্ড *</label>
-              <div style="position: relative;">
-                <input type="password" id="portalAuthPin" class="form-control form-control-lg text-center" placeholder="****" maxlength="20" style="letter-spacing: 4px; font-size: 1.3rem; padding-right: 42px;" required>
-                <button type="button" id="btnTogglePassVis" onclick="togglePassVisibility('portalAuthPin', this)" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.1rem;" title="পাসওয়ার্ড দেখুন / লুকান">
-                  <i class="fa-solid fa-eye"></i>
-                </button>
-              </div>
+              <input type="password" id="portalAuthPin" class="form-control form-control-lg text-center" placeholder="****" maxlength="8" style="letter-spacing: 6px; font-size: 1.4rem;" required>
               <small class="text-muted display-block mt-1">আপনার নিবন্ধিত পিন বা পাসওয়ার্ড দিন</small>
             </div>
 
@@ -547,29 +534,7 @@
         });
       });
     });
-
-    function fillDemoAuth(phone, pin) {
-      const phoneInput = document.getElementById('portalAuthPhone');
-      const pinInput = document.getElementById('portalAuthPin');
-      if (phoneInput) phoneInput.value = phone;
-      if (pinInput) pinInput.value = pin;
-    }
-
-    function togglePassVisibility(inputId, btnEl) {
-      const input = document.getElementById(inputId);
-      if (!input) return;
-      const isPass = input.type === 'password';
-      input.type = isPass ? 'text' : 'password';
-      if (btnEl && btnEl.querySelector('i')) {
-        btnEl.querySelector('i').className = isPass ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye';
-      }
-    }
   </script>
-  <!-- Floating WhatsApp Quick Support Widget -->
-  <a href="https://wa.me/8801700000000?text=Hello%20SmartPOS%20Support" class="floating-whatsapp-btn" target="_blank" rel="noopener" title="সরাসরি হোয়াটসঅ্যাপে হেল্প নিন">
-    <i class="fa-brands fa-whatsapp"></i>
-  </a>
-
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
   <script src="firebase-db.js"></script>

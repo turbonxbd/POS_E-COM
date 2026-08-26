@@ -79,14 +79,14 @@ class SmartPrintHub {
             <div class="toolbar-item">
               <label><i class="fa-solid fa-scroll"></i> পেপার ও স্টিকার ফরম্যাট:</label>
               <select id="printHubFormatSelect" class="form-control form-control-sm">
-                <option value="sticker_38x25" selected>🏷️ BARCODE L (1.50 in × 1.00 in / 38mm × 25mm Label)</option>
+                <option value="sticker_38x25" selected>🏷️ 38mm × 25mm কসমেটিকস ও পোশাক ১-আপ রোল (Small Roll)</option>
                 <option value="sticker_50x30">🏷️ 50mm × 30mm স্টিকার রোল (BD Standard 1-Up Roll)</option>
                 <option value="sticker_50x25">🏷️ 50mm × 25mm গ্যাজেট ও জুয়েলারি ১-আপ রোল (Medium Roll)</option>
                 <option value="sticker_75x50">🏷️ 75mm × 50mm কার্টন ও শিপিং লেবেল (Large Shipping Label)</option>
                 <option value="sticker_25x15">🏷️ 25mm × 15mm ফার্মেসী ও অ্যাকসেসোরিজ ট্যাগ (Micro Tag)</option>
                 <option value="2up_label">🏷️ 2-Up ডাবল কলাম স্টিকার (2 Labels Per Row)</option>
                 <option value="a4_grid">📄 A4 বারকোড স্টিকার শিট (A4 Multi-Sticker Grid)</option>
-                <option value="80mm">🧾 POS (3.00 in / 76.2mm Continuous Receipt Roll)</option>
+                <option value="80mm">🧾 80mm POS থার্মাল রসিদ (Standard POS Receipt)</option>
                 <option value="58mm">🧾 58mm মিনি থার্মাল রসিদ (Mini POS Receipt)</option>
                 <option value="100mm">🧾 100mm লেবেল / ইনভয়েস রোল (100mm Wide Roll)</option>
                 <option value="custom">⚙️ কাস্টম পেপার সাইজ (Custom Width/Height)</option>
@@ -94,16 +94,7 @@ class SmartPrintHub {
             </div>
 
             <div class="toolbar-item">
-              <label><i class="fa-solid fa-magnifying-glass-plus"></i> ফন্ট জুম / স্কেল:</label>
-              <div class="btn-group" style="display:flex; gap:4px;">
-                <button class="btn btn-xs btn-outline" onclick="printHub.setQuickScale(85)" title="কমপ্যাক্ট স্কেল (৮৫%)">85%</button>
-                <button class="btn btn-xs btn-primary" onclick="printHub.setQuickScale(100)" title="ডিফল্ট স্কেল (১০০%)">100%</button>
-                <button class="btn btn-xs btn-outline" onclick="printHub.setQuickScale(115)" title="লার্জ স্কেল (১১৫%)">115%</button>
-              </div>
-            </div>
-
-            <div class="toolbar-item">
-              <label><i class="fa-solid fa-gauge-high"></i> স্পিড:</label>
+              <label><i class="fa-solid fa-gauge-high"></i> এনিমেশন স্পিড:</label>
               <select id="printHubSpeedSelect" class="form-control form-control-sm">
                 <option value="normal">স্বাভাবিক (Normal 1.5s)</option>
                 <option value="fast">দ্রুত (Fast 0.6s)</option>
@@ -113,7 +104,7 @@ class SmartPrintHub {
 
             <div class="toolbar-item">
               <button class="btn btn-sm btn-secondary" id="printHubReplayBtn" onclick="printHub.triggerPrintEjection()" title="প্রিন্টার দিয়ে পেপার বের হওয়ার লাইভ এনিমেশন প্লে করুন">
-                <i class="fa-solid fa-play"></i> এনিমেশন
+                <i class="fa-solid fa-play"></i> প্রিন্ট এনিমেশন প্লে
               </button>
             </div>
           </div>
@@ -335,16 +326,6 @@ class SmartPrintHub {
     if (window.cashier && cashier.showToast) cashier.showToast('প্রিন্টার ও পেপার সেটিংস সফলভাবে আপডেট হয়েছে!');
   }
 
-  setQuickScale(percent = 100) {
-    this.settings.scalePercent = percent;
-    const rangeInput = document.getElementById('printHubScaleRange');
-    const scaleValSpan = document.getElementById('printHubScaleVal');
-    if (rangeInput) rangeInput.value = percent;
-    if (scaleValSpan) scaleValSpan.innerText = `${percent}%`;
-    this.saveSettings();
-    this.reRenderBarcodes();
-  }
-
   resetSettingsToDefault() {
     this.settings = {
       paperFormat: '80mm',
@@ -456,13 +437,12 @@ class SmartPrintHub {
       document.head.appendChild(styleTag);
     }
 
-    const invoiceWidth = '3.00in'; // 76.2mm - exact match for Gprinter GP-3120TUC stock 'POS (3.00 in x 5.00 in)'
-    let widthMm = invoiceWidth;
+    let widthMm = '80mm';
     let heightMm = 'auto';
     let isStickerRoll = false;
 
     if (mode === 'invoice') {
-      widthMm = invoiceWidth;
+      widthMm = '80mm';
       isStickerRoll = false;
       const receiptEl = document.getElementById('printableReceipt');
       if (receiptEl) {
@@ -484,8 +464,8 @@ class SmartPrintHub {
       }
       switch(this.paperFormat) {
         case 'sticker_38x25':
-          widthMm = '1.50in';  // 38.1mm - Gprinter GP-3120TUC 'BARCODE L (1.50 in x 1.00 in)'
-          heightMm = '1.00in'; // 25.4mm - Gprinter GP-3120TUC 'BARCODE L (1.50 in x 1.00 in)'
+          widthMm = '38mm';
+          heightMm = '25mm';
           isStickerRoll = true;
           break;
         case 'sticker_50x30':
@@ -523,8 +503,8 @@ class SmartPrintHub {
           isStickerRoll = true;
           break;
         default:
-          widthMm = '1.50in';
-          heightMm = '1.00in';
+          widthMm = '38mm';
+          heightMm = '25mm';
           isStickerRoll = true;
           break;
       }
@@ -536,9 +516,9 @@ class SmartPrintHub {
     let pageRule = '';
     // Valid CSS Paged Media Spec syntax
     if (mode === 'invoice' && heightMm !== 'auto') {
-      pageRule = `@page { size: ${invoiceWidth} ${heightMm}; margin: 0; }`;
+      pageRule = `@page { size: 80mm ${heightMm}; margin: 0; }`;
     } else if (mode === 'invoice') {
-      pageRule = `@page { size: ${invoiceWidth} auto; margin: 0; }`;
+      pageRule = `@page { size: 80mm auto; margin: 0; }`;
     } else if (heightMm === 'auto') {
       pageRule = `@page { size: ${widthMm} auto; margin: 0; }`;
     } else {
@@ -560,8 +540,8 @@ class SmartPrintHub {
           color: #000000 !important;
           -webkit-print-color-adjust: exact !important;
           print-color-adjust: exact !important;
-          width: ${mode === 'invoice' ? invoiceWidth : widthMm} !important;
-          max-width: ${mode === 'invoice' ? invoiceWidth : widthMm} !important;
+          width: ${mode === 'invoice' ? '80mm' : widthMm} !important;
+          max-width: ${mode === 'invoice' ? '80mm' : widthMm} !important;
         }
 
         /* Expand scrollable receipt viewport to full content height in print */
@@ -599,8 +579,8 @@ class SmartPrintHub {
           position: absolute !important;
           left: 0 !important;
           top: 0 !important;
-          width: ${mode === 'invoice' ? invoiceWidth : widthMm} !important;
-          max-width: ${mode === 'invoice' ? invoiceWidth : widthMm} !important;
+          width: ${mode === 'invoice' ? '80mm' : widthMm} !important;
+          max-width: ${mode === 'invoice' ? '80mm' : widthMm} !important;
           height: auto !important;
           background: #ffffff !important;
           color: #000000 !important;
@@ -631,8 +611,8 @@ class SmartPrintHub {
           min-height: 0 !important;
           height: auto !important;
           max-height: none !important;
-          width: ${mode === 'invoice' ? invoiceWidth : widthMm} !important;
-          max-width: ${mode === 'invoice' ? invoiceWidth : widthMm} !important;
+          width: ${mode === 'invoice' ? '80mm' : widthMm} !important;
+          max-width: ${mode === 'invoice' ? '80mm' : widthMm} !important;
           overflow: visible !important;
           display: block !important;
         }
@@ -641,12 +621,12 @@ class SmartPrintHub {
           position: relative !important;
           left: 0 !important;
           top: 0 !important;
-          width: ${invoiceWidth} !important;
-          max-width: ${invoiceWidth} !important;
-          min-width: ${invoiceWidth} !important;
+          width: 80mm !important;
+          max-width: 80mm !important;
+          min-width: 80mm !important;
           height: auto !important;
           margin: 0 auto !important;
-          padding: 1mm 1.5mm !important;
+          padding: 2mm 2mm !important;
           box-sizing: border-box !important;
           background: #ffffff !important;
           color: #000000 !important;
@@ -697,25 +677,20 @@ class SmartPrintHub {
         }
         .barcode-hub-grid {
           display: block !important;
-          margin: 0 !important;
+          margin: 0 auto !important;
           padding: 0 !important;
           width: ${widthMm} !important;
           max-width: ${widthMm} !important;
         }
-
-        /* ── Outer card: controls page-break ONLY — NO transform here ── */
         .barcode-sticker-card {
-          position: relative !important;
-          display: block !important;
           width: ${widthMm} !important;
-          min-width: ${widthMm} !important;
           max-width: ${widthMm} !important;
           height: ${heightMm} !important;
-          min-height: ${heightMm} !important;
           max-height: ${heightMm} !important;
           box-sizing: border-box !important;
           margin: 0 !important;
-          padding: 0 !important;
+          padding: 2px 3px 2px 3px !important;
+          page-break-before: auto !important;
           page-break-after: always !important;
           break-after: page !important;
           page-break-inside: avoid !important;
@@ -723,35 +698,13 @@ class SmartPrintHub {
           overflow: hidden !important;
           border: none !important;
           box-shadow: none !important;
-          transform: none !important;
-        }
-
-        /* ── Inner wrap: fills card, normal right-side up orientation ── */
-        .barcode-sticker-card .sticker-rotate-wrap {
-          position: absolute !important;
-          top: 0 !important;
-          left: 0 !important;
-          width: 100% !important;
-          height: 100% !important;
           display: flex !important;
           flex-direction: column !important;
           align-items: center !important;
-          justify-content: space-evenly !important;
-          box-sizing: border-box !important;
-          padding: 1mm 1.5mm !important;
-          transform: none !important;
+          justify-content: space-between !important;
+          transform: rotate(180deg) !important;
           transform-origin: center center !important;
         }
-
-        /* ── Barcode SVG: scale to fill full sticker width ── */
-        .barcode-sticker-card .sticker-rotate-wrap svg {
-          width: 100% !important;
-          height: auto !important;
-          display: block !important;
-          margin: 0 !important;
-          flex-shrink: 0 !important;
-        }
-
         .barcode-sticker-card:last-child,
         .barcode-sticker-card:last-of-type {
           page-break-after: avoid !important;
@@ -1098,50 +1051,32 @@ class SmartPrintHub {
     items.forEach((item, idx) => {
       let priceFormatted = '';
       if (item.mrp && parseFloat(item.mrp) > parseFloat(item.price)) {
-        priceFormatted = `Price:&nbsp;<span style="display: inline-flex; align-items: baseline; gap: 4px; flex-wrap: nowrap; vertical-align: baseline;"><del style="color: #444444 !important; font-weight: 600; font-size: 0.88em; text-decoration: line-through; margin-right: 2px;">৳${parseFloat(item.mrp).toFixed(0)}</del><strong style="color: #000000 !important; font-weight: 900; font-size: 1.05em; line-height: 1.1;">৳${parseFloat(item.price).toFixed(0)}</strong></span>`;
+        priceFormatted = `Price:&nbsp;<span style="position: relative; display: inline-block; vertical-align: baseline; color: #333333 !important; font-weight: 700; font-size: 0.88em; margin-right: 5px; line-height: 1.1;">৳${parseFloat(item.mrp).toFixed(0)}<span style="position: absolute; left: -2px; right: -2px; top: 52%; height: 1.2px; background: #000000 !important; background-color: #000000 !important; display: block; transform: translateY(-50%) rotate(-7deg); transform-origin: center; pointer-events: none; z-index: 10;"></span></span>&nbsp;<strong style="color: #000000 !important; font-weight: 900; font-size: 1.05em; display: inline-block; vertical-align: baseline; line-height: 1.1;">৳${parseFloat(item.price).toFixed(0)}</strong>`;
       } else {
         priceFormatted = `Price:&nbsp;<strong style="color: #000000 !important; font-weight: 900; font-size: 1.05em; display: inline-block; vertical-align: baseline; line-height: 1.1;">৳${parseFloat(item.price).toFixed(0)}</strong>`;
       }
 
-      let productName = (item.name || item.productName || item.title || '').trim();
-      if (!productName && item.barcode) {
-        const allProds = (window.admin && window.admin.products) || (window.cashier && window.cashier.products) || [];
-        const found = allProds.find(p => p.variants && p.variants.some(v => String(v.barcode).trim() === String(item.barcode).trim()));
-        if (found) productName = found.name;
-      }
-      if (!productName) productName = 'পণ্য (Product)';
-
-      let rawVariant = (item.variantDetails || `${item.color || ''} ${item.size ? '| ' + item.size : ''}`).trim();
-      if (rawVariant === '|' || rawVariant === 'Standard / N/A' || rawVariant === 'Standard N/A') {
-        rawVariant = '';
-      }
-
-      const len = productName.length;
-      let fontStyling = 'font-size:0.58rem; font-weight:800; line-height:1.1; margin-top:1px; margin-bottom:1px; color:#000000 !important;';
+      const nameStr = item.name || '';
+      const len = nameStr.trim().length;
+      let fontStyling = 'font-size:0.56rem; font-weight:700; line-height:1.08; margin-top:2px; margin-bottom:1px; padding:1px 0 0 0;';
       if (len > 32) {
-        fontStyling = 'font-size:0.46rem; font-weight:700; line-height:1.05; margin-top:1px; margin-bottom:1px; color:#000000 !important;';
-      } else if (len > 20) {
-        fontStyling = 'font-size:0.52rem; font-weight:800; line-height:1.08; margin-top:1px; margin-bottom:1px; color:#000000 !important;';
+        fontStyling = 'font-size:0.48rem; font-weight:600; line-height:1.05; margin-top:2px; margin-bottom:1px; padding:1px 0 0 0;';
+      } else if (len > 22) {
+        fontStyling = 'font-size:0.52rem; font-weight:700; line-height:1.06; margin-top:2px; margin-bottom:1px; padding:1px 0 0 0;';
       }
 
-      const nameHtml = `<div style="${fontStyling} width:100%; text-align:center; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; word-break:break-word;">${productName}</div>`;
-      const variantHtml = rawVariant ? `<div style="font-size:0.46rem; font-weight:600; color:#333333 !important; margin-top:0px; margin-bottom:0px; line-height:1.0; width:100%; text-align:center;">${rawVariant}</div>` : '';
-      const priceHtml = showPrice ? `<div style="font-size:0.62rem; font-weight:800; color:#000000 !important; margin-top:0px; margin-bottom:0px; padding-bottom:0px; line-height:1.0; width:100%; text-align:center;">${priceFormatted}</div>` : '';
+      const nameHtml = showName ? `<div style="${fontStyling} width:100%; text-align:center; color:#000; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; word-break:break-word;">${item.name}</div>` : '';
+      const variantHtml = (showVariant && item.variantDetails) ? `<div style="font-size:0.50rem; font-weight:600; color:#333; margin-top:1px; margin-bottom:1px; line-height:1.05;">${item.variantDetails}</div>` : '';
+      const priceHtml = showPrice ? `<div style="font-size:0.66rem; font-weight:800; color:#000; margin-top:1px; margin-bottom:2px; padding-bottom:1px; line-height:1.05;">${priceFormatted}</div>` : '';
 
       stickersHtml += `
-        <div class="barcode-sticker-card hub-sticker" style="background:#fff; color:#000; border:1px solid #ddd; border-radius:4px; text-align:center; box-shadow:0 1px 3px rgba(0,0,0,0.06); page-break-inside:avoid; break-inside:avoid; box-sizing:border-box; overflow:hidden; position:relative;">
-          <div class="sticker-rotate-wrap" style="width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:space-between; padding:1px 2px; box-sizing:border-box;">
-            <div style="width:100%; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; flex-shrink:0;">
-              ${nameHtml}
-              ${variantHtml}
-            </div>
-            <div style="width:100%; display:flex; justify-content:center; align-items:center; flex:1; min-height:0; overflow:hidden; margin:0;">
-              <svg id="hubBcSvg_${idx}" style="max-width:100%; max-height:100%; display:block; margin:0 auto; shape-rendering:crispEdges; image-rendering:pixelated;"></svg>
-            </div>
-            <div style="width:100%; flex-shrink:0; display:flex; justify-content:center; align-items:center; margin-bottom:1px;">
-              ${priceHtml}
-            </div>
+        <div class="barcode-sticker-card hub-sticker" style="background:#fff; color:#000; padding:2px 3px 2px 3px; border:1px solid #ddd; border-radius:4px; text-align:center; box-shadow:0 1px 3px rgba(0,0,0,0.06); display:flex; flex-direction:column; align-items:center; justify-content:space-between; page-break-inside:avoid; break-inside:avoid; box-sizing:border-box; overflow:hidden;">
+          ${nameHtml}
+          ${variantHtml}
+          <div style="width:100%; display:flex; justify-content:center; margin:1px 0;">
+            <svg id="hubBcSvg_${idx}" style="max-width:100%; height:auto; display:block; margin:0 auto; shape-rendering:crispEdges; image-rendering:pixelated;"></svg>
           </div>
+          ${priceHtml}
         </div>
       `;
     });
@@ -1168,49 +1103,49 @@ class SmartPrintHub {
     if (typeof JsBarcode === 'undefined') return;
 
     let bcWidth = 1.05;
-    let bcHeight = 18;
-    let bcFontSize = 7.5;
+    let bcHeight = 22;
+    let bcFontSize = 8.5;
     let bcMargin = 0;
 
     if (this.paperFormat === 'sticker_38x25') {
-      bcWidth = 0.85;   // narrower bars → fits 38mm width perfectly
-      bcHeight = 16;    // 16px bar height guarantees room for 2-line title + variant + price
-      bcFontSize = 7.0;
+      bcWidth = 1.05;
+      bcHeight = 18;
+      bcFontSize = 8.0;
       bcMargin = 0;
     } else if (this.paperFormat === 'sticker_50x30') {
       bcWidth = 1.25;
-      bcHeight = 24;
-      bcFontSize = 8.5;
+      bcHeight = 32;
+      bcFontSize = 9.0;
       bcMargin = 1;
     } else if (this.paperFormat === 'sticker_50x25') {
       bcWidth = 1.15;
-      bcHeight = 18;
-      bcFontSize = 7.5;
+      bcHeight = 24;
+      bcFontSize = 8.0;
       bcMargin = 0;
     } else if (this.paperFormat === 'sticker_75x50') {
       bcWidth = 1.6;
-      bcHeight = 40;
-      bcFontSize = 10.0;
+      bcHeight = 48;
+      bcFontSize = 10.5;
       bcMargin = 2;
     } else if (this.paperFormat === 'sticker_25x15') {
       bcWidth = 0.8;
-      bcHeight = 12;
-      bcFontSize = 6.0;
+      bcHeight = 15;
+      bcFontSize = 7.0;
       bcMargin = 0;
     } else if (this.paperFormat === '2up_label') {
       bcWidth = 1.15;
-      bcHeight = 18;
-      bcFontSize = 7.5;
+      bcHeight = 24;
+      bcFontSize = 8.0;
       bcMargin = 0;
     } else if (this.paperFormat === 'a4_grid') {
       bcWidth = 1.15;
-      bcHeight = 20;
-      bcFontSize = 8.0;
+      bcHeight = 24;
+      bcFontSize = 8.5;
       bcMargin = 0;
     } else if (this.paperFormat === '58mm') {
       bcWidth = 1.15;
-      bcHeight = 18;
-      bcFontSize = 7.5;
+      bcHeight = 24;
+      bcFontSize = 8.0;
       bcMargin = 0;
     }
 
@@ -1235,9 +1170,7 @@ class SmartPrintHub {
             fontOptions: "bold",
             font: "monospace",
             marginTop: 0,
-            marginBottom: 1,
-            marginLeft: 0,    // no side margins — CSS handles centering
-            marginRight: 0,   // no side margins — CSS handles centering
+            marginBottom: 2,
             textMargin: 1,
             background: "#ffffff",
             lineColor: "#000000",

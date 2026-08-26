@@ -14,13 +14,6 @@ if ('serviceWorker' in navigator) {
         // Force browser to check GitHub Pages for new SW version immediately on app launch!
         reg.update();
 
-        // Background polling for new deployments on GitHub Pages every 60 seconds
-        setInterval(() => {
-          if (swRegistration) {
-            swRegistration.update().catch(() => {});
-          }
-        }, 60000);
-
         // If a new Service Worker is waiting, force skipWaiting immediately
         if (reg.waiting) {
           reg.waiting.postMessage({ type: 'SKIP_WAITING', action: 'skipWaiting' });
@@ -40,17 +33,6 @@ if ('serviceWorker' in navigator) {
         };
       })
       .catch(err => console.warn('[PWA] Service Worker failed:', err));
-
-    // Check for GitHub Pages updates whenever merchant returns to the app tab/window
-    const checkForUpdates = () => {
-      if (swRegistration) {
-        swRegistration.update().catch(() => {});
-      }
-    };
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') checkForUpdates();
-    });
-    window.addEventListener('focus', checkForUpdates);
 
     // Handle controllerchange event (when new SW takes control, reload app window automatically!)
     let refreshing = false;

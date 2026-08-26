@@ -595,89 +595,6 @@ class CashierTerminal {
         }
       });
     }
-
-    // Keyboard Shortcuts & Hotkeys (F2, F4, Ctrl+F, Esc)
-    window.addEventListener('keydown', (e) => {
-      const activeTag = document.activeElement ? document.activeElement.tagName : '';
-      const isInput = ['INPUT', 'TEXTAREA', 'SELECT'].includes(activeTag);
-
-      if (e.key === 'F2' || (e.ctrlKey && e.key === 'Enter')) {
-        e.preventDefault();
-        if (this.cart && this.cart.length > 0) {
-          this.openPaymentModal('cash');
-        } else {
-          this.showToast('পেমেন্টের জন্য কার্টে পণ্য যোগ করুন!', 'error');
-        }
-      } else if (e.key === 'F4') {
-        e.preventDefault();
-        if (this.cart && this.cart.length > 0 && confirm('আপনি কি নিশ্চিত যে কার্টের সব পণ্য মুছে ফেলতে চান?')) {
-          this.clearCart();
-        }
-      } else if (e.ctrlKey && (e.key === 'f' || e.key === 'F')) {
-        e.preventDefault();
-        const searchInput = document.getElementById('productSearchInput');
-        if (searchInput) searchInput.focus();
-      } else if (e.key === 'Escape') {
-        document.querySelectorAll('.modal.active').forEach(m => m.classList.remove('active'));
-        const sidebar = document.querySelector('.sidebar');
-        const overlay = document.getElementById('sidebarOverlay');
-        if (sidebar) sidebar.classList.remove('mobile-active');
-        if (overlay) overlay.classList.remove('active');
-      }
-    });
-
-    // Custom Item Form Submit Handler
-    const customItemForm = document.getElementById('quickCustomItemForm');
-    if (customItemForm) {
-      customItemForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const name = document.getElementById('customItemName')?.value?.trim() || 'কাস্টম আইটেম';
-        const price = parseFloat(document.getElementById('customItemPrice')?.value) || 0;
-        const qty = parseInt(document.getElementById('customItemQty')?.value) || 1;
-
-        if (price <= 0) {
-          this.showToast('সঠিক মূল্য ইনপুট দিন!', 'error');
-          return;
-        }
-
-        const customVariantId = `custom_v_${Date.now()}`;
-        this.cart.push({
-          productId: `custom_p_${Date.now()}`,
-          variantId: customVariantId,
-          name: name,
-          image: '',
-          color: 'Custom',
-          size: 'N/A',
-          barcode: `CUSTOM-${Date.now().toString().slice(-6)}`,
-          price: price,
-          cost: price * 0.7,
-          mrp: price,
-          quantity: qty,
-          subtotal: price * qty
-        });
-
-        if (navigator.vibrate) navigator.vibrate(30);
-        this.renderCart();
-        this.showToast(`'${name}' কার্টে যোগ করা হয়েছে!`, 'success');
-
-        const modal = document.getElementById('quickCustomItemModal');
-        if (modal) modal.classList.remove('active');
-        customItemForm.reset();
-      });
-    }
-  }
-
-  openQuickCustomItemModal() {
-    const modal = document.getElementById('quickCustomItemModal');
-    if (modal) modal.classList.add('active');
-  }
-
-  toggleMobileCartDrawer() {
-    const cartPanel = document.querySelector('.cart-panel');
-    if (cartPanel) {
-      cartPanel.scrollIntoView({ behavior: 'smooth' });
-      if (navigator.vibrate) navigator.vibrate(20);
-    }
   }
 
   setupBarcodePanel() {
@@ -991,26 +908,17 @@ class CashierTerminal {
 
       const stockClass = totalStock <= 0 ? 'out' : (totalStock <= 10 ? 'low' : '');
       const stockText = totalStock <= 0 ? 'স্টক শেষ' : `মজুদ: ${totalStock}`;
-      const initialChar = (p.name || 'P').trim().charAt(0).toUpperCase();
-
-      const fallbackGraphic = `
-        <div class="prod-card-fallback" style="width:100%; height:100%; background:linear-gradient(135deg, #1e293b 0%, #0f172a 100%); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; color:var(--accent-blue, #3b82f6); user-select:none;">
-          <div style="width:42px; height:42px; border-radius:50%; background:rgba(59, 130, 246, 0.12); border:1.5px solid rgba(59, 130, 246, 0.3); display:flex; align-items:center; justify-content:center; font-weight:800; font-size:1.25rem; color:var(--accent-blue, #3b82f6); box-shadow:0 4px 12px rgba(59,130,246,0.25);">${initialChar}</div>
-          <span style="font-size:0.68rem; color:var(--text-muted, #94a3b8); font-weight:600; letter-spacing:0.5px;">SMART POS</span>
-        </div>
-      `;
 
       return `
         <div class="product-card" onclick="cashier.handleProductCardClick('${p.id}')">
-          <div class="product-img-wrap" style="background:#0f172a; overflow:hidden; position:relative;">
+          <div class="product-img-wrap" style="background:#000000;">
             ${p.image && p.image.trim() !== '' 
-              ? `<img src="${p.image}" alt="${p.name}" loading="lazy" style="width:100%; height:100%; object-fit:cover; transition:transform 0.35s ease;" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';">
-                 <div style="display:none; width:100%; height:100%;">${fallbackGraphic}</div>`
-              : fallbackGraphic}
+              ? `<img src="${p.image}" alt="${p.name}" loading="lazy" style="background:#000000; object-fit:cover;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';"><div style="display:none; width:100%; height:100%; background:#000000;"></div>`
+              : `<div style="width:100%; height:100%; background:#000000;"></div>`}
             <span class="stock-tag ${stockClass}">${stockText}</span>
           </div>
           <div class="product-details">
-            <h4 title="${p.name}">${p.name}</h4>
+            <h4>${p.name}</h4>
             <div style="display:flex; gap:4px; margin:2px 0; flex-wrap:wrap;">
               ${variantTags} ${variants.length > 2 ? `<small class="text-muted" style="font-size:0.7rem;">+${variants.length - 2}</small>` : ''}
             </div>
@@ -1099,12 +1007,10 @@ class CashierTerminal {
         this.showToast('পণ্যটি স্টকে নেই!', 'error');
         return;
       }
-      const prodImg = prod.image || (Array.isArray(prod.images) ? prod.images[0] : '') || '';
       this.cart.push({
         productId: prod.id,
         variantId: variant.variantId,
         name: prod.name,
-        image: prodImg,
         color: variant.color,
         size: variant.size,
         barcode: variant.barcode,
@@ -1328,10 +1234,8 @@ class CashierTerminal {
   renderCart(force = false) {
     const cartList = document.getElementById('cartItemsList');
     const badge = document.getElementById('cartCountBadge');
-    const pwaBadge = document.getElementById('pwaCartBadge');
     const totalItems = this.cart.reduce((sum, i) => sum + i.quantity, 0);
     if (badge) badge.innerText = `${totalItems} আইটেম`;
-    if (pwaBadge) pwaBadge.innerText = totalItems;
 
     const currentCartJSON = JSON.stringify(this.cart);
     const cartChanged = force || this.lastRenderedCartJSON !== currentCartJSON;
@@ -1346,41 +1250,28 @@ class CashierTerminal {
             <small>বারকোড স্ক্যান করুন অথবা ক্লিক করে ভেরিয়েন্ট যোগ করুন</small>
           </div>`;
       } else {
-        cartList.innerHTML = this.cart.map(item => {
-          const initialChar = (item.name || 'P').trim().charAt(0).toUpperCase();
-          const thumbGraphic = (item.image && item.image.trim() !== '')
-            ? `<img src="${item.image}" alt="${item.name}" style="width:100%; height:100%; object-fit:cover;" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';">
-               <div style="display:none; width:100%; height:100%; align-items:center; justify-content:center; background:linear-gradient(135deg, #1e293b, #0f172a); font-weight:700; color:var(--accent-blue, #3b82f6); font-size:0.85rem;">${initialChar}</div>`
-            : `<div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg, #1e293b, #0f172a); font-weight:700; color:var(--accent-blue, #3b82f6); font-size:0.85rem;">${initialChar}</div>`;
-
-          return `
-            <div class="cart-item" data-variant-id="${item.variantId}" style="display:flex; gap:0.65rem; align-items:center;">
-              <div class="cart-item-thumb" style="width:42px; height:42px; border-radius:10px; overflow:hidden; background:rgba(30,41,59,0.8); border:1px solid rgba(255,255,255,0.1); flex-shrink:0; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 8px rgba(0,0,0,0.2);">
-                ${thumbGraphic}
+        cartList.innerHTML = this.cart.map(item => `
+          <div class="cart-item" data-variant-id="${item.variantId}">
+            <div class="cart-item-top">
+              <h5 class="cart-item-title" title="${item.name}">${item.name}</h5>
+              <span class="cart-item-variant">(${item.color} / ${item.size})</span>
+            </div>
+            <div class="cart-item-bottom">
+              <div class="cart-qty-wrap">
+                <div class="cart-qty-controls">
+                  <button class="qty-btn" onclick="cashier.updateCartQty('${item.variantId}', -1)">-</button>
+                  <input type="number" class="qty-val-input" value="${item.quantity}" min="1" onchange="cashier.setCartQty('${item.variantId}', this.value)" onfocus="this.select()" title="কোয়ান্টিটি সরাসরি টাইপ করতে ক্লিক করুন">
+                  <button class="qty-btn" onclick="cashier.updateCartQty('${item.variantId}', 1)">+</button>
+                </div>
+                <span class="unit-price-breakdown">৳${item.price} × ${item.quantity}</span>
               </div>
-              <div style="flex:1; min-width:0;">
-                <div class="cart-item-top" style="display:flex; justify-content:space-between; align-items:baseline;">
-                  <h5 class="cart-item-title" title="${item.name}">${item.name}</h5>
-                  <span class="cart-item-variant">(${item.color} / ${item.size})</span>
-                </div>
-                <div class="cart-item-bottom" style="margin-top:0.35rem;">
-                  <div class="cart-qty-wrap">
-                    <div class="cart-qty-controls">
-                      <button class="qty-btn" onclick="cashier.updateCartQty('${item.variantId}', -1)">-</button>
-                      <input type="number" class="qty-val-input" value="${item.quantity}" min="1" onchange="cashier.setCartQty('${item.variantId}', this.value)" onfocus="this.select()" title="কোয়ান্টিটি সরাসরি টাইপ করতে ক্লিক করুন">
-                      <button class="qty-btn" onclick="cashier.updateCartQty('${item.variantId}', 1)">+</button>
-                    </div>
-                    <span class="unit-price-breakdown">৳${item.price} × ${item.quantity}</span>
-                  </div>
-                  <div class="cart-item-price-actions">
-                    <span class="cart-item-subtotal">৳${item.subtotal}</span>
-                    <button class="btn-remove-item" onclick="cashier.removeFromCart('${item.variantId}')" title="আইটেম মুছুন"><i class="fa-solid fa-trash-can"></i></button>
-                  </div>
-                </div>
+              <div class="cart-item-price-actions">
+                <span class="cart-item-subtotal">৳${item.subtotal}</span>
+                <button class="btn-remove-item" onclick="cashier.removeFromCart('${item.variantId}')" title="আইটেম মুছুন"><i class="fa-solid fa-trash-can"></i></button>
               </div>
             </div>
-          `;
-        }).join('');
+          </div>
+        `).join('');
       }
     }
 
@@ -1677,18 +1568,13 @@ class CashierTerminal {
   }
 
   completeSale(saleRecord) {
-    const now = Date.now();
-    // Deduct stock per variant & stamp lastStockUpdatedAt
+    // Deduct stock per variant
     saleRecord.items.forEach(item => {
       const prod = this.products.find(p => p.id === item.id);
-      if (prod) {
-        prod.lastStockUpdatedAt = now;
-        if (prod.variants) {
-          const v = prod.variants.find(varObj => varObj.variantId === item.variantId);
-          if (v) {
-            v.stock = Math.max(0, v.stock - item.quantity);
-            v.lastStockUpdatedAt = now;
-          }
+      if (prod && prod.variants) {
+        const v = prod.variants.find(varObj => varObj.variantId === item.variantId);
+        if (v) {
+          v.stock = Math.max(0, v.stock - item.quantity);
         }
       }
     });
@@ -1696,16 +1582,6 @@ class CashierTerminal {
     this.sales.unshift(saleRecord);
     localStorage.setItem('pos_products', JSON.stringify(this.products));
     localStorage.setItem('pos_sales', JSON.stringify(this.sales));
-
-    if (window.posFirebase) {
-      if (typeof window.posFirebase.saveDoc === 'function') {
-        window.posFirebase.saveDoc('pos_products', this.products);
-        window.posFirebase.saveDoc('pos_sales', this.sales);
-      } else if (typeof window.posFirebase.pushKeyToCloud === 'function') {
-        window.posFirebase.pushKeyToCloud('pos_products', JSON.stringify(this.products));
-        window.posFirebase.pushKeyToCloud('pos_sales', JSON.stringify(this.sales));
-      }
-    }
 
     this.playAudioBeep('success');
     if (window.confetti) confetti({ particleCount: 80, spread: 60, origin: { y: 0.7 } });
@@ -5449,17 +5325,14 @@ class CashierTerminal {
     }
 
     // 1. Restock returned items to shop inventory
-    const now = Date.now();
     returnPayload.forEach(ret => {
       const prod = this.products.find(p => p.id === ret.itemId || p.name === ret.name);
       if (prod) {
         prod.stock = (prod.stock || 0) + ret.qtyReturned;
-        prod.lastStockUpdatedAt = now;
         if (prod.variants && Array.isArray(prod.variants)) {
           const v = prod.variants.find(varObj => varObj.variantId === ret.variantId || (varObj.color === ret.color && varObj.size === ret.size));
           if (v) {
             v.stock = (v.stock || 0) + ret.qtyReturned;
-            v.lastStockUpdatedAt = now;
           }
         }
       }

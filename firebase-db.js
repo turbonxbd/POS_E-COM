@@ -51,29 +51,8 @@ class FirebasePOSSync {
     }
 
     // Auto-Sync offline data when Internet connection is restored
-    const updateNetworkBanner = (isOnline) => {
-      const banners = [
-        { banner: document.getElementById('netStatusBanner'), text: document.getElementById('netStatusText') },
-        { banner: document.getElementById('netStatusBannerAdmin'), text: document.getElementById('netStatusTextAdmin') }
-      ];
-
-      banners.forEach(({ banner, text }) => {
-        if (!banner) return;
-        banner.style.display = 'flex';
-        if (isOnline) {
-          banner.className = 'network-status-banner online';
-          if (text) text.innerHTML = '<i class="fa-solid fa-wifi"></i> অনলাইন সংযোগ সক্রিয় — ক্লাউড সিঙ্ক চালু';
-          setTimeout(() => { banner.style.display = 'none'; }, 4000);
-        } else {
-          banner.className = 'network-status-banner offline';
-          if (text) text.innerHTML = '<i class="fa-solid fa-wifi-slash"></i> সংযোগ বিচ্ছিন্ন — অফলাইন পস বিলিং মোড সক্রিয়';
-        }
-      });
-    };
-
     window.addEventListener('online', async () => {
       console.log('[Firebase Cloud Sync] Internet reconnected! Auto-syncing offline data...');
-      updateNetworkBanner(true);
       if (this.storeId && this.db) {
         try {
           for (const key of this.keys) {
@@ -103,11 +82,6 @@ class FirebasePOSSync {
           console.warn('[Firebase Cloud Sync Warning]:', err);
         }
       }
-    });
-
-    window.addEventListener('offline', () => {
-      console.warn('[Firebase Cloud Sync] Internet disconnected. Switched to Offline POS Storage mode.');
-      updateNetworkBanner(false);
     });
   }
 
@@ -239,9 +213,20 @@ class FirebasePOSSync {
     };
   }
 
-  // Push single key data to Firestore with automatic chunking for unlimited products
+  // Push single key data to Firestore with 1MB size guard
   async pushKeyToCloud(key, jsonStringValue) {
     if (!this.db || !this.storeId || this.storeId === 'store_demo_101') return;
+
+    // Firestore document 1MB limit protection
+    const byteSize = new Blob([jsonStringValue]).size;
+    if (byteSize > 900000) {
+      console.warn(`[Firebase Cloud] WARNING: ${key} data is ${(byteSize / 1024).toFixed(0)}KB — approaching 1MB Firestore limit! Compress product images.`);
+      window.dispatchEvent(new CustomEvent('pos_storage_size_warning', { detail: { key, byteSize } }));
+    }
+    if (byteSize > 1048000) {
+      console.error(`[Firebase Cloud] BLOCKED: ${key} (${(byteSize / 1024).toFixed(0)}KB) exceeds 1MB Firestore limit. Compress product images to fix.`);
+      return;
+    }
 
     try {
       let parsedData;
@@ -253,52 +238,10 @@ class FirebasePOSSync {
           storeId: this.storeId,
           tenantSKU: p.barcode ? `${this.storeId}_${p.barcode}` : p.id
         }));
-
-        const jsonStr = JSON.stringify(parsedData);
-        const byteSize = new Blob([jsonStr]).size;
-
-        // If products size exceeds 700KB, chunk into sub-documents for UNLIMITED products
-        if (byteSize > 700000) {
-          const chunkSize = 250;
-          const chunks = [];
-          for (let i = 0; i < parsedData.length; i += chunkSize) {
-            chunks.push(parsedData.slice(i, i + chunkSize));
-          }
-
-          console.log(`[Firebase Cloud] Chunking ${parsedData.length} products into ${chunks.length} documents...`);
-          const batch = this.db.batch();
-
-          chunks.forEach((chunk, idx) => {
-            const chunkRef = this.db.collection('stores').doc(this.storeId).collection('pos_data').doc(`pos_products_chunk_${idx}`);
-            batch.set(chunkRef, {
-              storeId: this.storeId,
-              chunkIndex: idx,
-              data: chunk,
-              updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-              clientUpdatedAt: Date.now()
-            });
-          });
-
-          const mainRef = this.db.collection('stores').doc(this.storeId).collection('pos_data').doc('pos_products');
-          batch.set(mainRef, {
-            storeId: this.storeId,
-            isChunked: true,
-            chunksCount: chunks.length,
-            totalProducts: parsedData.length,
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-            clientUpdatedAt: Date.now()
-          });
-
-          await batch.commit();
-          console.log(`[Firebase Cloud] Successfully committed ${chunks.length} product chunks (${(byteSize / 1024).toFixed(1)}KB).`);
-          return;
-        }
       }
 
-      const byteSize = new Blob([jsonStringValue]).size;
       await this.db.collection('stores').doc(this.storeId).collection('pos_data').doc(key).set({
         storeId: this.storeId,
-        isChunked: false,
         data: parsedData,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
         clientUpdatedAt: Date.now()
@@ -318,8 +261,10 @@ class FirebasePOSSync {
     this.keys.forEach(key => {
       const docRef = this.db.collection('stores').doc(this.storeId).collection('pos_data').doc(key);
 
-      const unsub = docRef.onSnapshot(async doc => {
+      const unsub = docRef.onSnapshot(doc => {
         if (!doc.exists) {
+          // Document doesn't exist yet — only seed from local if this device JUST wrote (within 30 sec)
+          // This prevents old stale device data from overwriting intentional empty state on server
           const localTs = this._localUpdatedAt[key] || 0;
           const isVeryRecentLocalWrite = (Date.now() - localTs) < 30000;
           if (isVeryRecentLocalWrite) {
@@ -330,12 +275,15 @@ class FirebasePOSSync {
               this.pushKeyToCloud(key, localVal);
             }
           }
+          // DO NOT seed stale local data — server empty state is intentional (e.g., all products deleted)
           return;
         }
 
         const remotePayload = doc.data();
-        if (!remotePayload || (remotePayload.data === undefined && !remotePayload.isChunked)) return;
+        if (!remotePayload || remotePayload.data === undefined) return;
 
+        // Timestamp-based conflict resolution:
+        // If THIS DEVICE wrote more recently than server ts, skip (our write is inflight to server)
         const serverClientTs = remotePayload.clientUpdatedAt || 0;
         const localTs = this._localUpdatedAt[key] || 0;
         if (localTs > serverClientTs + 2000) {
@@ -343,59 +291,8 @@ class FirebasePOSSync {
           return;
         }
 
+        // SERVER WINS — always apply server data to local cache
         let finalData = remotePayload.data;
-
-        // Reconstruct chunked product documents if dataset is large
-        if (key === 'pos_products' && remotePayload.isChunked && remotePayload.chunksCount > 0) {
-          try {
-            const chunkPromises = [];
-            for (let i = 0; i < remotePayload.chunksCount; i++) {
-              chunkPromises.push(this.db.collection('stores').doc(this.storeId).collection('pos_data').doc(`pos_products_chunk_${i}`).get());
-            }
-            const chunkDocs = await Promise.all(chunkPromises);
-            let combined = [];
-            chunkDocs.forEach(cDoc => {
-              if (cDoc.exists && cDoc.data() && Array.isArray(cDoc.data().data)) {
-                combined = combined.concat(cDoc.data().data);
-              }
-            });
-            if (combined.length > 0) {
-              finalData = combined;
-            }
-          } catch (chunkErr) {
-            console.error('[Firebase Cloud] Error fetching product chunks:', chunkErr);
-          }
-        }
-
-        // Smart Stock Merger for pos_products using lastStockUpdatedAt timestamps
-        if (key === 'pos_products' && Array.isArray(finalData)) {
-          const tenantKey = this.getTenantStorageKey(key);
-          let localProducts = [];
-          try { localProducts = JSON.parse(localStorage.getItem(tenantKey) || localStorage.getItem(key) || '[]'); } catch (e) {}
-          if (Array.isArray(localProducts) && localProducts.length > 0) {
-            const localMap = new Map();
-            localProducts.forEach(p => { if (p && p.id) localMap.set(p.id, p); });
-
-            finalData = finalData.map(rp => {
-              const lp = localMap.get(rp.id);
-              if (!lp) return rp;
-
-              if (Array.isArray(rp.variants) && Array.isArray(lp.variants)) {
-                const mergedVariants = rp.variants.map(rv => {
-                  const lv = lp.variants.find(v => v.variantId === rv.variantId);
-                  if (lv && lv.lastStockUpdatedAt && (!rv.lastStockUpdatedAt || lv.lastStockUpdatedAt > rv.lastStockUpdatedAt)) {
-                    return { ...rv, stock: lv.stock, lastStockUpdatedAt: lv.lastStockUpdatedAt };
-                  }
-                  return rv;
-                });
-                return { ...rp, variants: mergedVariants };
-              } else if (lp.lastStockUpdatedAt && (!rp.lastStockUpdatedAt || lp.lastStockUpdatedAt > rp.lastStockUpdatedAt)) {
-                return { ...rp, stock: lp.stock, lastStockUpdatedAt: lp.lastStockUpdatedAt };
-              }
-              return rp;
-            });
-          }
-        }
 
         // Smart Sales Merger: preserve unsynced offline sales
         if (key === 'pos_sales' && Array.isArray(remotePayload.data)) {
@@ -405,6 +302,7 @@ class FirebasePOSSync {
           if (Array.isArray(localSales) && localSales.length > 0) {
             const salesMap = new Map();
             remotePayload.data.forEach(s => { if (s && (s.id || s.timestamp)) salesMap.set(s.id || s.timestamp, s); });
+            // Only add local sales missing from server (unsynced offline)
             localSales.forEach(s => {
               if (s && (s.id || s.timestamp) && !salesMap.has(s.id || s.timestamp)) {
                 salesMap.set(s.id || s.timestamp, s);
@@ -616,55 +514,32 @@ window.posFirebase  = window.POS_FIREBASE;
 // ============================================================
 
 /**
- * Helper to convert base64 Data URL to Blob synchronously without fetch overhead
- */
-function dataURLToBlob(dataUrl) {
-  try {
-    const parts = dataUrl.split(',');
-    if (parts.length < 2) return null;
-    const mimeMatch = parts[0].match(/:(.*?);/);
-    const mime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
-    const bstr = atob(parts[1]);
-    let n = bstr.length;
-    const u8arr = new Uint8Array(n);
-    while (n--) {
-      u8arr[n] = bstr.charCodeAt(n);
-    }
-    return new Blob([u8arr], { type: mime });
-  } catch (e) {
-    console.error('[dataURLToBlob Error]', e);
-    return null;
-  }
-}
-
-/**
  * Upload a base64 dataURL image to Firebase Storage.
  * @param {string} dataUrl   - base64 data URL (data:image/...)
  * @param {string} storeId   - merchant store ID (for folder isolation)
  * @param {string} fileName  - unique filename (e.g. prod_123.webp)
  * @param {function} onProgress - optional progress callback (0-100)
- * @returns {Promise<string>} - resolves with public download URL or base64 fallback
+ * @returns {Promise<string>} - resolves with public download URL
  */
 async function uploadImageToStorage(dataUrl, storeId, fileName, onProgress) {
   if (!dataUrl || !dataUrl.startsWith('data:')) {
-    if (typeof onProgress === 'function') onProgress(100);
+    // Already a URL — return as-is
     return dataUrl;
   }
 
   if (typeof firebase === 'undefined' || !firebase.storage) {
     console.warn('[Firebase Storage] SDK not loaded — storing as base64 fallback');
-    if (typeof onProgress === 'function') onProgress(100);
     return dataUrl;
   }
 
   try {
     const storage = firebase.storage();
-    const blob = dataURLToBlob(dataUrl);
-    if (!blob) {
-      if (typeof onProgress === 'function') onProgress(100);
-      return dataUrl;
-    }
 
+    // Convert base64 dataURL → Blob
+    const response = await fetch(dataUrl);
+    const blob = await response.blob();
+
+    // Determine file extension from mime type
     const mime = blob.type || 'image/jpeg';
     const ext  = mime.includes('webp') ? 'webp' : mime.includes('png') ? 'png' : 'jpg';
     const safeName = fileName ? fileName.replace(/[^a-zA-Z0-9_\-]/g, '_') : `img_${Date.now()}`;
@@ -673,45 +548,26 @@ async function uploadImageToStorage(dataUrl, storeId, fileName, onProgress) {
     const storageRef = storage.ref(storagePath);
     const uploadTask = storageRef.put(blob, { contentType: mime });
 
-    return await new Promise((resolve) => {
-      let isResolved = false;
-
-      const finish = (resultUrl) => {
-        if (isResolved) return;
-        isResolved = true;
-        if (typeof onProgress === 'function') onProgress(100);
-        resolve(resultUrl);
-      };
-
-      // 6-second safety timeout: fallback to Base64 if Storage stalls or network hangs
-      const timeoutTimer = setTimeout(() => {
-        console.warn('[Firebase Storage] Upload timed out — falling back to compressed base64');
-        try { uploadTask.cancel(); } catch (_) {}
-        finish(dataUrl);
-      }, 6000);
-
+    return await new Promise((resolve, reject) => {
       uploadTask.on(
         'state_changed',
         (snapshot) => {
-          if (snapshot.totalBytes > 0) {
-            const pct = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
-            if (typeof onProgress === 'function') onProgress(pct);
-          }
+          const pct = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
+          if (typeof onProgress === 'function') onProgress(pct);
         },
         (error) => {
-          clearTimeout(timeoutTimer);
-          console.warn('[Firebase Storage] Upload error, falling back to base64:', error.message || error);
-          finish(dataUrl);
+          console.error('[Firebase Storage] Upload error:', error);
+          // Graceful fallback: store base64 instead of failing completely
+          resolve(dataUrl);
         },
         async () => {
-          clearTimeout(timeoutTimer);
           try {
             const downloadURL = await uploadTask.snapshot.ref.getDownloadURL();
             console.log(`[Firebase Storage] ✅ Uploaded: ${storagePath} → ${downloadURL}`);
-            finish(downloadURL);
+            resolve(downloadURL);
           } catch (e) {
             console.error('[Firebase Storage] getDownloadURL error:', e);
-            finish(dataUrl);
+            resolve(dataUrl); // Fallback to base64
           }
         }
       );
@@ -719,7 +575,6 @@ async function uploadImageToStorage(dataUrl, storeId, fileName, onProgress) {
 
   } catch (err) {
     console.error('[Firebase Storage] uploadImageToStorage failed:', err);
-    if (typeof onProgress === 'function') onProgress(100);
     return dataUrl; // Always fallback gracefully
   }
 }

@@ -224,11 +224,8 @@ class POSApp {
     document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.tab-view').forEach(v => v.classList.remove('active'));
 
-    const tabBtn = document.querySelector(`[data-tab="${tabId}"]`);
-    if (tabBtn) tabBtn.classList.add('active');
-
-    const tabView = document.getElementById(`${tabId}View`);
-    if (tabView) tabView.classList.add('active');
+    document.querySelector(`[data-tab="${tabId}"]`).classList.add('active');
+    document.getElementById(`${tabId}View`).classList.add('active');
 
     const titles = {
       pos: 'POS টার্মিনাল',
@@ -236,8 +233,7 @@ class POSApp {
       sales: 'বিক্রি ইতিহাস (Sales History)',
       analytics: 'সেলস ড্যাশবোর্ড ও রিপোর্ট'
     };
-    const titleEl = document.getElementById('pageTitle');
-    if (titleEl) titleEl.innerText = titles[tabId] || 'Smart POS';
+    document.getElementById('pageTitle').innerText = titles[tabId] || 'Smart POS';
 
     if (tabId === 'analytics') {
       this.updateDashboardStats();
@@ -247,7 +243,7 @@ class POSApp {
   // Render Product Catalog Grid
   renderProducts() {
     const grid = document.getElementById('productsGrid');
-    const searchVal = document.getElementById('productSearchInput')?.value?.toLowerCase()?.trim() || '';
+    const searchVal = document.getElementById('productSearchInput').value.toLowerCase().trim();
 
     const filtered = this.products.filter(p => {
       const matchCat = this.activeCategory === 'all' || p.category === this.activeCategory;
@@ -647,13 +643,11 @@ class POSApp {
 
   // Complete & Record Sale Transaction
   completeSale(saleRecord) {
-    const now = Date.now();
     // 1. Deduct Stock
     saleRecord.items.forEach(item => {
       const prod = this.products.find(p => p.id === item.id);
       if (prod) {
         prod.stock = Math.max(0, prod.stock - item.quantity);
-        prod.lastStockUpdatedAt = now;
       }
     });
 
@@ -661,11 +655,6 @@ class POSApp {
     this.sales.unshift(saleRecord);
     localStorage.setItem('pos_products', JSON.stringify(this.products));
     localStorage.setItem('pos_sales', JSON.stringify(this.sales));
-
-    if (window.posFirebase && typeof window.posFirebase.saveDoc === 'function') {
-      window.posFirebase.saveDoc('pos_products', this.products);
-      window.posFirebase.saveDoc('pos_sales', this.sales);
-    }
 
     // 3. Play success sound & trigger confetti celebration!
     this.playAudioBeep('success');
