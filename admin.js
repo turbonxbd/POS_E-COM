@@ -5766,18 +5766,42 @@ class AdminPanel {
 
 let adminApp;
 let admin;
-document.addEventListener('DOMContentLoaded', () => {
-  adminApp = new AdminPanel();
-  admin = adminApp;
-  window.adminApp = adminApp;
-  window.admin = adminApp;
 
-  // Global listener for Customer Forms and Actions
-  document.getElementById('adminAddNewCustomerBtn')?.addEventListener('click', () => adminApp.openCustomerModal());
-  document.getElementById('customerForm')?.addEventListener('submit', (e) => {
-    e.preventDefault();
-    adminApp.saveCustomerFromForm();
-  });
-  document.getElementById('custSearchInput')?.addEventListener('input', () => adminApp.renderAdminCustomers());
-});
+function initAdminApp() {
+  if (window._adminAppInitialized) return;
+  window._adminAppInitialized = true;
+
+  try {
+    adminApp = new AdminPanel();
+    admin = adminApp;
+    window.adminApp = adminApp;
+    window.admin = adminApp;
+
+    // Global listener for Customer Forms and Actions
+    document.getElementById('adminAddNewCustomerBtn')?.addEventListener('click', () => adminApp?.openCustomerModal());
+    document.getElementById('customerForm')?.addEventListener('submit', (e) => {
+      e.preventDefault();
+      adminApp?.saveCustomerFromForm();
+    });
+    document.getElementById('custSearchInput')?.addEventListener('input', () => adminApp?.renderAdminCustomers());
+
+    // Listen for storage events across tabs / PWA windows
+    window.addEventListener('storage', (e) => {
+      if (e.key === 'pos_active_store_id' || e.key === 'pos_session_logged_in' || e.key === 'pos_settings') {
+        if (typeof adminApp?.renderAdminDashboard === 'function') {
+          adminApp.renderAdminDashboard();
+        }
+      }
+    });
+  } catch (err) {
+    console.error('[Admin Panel Initializer Error]:', err);
+  }
+}
+
+if (document.readyState === 'complete' || document.readyState === 'interactive') {
+  initAdminApp();
+} else {
+  document.addEventListener('DOMContentLoaded', initAdminApp);
+}
+
 

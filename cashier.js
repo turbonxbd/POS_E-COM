@@ -5580,11 +5580,35 @@ class CashierTerminal {
 }
 
 let cashier;
-document.addEventListener('DOMContentLoaded', () => {
-  cashier = new CashierTerminal();
-  window.cashier = cashier;
 
-  document.getElementById('btnNavCustomers')?.addEventListener('click', () => cashier.switchTab('cashierCustomersView'));
-  document.getElementById('cashierAddNewCustBtn')?.addEventListener('click', () => cashier.openAddNewCustomerModal());
-  document.getElementById('cashierCustSearchInput')?.addEventListener('input', () => cashier.renderCashierCustomers());
-});
+function initCashierTerminal() {
+  if (window._cashierTerminalInitialized) return;
+  window._cashierTerminalInitialized = true;
+
+  try {
+    cashier = new CashierTerminal();
+    window.cashier = cashier;
+
+    document.getElementById('btnNavCustomers')?.addEventListener('click', () => cashier?.switchTab('cashierCustomersView'));
+    document.getElementById('cashierAddNewCustBtn')?.addEventListener('click', () => cashier?.openAddNewCustomerModal());
+    document.getElementById('cashierCustSearchInput')?.addEventListener('input', () => cashier?.renderCashierCustomers());
+
+    // Listen for storage events across tabs / PWA windows
+    window.addEventListener('storage', (e) => {
+      if (e.key === 'pos_active_store_id' || e.key === 'pos_session_logged_in' || e.key === 'pos_settings') {
+        if (typeof cashier?.renderCashierHeader === 'function') {
+          cashier.renderCashierHeader();
+        }
+      }
+    });
+  } catch (err) {
+    console.error('[Cashier Terminal Initializer Error]:', err);
+  }
+}
+
+if (document.readyState === 'complete' || document.readyState === 'interactive') {
+  initCashierTerminal();
+} else {
+  document.addEventListener('DOMContentLoaded', initCashierTerminal);
+}
+

@@ -29,13 +29,14 @@ class SmartPrintHub {
       } catch (e) {}
     }
     return {
-      paperFormat: '80mm', // '80mm', '58mm', '100mm', 'sticker_50x30', 'sticker_40x25', '2up_label', 'a4_grid', 'custom'
-      customWidthMm: 80,
-      customHeightMm: 30,
+      paperFormat: 'sticker_38x25', // 'sticker_38x25' (BARCODE L: 1.50in x 1.00in / 38.1mm x 25.4mm), '80mm' (POS: 3.00in roll), etc.
+      customWidthMm: 38.1,
+      customHeightMm: 25.4,
       scalePercent: 100,
       marginMm: 0,
-      stickerCols: 'auto',
+      stickerCols: '1',
       autoFit: true,
+      printRotation: 'driver_180', // 'driver_180' (Default: 0deg web output so printer's Portrait 180° driver setting flips cleanly), 'web_180', 'normal'
       speed: 'instant' // 'instant' for direct instant printing without delays
     };
   }
@@ -79,14 +80,14 @@ class SmartPrintHub {
             <div class="toolbar-item">
               <label><i class="fa-solid fa-scroll"></i> পেপার ও স্টিকার ফরম্যাট:</label>
               <select id="printHubFormatSelect" class="form-control form-control-sm">
-                <option value="sticker_38x25" selected>🏷️ 38mm × 25mm কসমেটিকস ও পোশাক ১-আপ রোল (Small Roll)</option>
+                <option value="sticker_38x25" selected>🏷️ BARCODE L - 1.50 in × 1.00 in (38.1mm × 25.4mm Label)</option>
                 <option value="sticker_50x30">🏷️ 50mm × 30mm স্টিকার রোল (BD Standard 1-Up Roll)</option>
                 <option value="sticker_50x25">🏷️ 50mm × 25mm গ্যাজেট ও জুয়েলারি ১-আপ রোল (Medium Roll)</option>
                 <option value="sticker_75x50">🏷️ 75mm × 50mm কার্টন ও শিপিং লেবেল (Large Shipping Label)</option>
                 <option value="sticker_25x15">🏷️ 25mm × 15mm ফার্মেসী ও অ্যাকসেসোরিজ ট্যাগ (Micro Tag)</option>
                 <option value="2up_label">🏷️ 2-Up ডাবল কলাম স্টিকার (2 Labels Per Row)</option>
                 <option value="a4_grid">📄 A4 বারকোড স্টিকার শিট (A4 Multi-Sticker Grid)</option>
-                <option value="80mm">🧾 80mm POS থার্মাল রসিদ (Standard POS Receipt)</option>
+                <option value="80mm">🧾 POS Invoice - 3.00 in / 80mm রোল (Gprinter POS Receipt)</option>
                 <option value="58mm">🧾 58mm মিনি থার্মাল রসিদ (Mini POS Receipt)</option>
                 <option value="100mm">🧾 100mm লেবেল / ইনভয়েস রোল (100mm Wide Roll)</option>
                 <option value="custom">⚙️ কাস্টম পেপার সাইজ (Custom Width/Height)</option>
@@ -119,19 +120,29 @@ class SmartPrintHub {
               <div class="setting-field">
                 <label><i class="fa-solid fa-ruler-horizontal"></i> কাস্টম পেপার উইডথ (mm):</label>
                 <div class="input-group-inline">
-                  <input type="number" id="printHubCustomWidthInput" class="form-control form-control-sm" min="30" max="220" value="${this.settings.customWidthMm || 80}">
+                  <input type="number" id="printHubCustomWidthInput" class="form-control form-control-sm" min="30" max="220" value="${this.settings.customWidthMm || 38.1}">
                   <span class="unit-tag">mm</span>
                 </div>
-                <small style="color:#94a3b8; font-size:0.7rem;">যেকোনো প্রিন্টারের আসল পেপার উইডথ বসান (যেমন: 40, 50, 58, 80, 100)</small>
+                <small style="color:#94a3b8; font-size:0.7rem;">যেকোনো প্রিন্টারের আসল পেপার উইডথ বসান (যেমন: 38.1, 50, 76.2, 80)</small>
               </div>
 
               <div class="setting-field">
                 <label><i class="fa-solid fa-ruler-vertical"></i> কাস্টম পেপার হাইট (mm):</label>
                 <div class="input-group-inline">
-                  <input type="number" id="printHubCustomHeightInput" class="form-control form-control-sm" min="0" max="300" value="${this.settings.customHeightMm || 30}">
+                  <input type="number" id="printHubCustomHeightInput" class="form-control form-control-sm" min="0" max="300" value="${this.settings.customHeightMm || 25.4}">
                   <span class="unit-tag">mm</span>
                 </div>
-                <small style="color:#94a3b8; font-size:0.7rem;">স্টিকার হাইট (যেমন: 30, 25) অথবা মেমোর জন্য 0 (Auto Height)</small>
+                <small style="color:#94a3b8; font-size:0.7rem;">স্টিকার হাইট (যেমন: 25.4, 30) অথবা মেমোর জন্য 0 (Auto Height)</small>
+              </div>
+
+              <div class="setting-field">
+                <label><i class="fa-solid fa-rotate"></i> প্রিন্ট অরিয়েন্টেশন / রোটেশন:</label>
+                <select id="printHubRotationSelect" class="form-control form-control-sm">
+                  <option value="driver_180" ${this.settings.printRotation === 'driver_180' ? 'selected' : ''}>🔄 প্রিন্টার ড্রাইভার ১৮০° (Gprinter Default - Auto Flip)</option>
+                  <option value="web_180" ${this.settings.printRotation === 'web_180' ? 'selected' : ''}>🔄 ওয়েব ১৮০° ফ্লিপ (Web 180° Rotation Mode)</option>
+                  <option value="normal" ${this.settings.printRotation === 'normal' ? 'selected' : ''}>⬆️ সোজা ০° (0° Straight Layout)</option>
+                </select>
+                <small style="color:#94a3b8; font-size:0.7rem;">Gprinter ഡ്രাইভার Portrait 180° থাকলে "প্রিন্টার ড্রাইভার ১৮০°" সিলেক্ট রাখুন</small>
               </div>
 
               <div class="setting-field">
@@ -305,15 +316,17 @@ class SmartPrintHub {
   }
 
   applySettingsFromUI() {
-    const customWidth = parseInt(document.getElementById('printHubCustomWidthInput')?.value) || 80;
-    const customHeight = parseInt(document.getElementById('printHubCustomHeightInput')?.value) || 0;
+    const customWidth = parseFloat(document.getElementById('printHubCustomWidthInput')?.value) || 38.1;
+    const customHeight = parseFloat(document.getElementById('printHubCustomHeightInput')?.value) || 25.4;
+    const printRotation = document.getElementById('printHubRotationSelect')?.value || 'driver_180';
     const scale = parseInt(document.getElementById('printHubScaleRange')?.value) || 100;
     const margin = parseInt(document.getElementById('printHubMarginSelect')?.value) || 0;
-    const cols = document.getElementById('printHubStickerColsSelect')?.value || 'auto';
+    const cols = document.getElementById('printHubStickerColsSelect')?.value || '1';
     const autoFit = document.getElementById('printHubAutoFitCheck')?.checked ?? true;
 
     this.settings.customWidthMm = customWidth;
     this.settings.customHeightMm = customHeight;
+    this.settings.printRotation = printRotation;
     this.settings.scalePercent = scale;
     this.settings.marginMm = margin;
     this.settings.stickerCols = cols;
@@ -328,25 +341,29 @@ class SmartPrintHub {
 
   resetSettingsToDefault() {
     this.settings = {
-      paperFormat: '80mm',
-      customWidthMm: 80,
-      customHeightMm: 30,
+      paperFormat: 'sticker_38x25',
+      customWidthMm: 38.1,
+      customHeightMm: 25.4,
       scalePercent: 100,
       marginMm: 0,
-      stickerCols: 'auto',
+      stickerCols: '1',
       autoFit: true,
-      speed: 'normal'
+      printRotation: 'driver_180',
+      speed: 'instant'
     };
-    this.paperFormat = '80mm';
+    this.paperFormat = 'sticker_38x25';
 
     const formatSelect = document.getElementById('printHubFormatSelect');
-    if (formatSelect) formatSelect.value = '80mm';
+    if (formatSelect) formatSelect.value = 'sticker_38x25';
 
     const customWidthInput = document.getElementById('printHubCustomWidthInput');
-    if (customWidthInput) customWidthInput.value = 80;
+    if (customWidthInput) customWidthInput.value = 38.1;
 
     const customHeightInput = document.getElementById('printHubCustomHeightInput');
-    if (customHeightInput) customHeightInput.value = 30;
+    if (customHeightInput) customHeightInput.value = 25.4;
+
+    const rotationSelect = document.getElementById('printHubRotationSelect');
+    if (rotationSelect) rotationSelect.value = 'driver_180';
 
     const scaleRange = document.getElementById('printHubScaleRange');
     if (scaleRange) scaleRange.value = 100;
@@ -357,7 +374,7 @@ class SmartPrintHub {
     if (marginSelect) marginSelect.value = 0;
 
     const stickerColsSelect = document.getElementById('printHubStickerColsSelect');
-    if (stickerColsSelect) stickerColsSelect.value = 'auto';
+    if (stickerColsSelect) stickerColsSelect.value = '1';
 
     const autoFitCheck = document.getElementById('printHubAutoFitCheck');
     if (autoFitCheck) autoFitCheck.checked = true;
@@ -376,7 +393,7 @@ class SmartPrintHub {
 
     // Width styling based on paperFormat
     if (this.paperFormat === 'custom') {
-      paperTarget.style.width = `${this.settings.customWidthMm || 80}mm`;
+      paperTarget.style.width = `${this.settings.customWidthMm || 38.1}mm`;
     } else if (this.paperFormat === '58mm') {
       paperTarget.style.width = '240px';
     } else if (this.paperFormat === '80mm') {
@@ -437,35 +454,30 @@ class SmartPrintHub {
       document.head.appendChild(styleTag);
     }
 
-    let widthMm = '80mm';
-    let heightMm = 'auto';
+    let widthMm = '38.1mm';
+    let heightMm = '25.4mm';
     let isStickerRoll = false;
 
     if (mode === 'invoice') {
-      widthMm = '80mm';
+      widthMm = '76.2mm';
       isStickerRoll = false;
       const receiptEl = document.getElementById('printableReceipt');
       if (receiptEl) {
-        // Measure real unclipped scrollHeight of the invoice receipt element
         const pxHeight = Math.max(receiptEl.scrollHeight || 0, receiptEl.offsetHeight || 0);
         const baseMm = pxHeight * 0.2645833;
-        // Proportional 6% buffer + 15mm base safety.
-        // Guarantees 100% ONE SINGLE CONTINUOUS PAGE for any number of products (1 to 500+ items).
-        // Completely eliminates Chrome page breaks and prevents footer/barcode from going to Page 2.
         const calculatedHeightMm = Math.ceil(baseMm * 1.06) + 15;
         heightMm = `${Math.max(70, calculatedHeightMm)}mm`;
       } else {
         heightMm = 'auto';
       }
     } else {
-      // Default to 38x25 sticker format for barcode mode if non-sticker format passed
       if (!this.paperFormat || this.paperFormat === '80mm' || this.paperFormat === '58mm') {
         this.paperFormat = 'sticker_38x25';
       }
       switch(this.paperFormat) {
         case 'sticker_38x25':
-          widthMm = '38mm';
-          heightMm = '25mm';
+          widthMm = '38.1mm';
+          heightMm = '25.4mm';
           isStickerRoll = true;
           break;
         case 'sticker_50x30':
@@ -498,27 +510,25 @@ class SmartPrintHub {
           heightMm = '297mm';
           break;
         case 'custom':
-          widthMm = `${this.settings.customWidthMm || 38}mm`;
-          heightMm = `${this.settings.customHeightMm || 25}mm`;
+          widthMm = `${this.settings.customWidthMm || 38.1}mm`;
+          heightMm = `${this.settings.customHeightMm || 25.4}mm`;
           isStickerRoll = true;
           break;
         default:
-          widthMm = '38mm';
-          heightMm = '25mm';
+          widthMm = '38.1mm';
+          heightMm = '25.4mm';
           isStickerRoll = true;
           break;
       }
     }
 
-    const scale = (this.settings.scalePercent || 100) / 100;
-    const margin = isStickerRoll ? '0mm' : `${this.settings.marginMm !== undefined ? this.settings.marginMm : 0}mm`;
+    const rotationCss = (this.settings.printRotation === 'web_180') ? 'transform: rotate(180deg) !important; transform-origin: center center !important;' : 'transform: none !important; rotate: 0deg !important;';
 
     let pageRule = '';
-    // Valid CSS Paged Media Spec syntax
     if (mode === 'invoice' && heightMm !== 'auto') {
-      pageRule = `@page { size: 80mm ${heightMm}; margin: 0; }`;
+      pageRule = `@page { size: 76.2mm ${heightMm}; margin: 0; }`;
     } else if (mode === 'invoice') {
-      pageRule = `@page { size: 80mm auto; margin: 0; }`;
+      pageRule = `@page { size: 76.2mm auto; margin: 0; }`;
     } else if (heightMm === 'auto') {
       pageRule = `@page { size: ${widthMm} auto; margin: 0; }`;
     } else {
@@ -540,8 +550,8 @@ class SmartPrintHub {
           color: #000000 !important;
           -webkit-print-color-adjust: exact !important;
           print-color-adjust: exact !important;
-          width: ${mode === 'invoice' ? '80mm' : widthMm} !important;
-          max-width: ${mode === 'invoice' ? '80mm' : widthMm} !important;
+          width: ${mode === 'invoice' ? '76.2mm' : widthMm} !important;
+          max-width: ${mode === 'invoice' ? '76.2mm' : widthMm} !important;
         }
 
         /* Expand scrollable receipt viewport to full content height in print */
@@ -579,8 +589,8 @@ class SmartPrintHub {
           position: absolute !important;
           left: 0 !important;
           top: 0 !important;
-          width: ${mode === 'invoice' ? '80mm' : widthMm} !important;
-          max-width: ${mode === 'invoice' ? '80mm' : widthMm} !important;
+          width: ${mode === 'invoice' ? '76.2mm' : widthMm} !important;
+          max-width: ${mode === 'invoice' ? '76.2mm' : widthMm} !important;
           height: auto !important;
           background: #ffffff !important;
           color: #000000 !important;
@@ -611,8 +621,8 @@ class SmartPrintHub {
           min-height: 0 !important;
           height: auto !important;
           max-height: none !important;
-          width: ${mode === 'invoice' ? '80mm' : widthMm} !important;
-          max-width: ${mode === 'invoice' ? '80mm' : widthMm} !important;
+          width: ${mode === 'invoice' ? '76.2mm' : widthMm} !important;
+          max-width: ${mode === 'invoice' ? '76.2mm' : widthMm} !important;
           overflow: visible !important;
           display: block !important;
         }
@@ -621,9 +631,9 @@ class SmartPrintHub {
           position: relative !important;
           left: 0 !important;
           top: 0 !important;
-          width: 80mm !important;
-          max-width: 80mm !important;
-          min-width: 80mm !important;
+          width: 76.2mm !important;
+          max-width: 76.2mm !important;
+          min-width: 76.2mm !important;
           height: auto !important;
           margin: 0 auto !important;
           padding: 2mm 2mm !important;
@@ -688,8 +698,8 @@ class SmartPrintHub {
           height: ${heightMm} !important;
           max-height: ${heightMm} !important;
           box-sizing: border-box !important;
-          margin: 0 !important;
-          padding: 2px 3px 2px 3px !important;
+          margin: 0 auto !important;
+          padding: 1.2mm 1.5mm !important;
           page-break-before: auto !important;
           page-break-after: always !important;
           break-after: page !important;
@@ -702,8 +712,7 @@ class SmartPrintHub {
           flex-direction: column !important;
           align-items: center !important;
           justify-content: space-between !important;
-          transform: rotate(180deg) !important;
-          transform-origin: center center !important;
+          ${rotationCss}
         }
         .barcode-sticker-card:last-child,
         .barcode-sticker-card:last-of-type {
@@ -1109,8 +1118,8 @@ class SmartPrintHub {
 
     if (this.paperFormat === 'sticker_38x25') {
       bcWidth = 1.05;
-      bcHeight = 18;
-      bcFontSize = 8.0;
+      bcHeight = 17;
+      bcFontSize = 7.5;
       bcMargin = 0;
     } else if (this.paperFormat === 'sticker_50x30') {
       bcWidth = 1.25;
