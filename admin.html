@@ -20,6 +20,11 @@
 </head>
 <body>
 
+  <!-- Live Connection Network Status Banner -->
+  <div class="network-status-banner online" id="netStatusBannerAdmin" style="display:none;">
+    <i class="fa-solid fa-wifi"></i> <span id="netStatusTextAdmin">অনলাইন সংযোগ সক্রিয়</span>
+  </div>
+
   <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
   <div class="app-container">
@@ -2371,6 +2376,26 @@
       </div>
     </div>
   </div>
+
+  <!-- Mobile PWA Bottom Navigation Dock for Merchant Admin -->
+  <nav class="pwa-bottom-nav">
+    <button class="pwa-nav-item active" onclick="if(window.admin) admin.switchTab('analyticsDashboardView')">
+      <i class="fa-solid fa-chart-line"></i>
+      <span>ড্যাশবোর্ড</span>
+    </button>
+    <button class="pwa-nav-item" onclick="if(window.admin) admin.switchTab('inventoryManagementView')">
+      <i class="fa-solid fa-boxes-stacked"></i>
+      <span>পণ্য স্টক</span>
+    </button>
+    <button class="pwa-nav-item" onclick="if(window.admin) admin.switchTab('customerLedgerView')">
+      <i class="fa-solid fa-users"></i>
+      <span>গ্রাহক</span>
+    </button>
+    <button class="pwa-nav-item" onclick="window.location.href='cashier.html'">
+      <i class="fa-solid fa-cash-register"></i>
+      <span>POS টার্মিনাল</span>
+    </button>
+  </nav>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>

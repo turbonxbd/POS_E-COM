@@ -595,6 +595,89 @@ class CashierTerminal {
         }
       });
     }
+
+    // Keyboard Shortcuts & Hotkeys (F2, F4, Ctrl+F, Esc)
+    window.addEventListener('keydown', (e) => {
+      const activeTag = document.activeElement ? document.activeElement.tagName : '';
+      const isInput = ['INPUT', 'TEXTAREA', 'SELECT'].includes(activeTag);
+
+      if (e.key === 'F2' || (e.ctrlKey && e.key === 'Enter')) {
+        e.preventDefault();
+        if (this.cart && this.cart.length > 0) {
+          this.openPaymentModal('cash');
+        } else {
+          this.showToast('পেমেন্টের জন্য কার্টে পণ্য যোগ করুন!', 'error');
+        }
+      } else if (e.key === 'F4') {
+        e.preventDefault();
+        if (this.cart && this.cart.length > 0 && confirm('আপনি কি নিশ্চিত যে কার্টের সব পণ্য মুছে ফেলতে চান?')) {
+          this.clearCart();
+        }
+      } else if (e.ctrlKey && (e.key === 'f' || e.key === 'F')) {
+        e.preventDefault();
+        const searchInput = document.getElementById('productSearchInput');
+        if (searchInput) searchInput.focus();
+      } else if (e.key === 'Escape') {
+        document.querySelectorAll('.modal.active').forEach(m => m.classList.remove('active'));
+        const sidebar = document.querySelector('.sidebar');
+        const overlay = document.getElementById('sidebarOverlay');
+        if (sidebar) sidebar.classList.remove('mobile-active');
+        if (overlay) overlay.classList.remove('active');
+      }
+    });
+
+    // Custom Item Form Submit Handler
+    const customItemForm = document.getElementById('quickCustomItemForm');
+    if (customItemForm) {
+      customItemForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const name = document.getElementById('customItemName')?.value?.trim() || 'কাস্টম আইটেম';
+        const price = parseFloat(document.getElementById('customItemPrice')?.value) || 0;
+        const qty = parseInt(document.getElementById('customItemQty')?.value) || 1;
+
+        if (price <= 0) {
+          this.showToast('সঠিক মূল্য ইনপুট দিন!', 'error');
+          return;
+        }
+
+        const customVariantId = `custom_v_${Date.now()}`;
+        this.cart.push({
+          productId: `custom_p_${Date.now()}`,
+          variantId: customVariantId,
+          name: name,
+          image: '',
+          color: 'Custom',
+          size: 'N/A',
+          barcode: `CUSTOM-${Date.now().toString().slice(-6)}`,
+          price: price,
+          cost: price * 0.7,
+          mrp: price,
+          quantity: qty,
+          subtotal: price * qty
+        });
+
+        if (navigator.vibrate) navigator.vibrate(30);
+        this.renderCart();
+        this.showToast(`'${name}' কার্টে যোগ করা হয়েছে!`, 'success');
+
+        const modal = document.getElementById('quickCustomItemModal');
+        if (modal) modal.classList.remove('active');
+        customItemForm.reset();
+      });
+    }
+  }
+
+  openQuickCustomItemModal() {
+    const modal = document.getElementById('quickCustomItemModal');
+    if (modal) modal.classList.add('active');
+  }
+
+  toggleMobileCartDrawer() {
+    const cartPanel = document.querySelector('.cart-panel');
+    if (cartPanel) {
+      cartPanel.scrollIntoView({ behavior: 'smooth' });
+      if (navigator.vibrate) navigator.vibrate(20);
+    }
   }
 
   setupBarcodePanel() {
@@ -1245,8 +1328,10 @@ class CashierTerminal {
   renderCart(force = false) {
     const cartList = document.getElementById('cartItemsList');
     const badge = document.getElementById('cartCountBadge');
+    const pwaBadge = document.getElementById('pwaCartBadge');
     const totalItems = this.cart.reduce((sum, i) => sum + i.quantity, 0);
     if (badge) badge.innerText = `${totalItems} আইটেম`;
+    if (pwaBadge) pwaBadge.innerText = totalItems;
 
     const currentCartJSON = JSON.stringify(this.cart);
     const cartChanged = force || this.lastRenderedCartJSON !== currentCartJSON;

@@ -607,8 +607,8 @@
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
 
-        const senderPhone = document.getElementById('subSenderPhone').value.trim();
-        const trxId = document.getElementById('subTrxId').value.trim();
+        const senderPhone = document.getElementById('subSenderPhone')?.value?.trim() || '';
+        const trxId = document.getElementById('subTrxId')?.value?.trim() || '';
 
         const settings = JSON.parse(localStorage.getItem('pos_settings')) || {};
         const currentSub = JSON.parse(localStorage.getItem('pos_subscription')) || {};

@@ -51,8 +51,29 @@ class FirebasePOSSync {
     }
 
     // Auto-Sync offline data when Internet connection is restored
+    const updateNetworkBanner = (isOnline) => {
+      const banners = [
+        { banner: document.getElementById('netStatusBanner'), text: document.getElementById('netStatusText') },
+        { banner: document.getElementById('netStatusBannerAdmin'), text: document.getElementById('netStatusTextAdmin') }
+      ];
+
+      banners.forEach(({ banner, text }) => {
+        if (!banner) return;
+        banner.style.display = 'flex';
+        if (isOnline) {
+          banner.className = 'network-status-banner online';
+          if (text) text.innerHTML = '<i class="fa-solid fa-wifi"></i> অনলাইন সংযোগ সক্রিয় — ক্লাউড সিঙ্ক চালু';
+          setTimeout(() => { banner.style.display = 'none'; }, 4000);
+        } else {
+          banner.className = 'network-status-banner offline';
+          if (text) text.innerHTML = '<i class="fa-solid fa-wifi-slash"></i> সংযোগ বিচ্ছিন্ন — অফলাইন পস বিলিং মোড সক্রিয়';
+        }
+      });
+    };
+
     window.addEventListener('online', async () => {
       console.log('[Firebase Cloud Sync] Internet reconnected! Auto-syncing offline data...');
+      updateNetworkBanner(true);
       if (this.storeId && this.db) {
         try {
           for (const key of this.keys) {
@@ -82,6 +103,11 @@ class FirebasePOSSync {
           console.warn('[Firebase Cloud Sync Warning]:', err);
         }
       }
+    });
+
+    window.addEventListener('offline', () => {
+      console.warn('[Firebase Cloud Sync] Internet disconnected. Switched to Offline POS Storage mode.');
+      updateNetworkBanner(false);
     });
   }
 

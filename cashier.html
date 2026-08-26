@@ -31,6 +31,11 @@
 </head>
 <body>
 
+  <!-- Live Connection Network Status Banner -->
+  <div class="network-status-banner online" id="netStatusBanner" style="display:none;">
+    <i class="fa-solid fa-wifi"></i> <span id="netStatusText">অনলাইন সংযোগ সক্রিয়</span>
+  </div>
+
   <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
   <div class="app-container">
@@ -1892,6 +1897,56 @@
       </div>
     </div>
   </div>
+
+  <!-- Quick Custom Item Creation Modal -->
+  <div class="modal" id="quickCustomItemModal">
+    <div class="modal-content" style="max-width: 440px;">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-plus-circle"></i> কাস্টম / আনলিস্টেড আইটেম যোগ করুন</h3>
+        <button class="close-modal"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <form id="quickCustomItemForm">
+          <div class="form-group mb-3">
+            <label>আইটেম বা সেবার নাম:</label>
+            <input type="text" id="customItemName" class="form-control" placeholder="যেমন: কাস্টম সার্ভিস ফি / চার্জ" required>
+          </div>
+          <div class="form-group mb-3">
+            <label>মূল্য (৳):</label>
+            <input type="number" id="customItemPrice" class="form-control" min="1" step="any" placeholder="0.00" required>
+          </div>
+          <div class="form-group mb-3">
+            <label>পরিমাণ (Qty):</label>
+            <input type="number" id="customItemQty" class="form-control" value="1" min="1" required>
+          </div>
+          <button type="submit" class="btn btn-primary btn-block">
+            <i class="fa-solid fa-cart-plus"></i> কার্টে যোগ করুন
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mobile PWA Bottom Navigation Dock -->
+  <nav class="pwa-bottom-nav">
+    <button class="pwa-nav-item active" onclick="if(window.cashier) cashier.switchTab('terminal')">
+      <i class="fa-solid fa-cash-register"></i>
+      <span>টার্মিনাল</span>
+    </button>
+    <button class="pwa-nav-item" onclick="if(window.cashier) cashier.switchTab('sales_history')">
+      <i class="fa-solid fa-clock-rotate-left"></i>
+      <span>হিসাব</span>
+    </button>
+    <button class="pwa-nav-item" onclick="if(window.cashier) cashier.openQuickCustomItemModal()">
+      <i class="fa-solid fa-plus-circle"></i>
+      <span>কাস্টম</span>
+    </button>
+    <button class="pwa-nav-item" onclick="if(window.cashier) cashier.toggleMobileCartDrawer()">
+      <i class="fa-solid fa-shopping-cart"></i>
+      <span>কার্ট</span>
+      <span class="pwa-nav-badge" id="pwaCartBadge">0</span>
+    </button>
+  </nav>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>

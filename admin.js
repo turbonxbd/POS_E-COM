@@ -1045,8 +1045,8 @@ class AdminPanel {
             <td>${discountTag} <strong>৳${v.mrp || v.price}</strong></td>
             <td><strong style="color:var(--accent-green);">৳${v.price}</strong></td>
             <td>
-              <span class="badge ${v.stock <= 10 ? 'badge-danger' : 'badge-success'}" style="font-size:0.85rem; padding:4px 10px;">
-                ${v.stock} ${p.unit || 'pcs'}
+              <span class="${v.stock === 0 ? 'badge-neon-danger' : (v.stock <= 5 ? 'badge-neon-warning' : 'badge badge-success')}" style="font-size:0.85rem; padding:4px 10px;">
+                ${v.stock === 0 ? '<i class="fa-solid fa-triangle-exclamation"></i> 0 ' : (v.stock <= 5 ? '<i class="fa-solid fa-bell"></i> ' : '')}${v.stock} ${p.unit || 'pcs'}
               </span>
             </td>
             <td>

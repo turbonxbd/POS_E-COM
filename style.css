@@ -4440,5 +4440,204 @@ body.has-custom-wallpaper .nav-item.active {
   to { opacity: 1; transform: scale(1); }
 }
 
+/* ==========================================================================
+   NETWORK STATUS BANNER (Live Connection Indicator)
+   ========================================================================== */
+.network-status-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 9999;
+  padding: 6px 16px;
+  text-align: center;
+  font-size: 0.82rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+.network-status-banner.offline {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: #ffffff;
+}
+.network-status-banner.online {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: #ffffff;
+}
+
+/* ==========================================================================
+   MOBILE PWA BOTTOM NAVIGATION DOCK
+   ========================================================================== */
+.pwa-bottom-nav {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 990;
+  height: 62px;
+  background: var(--bg-sidebar, rgba(15, 23, 42, 0.95));
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-top: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+  justify-content: space-around;
+  align-items: center;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.25);
+}
+@media (max-width: 768px) {
+  .pwa-bottom-nav {
+    display: flex;
+  }
+}
+.pwa-nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  color: var(--text-muted, #9ca3af);
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-decoration: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 12px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  min-height: 48px;
+  min-width: 48px;
+}
+.pwa-nav-item i {
+  font-size: 1.15rem;
+  transition: transform 0.2s ease;
+}
+.pwa-nav-item.active {
+  color: var(--accent-green, #10b981);
+}
+.pwa-nav-item.active i {
+  transform: translateY(-2px) scale(1.1);
+}
+.pwa-nav-item:active {
+  transform: scale(0.92);
+}
+.pwa-nav-badge {
+  position: absolute;
+  top: 4px;
+  right: 10px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 800;
+  padding: 1px 5px;
+  border-radius: 10px;
+}
+
+/* ==========================================================================
+   KEYBOARD SHORTCUT BADGES (POS Speed Enhancements)
+   ========================================================================== */
+.kbd-hint {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.15);
+  color: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-family: monospace;
+  font-size: 0.72em;
+  font-weight: 700;
+  line-height: 1;
+  margin-left: 4px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+/* ==========================================================================
+   LOW STOCK & OUT OF STOCK NEON BADGES
+   ========================================================================== */
+.badge-neon-warning {
+  background: rgba(245, 158, 11, 0.18) !important;
+  color: #fbbf24 !important;
+  border: 1px solid rgba(245, 158, 11, 0.35) !important;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.2);
+}
+.badge-neon-danger {
+  background: rgba(239, 68, 68, 0.18) !important;
+  color: #f87171 !important;
+  border: 1px solid rgba(239, 68, 68, 0.35) !important;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.25);
+  animation: neonPulse 2s infinite ease-in-out;
+}
+@keyframes neonPulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(239, 68, 68, 0.3); }
+  50% { box-shadow: 0 0 16px rgba(239, 68, 68, 0.6); }
+}
+
+/* ==========================================================================
+   FLOATING WHATSAPP SUPPORT WIDGET
+   ========================================================================== */
+.floating-whatsapp-btn {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 998;
+  width: 54px;
+  height: 54px;
+  background: #25d366;
+  color: #ffffff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.75rem;
+  box-shadow: 0 8px 24px rgba(37, 211, 102, 0.45);
+  text-decoration: none;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.floating-whatsapp-btn:hover {
+  transform: translateY(-4px) scale(1.08);
+  box-shadow: 0 12px 30px rgba(37, 211, 102, 0.6);
+  color: #ffffff;
+}
+.floating-whatsapp-btn:active {
+  transform: scale(0.92);
+}
+@media (max-width: 768px) {
+  .floating-whatsapp-btn {
+    bottom: 74px;
+    right: 16px;
+    width: 46px;
+    height: 46px;
+    font-size: 1.45rem;
+  }
+}
+
+/* PWA Standalone Mode Padding */
+@media all and (display-mode: standalone) {
+  body {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+}
+
+
 
 

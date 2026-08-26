@@ -94,7 +94,16 @@ class SmartPrintHub {
             </div>
 
             <div class="toolbar-item">
-              <label><i class="fa-solid fa-gauge-high"></i> এনিমেশন স্পিড:</label>
+              <label><i class="fa-solid fa-magnifying-glass-plus"></i> ফন্ট জুম / স্কেল:</label>
+              <div class="btn-group" style="display:flex; gap:4px;">
+                <button class="btn btn-xs btn-outline" onclick="printHub.setQuickScale(85)" title="কমপ্যাক্ট স্কেল (৮৫%)">85%</button>
+                <button class="btn btn-xs btn-primary" onclick="printHub.setQuickScale(100)" title="ডিফল্ট স্কেল (১০০%)">100%</button>
+                <button class="btn btn-xs btn-outline" onclick="printHub.setQuickScale(115)" title="লার্জ স্কেল (১১৫%)">115%</button>
+              </div>
+            </div>
+
+            <div class="toolbar-item">
+              <label><i class="fa-solid fa-gauge-high"></i> স্পিড:</label>
               <select id="printHubSpeedSelect" class="form-control form-control-sm">
                 <option value="normal">স্বাভাবিক (Normal 1.5s)</option>
                 <option value="fast">দ্রুত (Fast 0.6s)</option>
@@ -104,7 +113,7 @@ class SmartPrintHub {
 
             <div class="toolbar-item">
               <button class="btn btn-sm btn-secondary" id="printHubReplayBtn" onclick="printHub.triggerPrintEjection()" title="প্রিন্টার দিয়ে পেপার বের হওয়ার লাইভ এনিমেশন প্লে করুন">
-                <i class="fa-solid fa-play"></i> প্রিন্ট এনিমেশন প্লে
+                <i class="fa-solid fa-play"></i> এনিমেশন
               </button>
             </div>
           </div>
@@ -324,6 +333,16 @@ class SmartPrintHub {
     this.toggleSettingsDrawer(false);
 
     if (window.cashier && cashier.showToast) cashier.showToast('প্রিন্টার ও পেপার সেটিংস সফলভাবে আপডেট হয়েছে!');
+  }
+
+  setQuickScale(percent = 100) {
+    this.settings.scalePercent = percent;
+    const rangeInput = document.getElementById('printHubScaleRange');
+    const scaleValSpan = document.getElementById('printHubScaleVal');
+    if (rangeInput) rangeInput.value = percent;
+    if (scaleValSpan) scaleValSpan.innerText = `${percent}%`;
+    this.saveSettings();
+    this.reRenderBarcodes();
   }
 
   resetSettingsToDefault() {

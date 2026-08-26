@@ -224,8 +224,11 @@ class POSApp {
     document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.tab-view').forEach(v => v.classList.remove('active'));
 
-    document.querySelector(`[data-tab="${tabId}"]`).classList.add('active');
-    document.getElementById(`${tabId}View`).classList.add('active');
+    const tabBtn = document.querySelector(`[data-tab="${tabId}"]`);
+    if (tabBtn) tabBtn.classList.add('active');
+
+    const tabView = document.getElementById(`${tabId}View`);
+    if (tabView) tabView.classList.add('active');
 
     const titles = {
       pos: 'POS টার্মিনাল',
@@ -233,7 +236,8 @@ class POSApp {
       sales: 'বিক্রি ইতিহাস (Sales History)',
       analytics: 'সেলস ড্যাশবোর্ড ও রিপোর্ট'
     };
-    document.getElementById('pageTitle').innerText = titles[tabId] || 'Smart POS';
+    const titleEl = document.getElementById('pageTitle');
+    if (titleEl) titleEl.innerText = titles[tabId] || 'Smart POS';
 
     if (tabId === 'analytics') {
       this.updateDashboardStats();
@@ -243,7 +247,7 @@ class POSApp {
   // Render Product Catalog Grid
   renderProducts() {
     const grid = document.getElementById('productsGrid');
-    const searchVal = document.getElementById('productSearchInput').value.toLowerCase().trim();
+    const searchVal = document.getElementById('productSearchInput')?.value?.toLowerCase()?.trim() || '';
 
     const filtered = this.products.filter(p => {
       const matchCat = this.activeCategory === 'all' || p.category === this.activeCategory;

@@ -132,9 +132,9 @@ async function initMasterAuth() {
       }
 
       alert(`🎉 ফায়ারবেস ক্লাউডে সুপার এডমিন ইমেইল ও পাসওয়ার্ড সফলভাবে আপডেট করা হয়েছে!\n\nনতুন ইমেইল: ${newEmail}\nনতুন পাসওয়ার্ড: ${newPass}`);
-      document.getElementById('superAdminOldPassword').value = '';
-      document.getElementById('superAdminNewPassword').value = '';
-      document.getElementById('superAdminConfirmPassword').value = '';
+      if (document.getElementById('superAdminOldPassword')) document.getElementById('superAdminOldPassword').value = '';
+      if (document.getElementById('superAdminNewPassword')) document.getElementById('superAdminNewPassword').value = '';
+      if (document.getElementById('superAdminConfirmPassword')) document.getElementById('superAdminConfirmPassword').value = '';
     });
   }
 }
@@ -1293,10 +1293,10 @@ function initCMSForms() {
   document.getElementById('heroCMSForm')?.addEventListener('submit', (e) => {
     e.preventDefault();
     currentCMS.hero = {
-      badge: document.getElementById('cmsBadge').value.trim(),
-      title: document.getElementById('cmsTitle').value.trim(),
-      desc: document.getElementById('cmsDesc').value.trim(),
-      videoUrl: document.getElementById('cmsVideoUrl').value.trim()
+      badge: document.getElementById('cmsBadge')?.value?.trim() || '',
+      title: document.getElementById('cmsTitle')?.value?.trim() || '',
+      desc: document.getElementById('cmsDesc')?.value?.trim() || '',
+      videoUrl: document.getElementById('cmsVideoUrl')?.value?.trim() || ''
     };
     saveCMSDataToCloud();
     alert('✅ হিরো সেকশন কন্টেন্ট সেভ করা হয়েছে!');
