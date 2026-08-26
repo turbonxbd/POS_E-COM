@@ -24,7 +24,7 @@ if (typeof firebase !== 'undefined') {
 class FirebasePOSSync {
   constructor() {
     this.db = typeof firebase !== 'undefined' ? firebase.firestore() : null;
-    this.storeId = localStorage.getItem('pos_active_store_id') || 'store_default';
+    this.storeId = localStorage.getItem('pos_active_store_id') || 'store_demo_101';
     this.keys = ['pos_products', 'pos_sales', 'pos_customers', 'pos_categories', 'pos_coupons', 'pos_settings', 'pos_payment_gateways', 'pos_shift_sales'];
     this.globalKeys = ['pos_subscriptions', 'pos_subscription', 'pos_landing_cms', 'pos_active_store_id', 'pos_session_logged_in', 'pos_theme', 'pos_master_authenticated'];
     this.isApplyingRemoteChange = false;
@@ -310,13 +310,6 @@ class FirebasePOSSync {
         const remotePayload = doc.data();
         if (!remotePayload || (remotePayload.data === undefined && !remotePayload.isChunked)) return;
 
-        const serverClientTs = remotePayload.clientUpdatedAt || 0;
-        const localTs = this._localUpdatedAt[key] || 0;
-        if (localTs > serverClientTs + 2000) {
-          console.log(`[Firebase Cloud] Skipping stale snapshot for ${key} (local is ${localTs - serverClientTs}ms newer)`);
-          return;
-        }
-
         let finalData = remotePayload.data;
 
         // Reconstruct chunked product documents if dataset is large
@@ -338,36 +331,6 @@ class FirebasePOSSync {
             }
           } catch (chunkErr) {
             console.error('[Firebase Cloud] Error fetching product chunks:', chunkErr);
-          }
-        }
-
-        // Smart Stock Merger for pos_products using lastStockUpdatedAt timestamps
-        if (key === 'pos_products' && Array.isArray(finalData)) {
-          const tenantKey = this.getTenantStorageKey(key);
-          let localProducts = [];
-          try { localProducts = JSON.parse(localStorage.getItem(tenantKey) || localStorage.getItem(key) || '[]'); } catch (e) {}
-          if (Array.isArray(localProducts) && localProducts.length > 0) {
-            const localMap = new Map();
-            localProducts.forEach(p => { if (p && p.id) localMap.set(p.id, p); });
-
-            finalData = finalData.map(rp => {
-              const lp = localMap.get(rp.id);
-              if (!lp) return rp;
-
-              if (Array.isArray(rp.variants) && Array.isArray(lp.variants)) {
-                const mergedVariants = rp.variants.map(rv => {
-                  const lv = lp.variants.find(v => v.variantId === rv.variantId);
-                  if (lv && lv.lastStockUpdatedAt && (!rv.lastStockUpdatedAt || lv.lastStockUpdatedAt > rv.lastStockUpdatedAt)) {
-                    return { ...rv, stock: lv.stock, lastStockUpdatedAt: lv.lastStockUpdatedAt };
-                  }
-                  return rv;
-                });
-                return { ...rp, variants: mergedVariants };
-              } else if (lp.lastStockUpdatedAt && (!rp.lastStockUpdatedAt || lp.lastStockUpdatedAt > rp.lastStockUpdatedAt)) {
-                return { ...rp, stock: lp.stock, lastStockUpdatedAt: lp.lastStockUpdatedAt };
-              }
-              return rp;
-            });
           }
         }
 
@@ -397,7 +360,7 @@ class FirebasePOSSync {
         const tenantKey = this.getTenantStorageKey(key);
         const currentTenantJson = localStorage.getItem(tenantKey);
 
-        if (finalJson !== currentTenantJson) {
+        if (finalJson !== currentTenantJson || !currentTenantJson || currentTenantJson === '[]' || currentTenantJson === '{}') {
           this.isApplyingRemoteChange = true;
           localStorage.setItem(tenantKey, finalJson);
           localStorage.setItem(key, finalJson);
