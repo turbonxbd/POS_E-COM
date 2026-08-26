@@ -1,5 +1,5 @@
 // SmartPOS - Service Worker Caching & Instant Automatic Background Update Engine
-const CACHE_NAME = 'smartpos-v6.2.0';
+const CACHE_NAME = 'smartpos-v6.3.0-live';
 const ASSETS_TO_CACHE = [
   './portal.html',
   './cashier.html',
@@ -70,13 +70,14 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // HTML Pages & Core JS Application Files: Fast Network-First with 1.5s Timeout Fallback for Instant Desktop PC Offline Navigation
-  if (url.includes('.html') || url.includes('.js') || url.endsWith('/') || url === self.location.origin) {
+  // HTML Pages & Core JS/CSS Application Files: Robust Network-First with 8.0s Timeout Fallback for Remote 3G/4G Connections
+  if (url.includes('.html') || url.includes('.js') || url.includes('.css') || url.endsWith('/') || url === self.location.origin) {
     event.respondWith(
       (async () => {
         try {
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 1500);
+          // 8.0s timeout ensures remote merchants on 3G/4G mobile data receive complete JS/CSS updates without premature aborts
+          const timeoutId = setTimeout(() => controller.abort(), 8000);
 
           const networkResponse = await fetch(event.request, { signal: controller.signal });
           clearTimeout(timeoutId);
@@ -87,6 +88,7 @@ self.addEventListener('fetch', (event) => {
           }
           return networkResponse;
         } catch (err) {
+          // Offline fallback: load cached asset when network is truly unavailable
           const cachedResponse = await caches.match(event.request);
           if (cachedResponse) return cachedResponse;
 
@@ -105,8 +107,8 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) {
-        // Return cached asset instantly (0.01s load) without hanging background fetch promises
-        if (url.startsWith(self.location.origin) && !url.includes('.html')) {
+        // Return cached asset instantly (0.01s load) while revalidating in background
+        if (url.startsWith(self.location.origin)) {
           fetch(event.request).then((networkResponse) => {
             if (networkResponse && networkResponse.status === 200) {
               const clone = networkResponse.clone();
@@ -117,9 +119,9 @@ self.addEventListener('fetch', (event) => {
         return cachedResponse;
       }
 
-      // If not in cache, fetch with 4s timeout fallback to prevent browser tab favicon spinner hanging
+      // If not in cache, fetch with 8s timeout fallback
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 4000);
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
 
       return fetch(event.request, { signal: controller.signal })
         .then((networkResponse) => {

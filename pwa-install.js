@@ -42,6 +42,15 @@ if ('serviceWorker' in navigator) {
         window.location.reload();
       }
     });
+
+    // Auto-check for updates on window focus and internet reconnection
+    window.addEventListener('online', () => {
+      console.log('[PWA] Internet reconnected! Checking for new app updates...');
+      if (swRegistration) swRegistration.update();
+    });
+    window.addEventListener('focus', () => {
+      if (swRegistration) swRegistration.update();
+    });
   });
 }
 
