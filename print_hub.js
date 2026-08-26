@@ -702,6 +702,8 @@ class SmartPrintHub {
           flex-direction: column !important;
           align-items: center !important;
           justify-content: space-between !important;
+          transform: rotate(180deg) !important;
+          transform-origin: center center !important;
         }
         .barcode-sticker-card:last-child,
         .barcode-sticker-card:last-of-type {
