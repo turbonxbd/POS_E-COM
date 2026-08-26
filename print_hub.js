@@ -677,20 +677,25 @@ class SmartPrintHub {
         }
         .barcode-hub-grid {
           display: block !important;
-          margin: 0 auto !important;
+          margin: 0 !important;
           padding: 0 !important;
           width: ${widthMm} !important;
           max-width: ${widthMm} !important;
         }
+
+        /* ── Outer card: controls page-break ONLY — NO transform here ── */
         .barcode-sticker-card {
+          position: relative !important;
+          display: block !important;
           width: ${widthMm} !important;
+          min-width: ${widthMm} !important;
           max-width: ${widthMm} !important;
           height: ${heightMm} !important;
+          min-height: ${heightMm} !important;
           max-height: ${heightMm} !important;
           box-sizing: border-box !important;
           margin: 0 !important;
           padding: 0 !important;
-          page-break-before: auto !important;
           page-break-after: always !important;
           break-after: page !important;
           page-break-inside: avoid !important;
@@ -698,21 +703,37 @@ class SmartPrintHub {
           overflow: hidden !important;
           border: none !important;
           box-shadow: none !important;
-          display: block !important;
           transform: none !important;
         }
+
+        /* ── Inner wrap: absolutely fills card, rotates content 180° ── */
+        /* Using absolute positioning keeps it out of the layout flow   */
+        /* so page-break on the outer card is never disrupted.          */
         .barcode-sticker-card .sticker-rotate-wrap {
+          position: absolute !important;
+          top: 0 !important;
+          left: 0 !important;
           width: 100% !important;
           height: 100% !important;
           display: flex !important;
           flex-direction: column !important;
           align-items: center !important;
-          justify-content: space-between !important;
+          justify-content: space-evenly !important;
           box-sizing: border-box !important;
-          padding: 2px 3px !important;
+          padding: 1mm 1.5mm !important;
           transform: rotate(180deg) !important;
           transform-origin: center center !important;
         }
+
+        /* ── Barcode SVG: scale to fill full sticker width ── */
+        .barcode-sticker-card .sticker-rotate-wrap svg {
+          width: 100% !important;
+          height: auto !important;
+          display: block !important;
+          margin: 0 !important;
+          flex-shrink: 0 !important;
+        }
+
         .barcode-sticker-card:last-child,
         .barcode-sticker-card:last-of-type {
           page-break-after: avoid !important;
@@ -1078,12 +1099,12 @@ class SmartPrintHub {
       const priceHtml = showPrice ? `<div style="font-size:0.66rem; font-weight:800; color:#000; margin-top:1px; margin-bottom:2px; padding-bottom:1px; line-height:1.05;">${priceFormatted}</div>` : '';
 
       stickersHtml += `
-        <div class="barcode-sticker-card hub-sticker" style="background:#fff; color:#000; border:1px solid #ddd; border-radius:4px; text-align:center; box-shadow:0 1px 3px rgba(0,0,0,0.06); page-break-inside:avoid; break-inside:avoid; box-sizing:border-box; overflow:hidden;">
-          <div class="sticker-rotate-wrap" style="width:100%; display:flex; flex-direction:column; align-items:center; justify-content:space-between; padding:2px 3px; box-sizing:border-box;">
+        <div class="barcode-sticker-card hub-sticker" style="background:#fff; color:#000; border:1px solid #ddd; border-radius:4px; text-align:center; box-shadow:0 1px 3px rgba(0,0,0,0.06); page-break-inside:avoid; break-inside:avoid; box-sizing:border-box; overflow:hidden; position:relative;">
+          <div class="sticker-rotate-wrap" style="width:100%; display:flex; flex-direction:column; align-items:center; justify-content:space-evenly; padding:2px 3px; box-sizing:border-box;">
             ${nameHtml}
             ${variantHtml}
-            <div style="width:100%; display:flex; justify-content:center; margin:1px 0;">
-              <svg id="hubBcSvg_${idx}" style="max-width:100%; height:auto; display:block; margin:0 auto; shape-rendering:crispEdges; image-rendering:pixelated;"></svg>
+            <div style="width:100%; display:flex; justify-content:center;">
+              <svg id="hubBcSvg_${idx}" style="width:100%; height:auto; display:block; margin:0; shape-rendering:crispEdges; image-rendering:pixelated;"></svg>
             </div>
             ${priceHtml}
           </div>
@@ -1118,9 +1139,9 @@ class SmartPrintHub {
     let bcMargin = 0;
 
     if (this.paperFormat === 'sticker_38x25') {
-      bcWidth = 1.05;
-      bcHeight = 18;
-      bcFontSize = 8.0;
+      bcWidth = 0.85;   // narrower bars → fits 38mm width perfectly
+      bcHeight = 22;    // taller bars → easier to scan
+      bcFontSize = 7.5;
       bcMargin = 0;
     } else if (this.paperFormat === 'sticker_50x30') {
       bcWidth = 1.25;
@@ -1180,7 +1201,9 @@ class SmartPrintHub {
             fontOptions: "bold",
             font: "monospace",
             marginTop: 0,
-            marginBottom: 2,
+            marginBottom: 1,
+            marginLeft: 0,    // no side margins — CSS handles centering
+            marginRight: 0,   // no side margins — CSS handles centering
             textMargin: 1,
             background: "#ffffff",
             lineColor: "#000000",
