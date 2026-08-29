@@ -155,6 +155,7 @@ class AdminPanel {
     // Single source of truth handler — registered ONCE for all cloud/storage/tenant events
     window.addEventListener('storage',              reloadAdminState);
     window.addEventListener('pos_cloud_update',     reloadAdminState);
+    window.addEventListener('pos_sales_update',     reloadAdminState);
     window.addEventListener('pos_tenant_changed',   reloadAdminState);
 
     window.addEventListener('pos_online_sync_completed', () => {
@@ -264,7 +265,7 @@ class AdminPanel {
   updateSidebarStoreProfile() {
     const s = this.settings || JSON.parse(localStorage.getItem('pos_settings')) || {};
     const sub = JSON.parse(localStorage.getItem('pos_subscription')) || JSON.parse(localStorage.getItem('pos_active_subscription')) || {};
-    const storeName = s.storeName || sub.storeName || 'SmartPOS Admin';
+    const storeName = s.storeName || sub.storeName || 'Smart POS BD Admin';
     const ownerName = s.storeOwner || sub.ownerName || s.ownerName || 'মার্চেন্ট';
     const storeLogo = s.storeLogo || sub.storeLogo || '';
 
@@ -1940,6 +1941,7 @@ class AdminPanel {
     let bcMargin = 1;
 
     switch (paperFormat) {
+      case 'gprinter_barcode_l':
       case 'sticker_38x25':
         cardWidth = '160px';
         cardMinHeight = '105px';
@@ -1951,6 +1953,18 @@ class AdminPanel {
         bcHeight = 22;
         bcFontSize = 8.5;
         bcMargin = 0;
+        break;
+      case 'gprinter_pos':
+        cardWidth = '240px';
+        cardMinHeight = '140px';
+        cardPadding = '10px 8px';
+        titleFontSize = '0.78rem';
+        variantFontSize = '0.70rem';
+        priceFontSize = '0.85rem';
+        bcWidth = 1.4;
+        bcHeight = 56;
+        bcFontSize = 10;
+        bcMargin = 1;
         break;
       case 'sticker_50x30':
         cardWidth = '205px';
@@ -2291,8 +2305,7 @@ class AdminPanel {
 
     if (typeof JsBarcode !== 'undefined') {
       JsBarcode("#rcptBarcodeSvg", sale.id, {
-        format: "CODE128", width: 1.8, height: 48, displayValue: true, fontSize: 13, fontOptions: "bold", font: "monospace",
-        marginTop: 8, marginBottom: 8, marginLeft: 18, marginRight: 18,
+        format: "CODE128", width: 1.8, height: 48, displayValue: true, fontSize: 13, fontOptions: "bold", font: "monospace", margin: 8,
         background: "#ffffff", lineColor: "#000000"
       });
     }
@@ -2550,7 +2563,6 @@ class AdminPanel {
     });
 
     // Product Image Device/Gallery File Upload Listener
-    // Images are uploaded to Firebase Storage → CDN URL stored (keeps Firestore tiny → unlimited products)
     const prodUploadBtn = document.getElementById('prodFormUploadBtn');
     const prodFileInput = document.getElementById('prodFormFileInput');
     const prodFormImgPreview = document.getElementById('prodFormImgPreview');
@@ -2559,43 +2571,19 @@ class AdminPanel {
       if (prodFormImgPreview) prodFormImgPreview.addEventListener('click', () => prodFileInput.click());
       prodFileInput.addEventListener('change', (e) => {
         const file = e.target.files[0];
-        if (!file) return;
-
-        const fileNameEl = document.getElementById('prodImgFileName');
-        const hiddenImg   = document.getElementById('prodFormImage');
-
-        // Step 1: Compress image first
-        compressGalleryImage(file, 1080, 0.85, async (dataUrl) => {
-          // Show preview immediately from compressed dataUrl
-          if (prodFormImgPreview) prodFormImgPreview.src = dataUrl;
-          if (fileNameEl) fileNameEl.innerText = `⏫ আপলোড হচ্ছে...`;
-
-          // Step 2: Upload to Firebase Storage, get CDN URL
-          const storeId   = localStorage.getItem('pos_active_store_id') || 'store_default';
-          const safeName  = `prod_${Date.now()}`;
-
-          try {
-            const finalUrl = await window.uploadImageToStorage(
-              dataUrl, storeId, safeName,
-              (pct) => { if (fileNameEl) fileNameEl.innerText = `⏫ আপলোড: ${pct}%`; }
-            );
-            if (hiddenImg) hiddenImg.value = finalUrl;
-            if (fileNameEl) {
-              fileNameEl.innerText = window.isStorageUrl && window.isStorageUrl(finalUrl)
-                ? `✅ ${file.name} (Cloud-এ সেভ হয়েছে)`
-                : file.name;
-            }
-          } catch (err) {
-            // Fallback: store base64
+        if (file) {
+          compressGalleryImage(file, 1080, 0.85, (dataUrl) => {
+            const hiddenImg = document.getElementById('prodFormImage');
             if (hiddenImg) hiddenImg.value = dataUrl;
+            if (prodFormImgPreview) prodFormImgPreview.src = dataUrl;
+            const fileNameEl = document.getElementById('prodImgFileName');
             if (fileNameEl) fileNameEl.innerText = file.name;
-          }
-        });
+          });
+        }
       });
     }
 
     // Category Image Device/Gallery File Upload Listener
-    // Images are uploaded to Firebase Storage → CDN URL stored
     const catUploadBtn = document.getElementById('catFormUploadBtn');
     const catFileInput = document.getElementById('catFormFileInput');
     const catFormImgPreview = document.getElementById('catFormImgPreview');
@@ -2604,34 +2592,15 @@ class AdminPanel {
       if (catFormImgPreview) catFormImgPreview.addEventListener('click', () => catFileInput.click());
       catFileInput.addEventListener('change', (e) => {
         const file = e.target.files[0];
-        if (!file) return;
-
-        const fileNameEl = document.getElementById('catImgFileName');
-        const hiddenCat  = document.getElementById('catImgUrl');
-
-        compressGalleryImage(file, 1080, 0.85, async (dataUrl) => {
-          if (catFormImgPreview) catFormImgPreview.src = dataUrl;
-          if (fileNameEl) fileNameEl.innerText = `⏫ আপলোড হচ্ছে...`;
-
-          const storeId  = localStorage.getItem('pos_active_store_id') || 'store_default';
-          const safeName = `cat_${Date.now()}`;
-
-          try {
-            const finalUrl = await window.uploadImageToStorage(
-              dataUrl, storeId, safeName,
-              (pct) => { if (fileNameEl) fileNameEl.innerText = `⏫ আপলোড: ${pct}%`; }
-            );
-            if (hiddenCat) hiddenCat.value = finalUrl;
-            if (fileNameEl) {
-              fileNameEl.innerText = window.isStorageUrl && window.isStorageUrl(finalUrl)
-                ? `✅ ${file.name} (Cloud-এ সেভ হয়েছে)`
-                : file.name;
-            }
-          } catch (err) {
+        if (file) {
+          compressGalleryImage(file, 1080, 0.85, (dataUrl) => {
+            const hiddenCat = document.getElementById('catImgUrl');
             if (hiddenCat) hiddenCat.value = dataUrl;
+            if (catFormImgPreview) catFormImgPreview.src = dataUrl;
+            const fileNameEl = document.getElementById('catImgFileName');
             if (fileNameEl) fileNameEl.innerText = file.name;
-          }
-        });
+          });
+        }
       });
     }
 
@@ -4148,7 +4117,7 @@ class AdminPanel {
 
     if (typeof JsBarcode !== 'undefined') {
       try {
-        JsBarcode("#rcptBarcodeSvg", sale.id, { format: "CODE128", width: 1.8, height: 48, displayValue: true, fontSize: 13, fontOptions: "bold", font: "monospace", marginTop: 8, marginBottom: 8, marginLeft: 18, marginRight: 18, background: "#ffffff", lineColor: "#000000" });
+        JsBarcode("#rcptBarcodeSvg", sale.id, { format: "CODE128", width: 1.8, height: 48, displayValue: true, fontSize: 13, fontOptions: "bold", font: "monospace", margin: 8, background: "#ffffff", lineColor: "#000000" });
       } catch(e) {}
     }
 
@@ -4189,7 +4158,7 @@ class AdminPanel {
     if (statusText) statusText.innerText = '🖨️ প্রিন্ট হচ্ছে...';
     if (scanline) scanline.style.display = 'block';
 
-    const duration = 450;
+    const duration = 2200;
     if (window.printHub && window.printHub.playPrinterAudio) {
       window.printHub.playPrinterAudio(duration);
     }
@@ -4273,12 +4242,12 @@ class AdminPanel {
 
     if (typeof JsBarcode !== 'undefined') {
       try {
-        JsBarcode("#rcptBarcodeSvg", invId, { format: "CODE128", width: 1.8, height: 48, displayValue: true, fontSize: 13, fontOptions: "bold", font: "monospace", marginTop: 8, marginBottom: 8, marginLeft: 18, marginRight: 18, background: "#ffffff", lineColor: "#000000" });
+        JsBarcode("#rcptBarcodeSvg", invId, { format: "CODE128", width: 1.8, height: 48, displayValue: true, fontSize: 13, fontOptions: "bold", font: "monospace", margin: 8, background: "#ffffff", lineColor: "#000000" });
       } catch(e) {}
     }
 
-    const pxHeight = Math.max(paperEl.scrollHeight || paperEl.offsetHeight || 0, paperEl.getBoundingClientRect().height || 0);
-    const calculatedHeightMm = Math.ceil((pxHeight * 0.2645833) * 1.06) + 15;
+    const pxHeight = Math.max(paperEl.offsetHeight || 0, paperEl.getBoundingClientRect().height || 0);
+    const calculatedHeightMm = Math.ceil(pxHeight * 0.2645833) + 4;
 
     const opt = {
       margin: [2, 2, 2, 2],
@@ -5766,42 +5735,18 @@ class AdminPanel {
 
 let adminApp;
 let admin;
+document.addEventListener('DOMContentLoaded', () => {
+  adminApp = new AdminPanel();
+  admin = adminApp;
+  window.adminApp = adminApp;
+  window.admin = adminApp;
 
-function initAdminApp() {
-  if (window._adminAppInitialized) return;
-  window._adminAppInitialized = true;
-
-  try {
-    adminApp = new AdminPanel();
-    admin = adminApp;
-    window.adminApp = adminApp;
-    window.admin = adminApp;
-
-    // Global listener for Customer Forms and Actions
-    document.getElementById('adminAddNewCustomerBtn')?.addEventListener('click', () => adminApp?.openCustomerModal());
-    document.getElementById('customerForm')?.addEventListener('submit', (e) => {
-      e.preventDefault();
-      adminApp?.saveCustomerFromForm();
-    });
-    document.getElementById('custSearchInput')?.addEventListener('input', () => adminApp?.renderAdminCustomers());
-
-    // Listen for storage events across tabs / PWA windows
-    window.addEventListener('storage', (e) => {
-      if (e.key === 'pos_active_store_id' || e.key === 'pos_session_logged_in' || e.key === 'pos_settings') {
-        if (typeof adminApp?.renderAdminDashboard === 'function') {
-          adminApp.renderAdminDashboard();
-        }
-      }
-    });
-  } catch (err) {
-    console.error('[Admin Panel Initializer Error]:', err);
-  }
-}
-
-if (document.readyState === 'complete' || document.readyState === 'interactive') {
-  initAdminApp();
-} else {
-  document.addEventListener('DOMContentLoaded', initAdminApp);
-}
-
+  // Global listener for Customer Forms and Actions
+  document.getElementById('adminAddNewCustomerBtn')?.addEventListener('click', () => adminApp.openCustomerModal());
+  document.getElementById('customerForm')?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    adminApp.saveCustomerFromForm();
+  });
+  document.getElementById('custSearchInput')?.addEventListener('input', () => adminApp.renderAdminCustomers());
+});
 

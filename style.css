@@ -2619,6 +2619,14 @@ body {
   width: 100%;
   max-width: 100%;
 }
+.printed-paper-sheet.paper-format-gprinter_barcode_l {
+  width: 220px;
+  max-width: 100%;
+}
+.printed-paper-sheet.paper-format-gprinter_pos {
+  width: 310px;
+  max-width: 100%;
+}
 .printed-paper-sheet.paper-format-100mm {
   width: 380px;
   max-width: 100%;
@@ -3761,7 +3769,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
  grid-template-columns: repeat(2, 1fr) !important;
  }
 }
-/* ==========================================================================   @media print — Isolation rules   ========================================================================== */
+/* ==========================================================================   @media print ��� Isolation rules   ========================================================================== */
 @media print {
   html, body {
     direction: ltr !important;
@@ -3769,22 +3777,10 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
     transform: none !important;
     margin: 0 !important;
     padding: 0 !important;
-    height: auto !important;
-    min-height: 0 !important;
     background: #ffffff !important;
     color: #000000 !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
-  }
-
-  /* Expand scrollable receipt viewport — removes max-height:600px viewport constraint
-     so full content (10, 20, 30+ products) prints without blank extra page */
-  .receipt-feed-viewport, .receipt-feed-container {
-    max-height: none !important;
-    height: auto !important;
-    min-height: 0 !important;
-    overflow: visible !important;
-    padding: 0 !important;
   }
 
   body.printing-barcode > *:not(#smartPrintHubModal) {
@@ -3851,7 +3847,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
     min-width: 80mm !important;
     height: auto !important;
     margin: 0 auto !important;
-    padding: 2mm 2mm !important;
+    padding: 2mm 3mm !important;
     box-sizing: border-box !important;
     background: #ffffff !important;
     color: #000000 !important;
@@ -3893,21 +3889,6 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
   .barcode-sticker-card:last-of-type {
     page-break-after: avoid !important;
     break-after: avoid !important;
-  }
-
-  /* Keep receipt barcode + footer together — never push to a second page */
-  .receipt-footer {
-    page-break-inside: avoid !important;
-    break-inside: avoid !important;
-    page-break-before: avoid !important;
-    break-before: avoid !important;
-  }
-  #rcptBarcodeSvg {
-    page-break-inside: avoid !important;
-    break-inside: avoid !important;
-    page-break-before: avoid !important;
-    break-before: avoid !important;
-    display: block !important;
   }
 }
 
@@ -4408,37 +4389,6 @@ body.has-custom-wallpaper .nav-item.active {
 }
 
 /* End of SmartPOS Style Sheet */
-
-/* Web Design Mastery — Enhanced Product Photo Upload & Image Display Engine */
-#prodImgDropZone.drag-over {
-  border-color: var(--accent-green, #10b981) !important;
-  background: linear-gradient(145deg, rgba(16, 185, 129, 0.18), rgba(15, 23, 42, 0.85)) !important;
-  box-shadow: 0 0 24px rgba(16, 185, 129, 0.35) !important;
-  transform: scale(1.01);
-}
-
-.gallery-thumb-card:hover {
-  transform: translateY(-3px) scale(1.03);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45) !important;
-  border-color: var(--accent-blue, #3b82f6) !important;
-}
-
-.product-card .product-img-wrap img:hover {
-  transform: scale(1.08);
-}
-
-.cart-item-thumb img {
-  transition: transform 0.3s ease;
-}
-
-.cart-item-thumb img:hover {
-  transform: scale(1.15);
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: scale(0.96); }
-  to { opacity: 1; transform: scale(1); }
-}
 
 
 

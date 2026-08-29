@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SmartPOS Pro - মার্চেন্ট এডমিন ও ওয়্যারহাউস প্যানেল</title>
+  <title>Smart POS BD — মার্চেন্ট এডমিন ও ওয়্যারহাউস প্যানেল</title>
   
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -410,7 +410,9 @@
             <div class="form-group col-3">
               <label><i class="fa-solid fa-scroll"></i> স্টিকার রোল / পেপার সাইজ:</label>
               <select id="barcodePaperFormatSelect" class="form-control">
-                <option value="sticker_38x25" selected>🏷️ 38mm × 25mm কসমেটিকস ও পোশাক ১-আপ রোল (Small Roll)</option>
+                <option value="gprinter_barcode_l" selected>🖨️ Gprinter GP-3120TUC — BARCODE L (1.50" × 1.00" / Die-Cut)</option>
+                <option value="gprinter_pos">🧾 Gprinter GP-3120TUC — POS (3.00" Continuous Roll / 80mm)</option>
+                <option value="sticker_38x25">🏷️ 38mm × 25mm কসমেটিকস ও পোশাক ১-আপ রোল (Small Roll)</option>
                 <option value="sticker_50x30">🏷️ 50mm × 30mm স্টিকার রোল (BD Standard 1-Up Roll)</option>
                 <option value="sticker_50x25">🏷️ 50mm × 25mm গ্যাজেট ও জুয়েলারি ১-আপ রোল (Medium Roll)</option>
                 <option value="sticker_75x50">🏷️ 75mm × 50mm কার্টন ও শিপিং লেবেল (Large Shipping Label)</option>
@@ -2375,7 +2377,6 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script>
   <script src="firebase-db.js"></script>
   <script src="print_hub.js"></script>
   <script src="demo_data.js"></script>

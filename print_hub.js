@@ -29,14 +29,14 @@ class SmartPrintHub {
       } catch (e) {}
     }
     return {
-      paperFormat: 'sticker_38x25', // 'sticker_38x25' (BARCODE L: 1.50in x 1.00in / 38.1mm x 25.4mm), '80mm' (POS: 3.00in roll), etc.
+      paperFormat: 'gprinter_barcode_l', // Default to Gprinter GP-3120TUC BARCODE L (1.50 in x 1.00 in)
       customWidthMm: 38.1,
       customHeightMm: 25.4,
       scalePercent: 100,
       marginMm: 0,
-      stickerCols: '1',
+      stickerCols: 'auto',
       autoFit: true,
-      printRotation: 'driver_180', // 'driver_180' (Default: 0deg web output so printer's Portrait 180° driver setting flips cleanly), 'web_180', 'normal'
+      gprinterRotation180: true, // Exact 180 degree rotation match for Gprinter GP-3120TUC driver
       speed: 'instant' // 'instant' for direct instant printing without delays
     };
   }
@@ -45,6 +45,35 @@ class SmartPrintHub {
     localStorage.setItem('smartpos_printer_settings', JSON.stringify(this.settings));
     this.applySettingsToDOM();
     this.updateDynamicPrintStyles();
+  }
+
+  // --- GPRINTER GP-3120TUC HARDWARE AUTO-CALIBRATION PRESET ---
+  applyGprinterPreset(type = 'BARCODE_L') {
+    if (type === 'BARCODE_L') {
+      this.paperFormat = 'gprinter_barcode_l';
+      this.settings.paperFormat = 'gprinter_barcode_l';
+      this.settings.customWidthMm = 38.1;
+      this.settings.customHeightMm = 25.4;
+      this.settings.marginMm = 0;
+      this.settings.gprinterRotation180 = true;
+      localStorage.setItem('pos_barcode_paper_format', 'gprinter_barcode_l');
+      if (window.cashier && cashier.showToast) cashier.showToast('✅ Gprinter GP-3120TUC (BARCODE L: 1.50" × 1.00" - Portrait 180°) সেটিং এক্টিভ হয়েছে!', 'success');
+      else if (window.admin && admin.showToast) admin.showToast('✅ Gprinter GP-3120TUC (BARCODE L: 1.50" × 1.00" - Portrait 180°) সেটিং এক্টিভ হয়েছে!', 'success');
+    } else if (type === 'POS') {
+      this.paperFormat = 'gprinter_pos';
+      this.settings.paperFormat = 'gprinter_pos';
+      this.settings.customWidthMm = 76.2;
+      this.settings.customHeightMm = 0;
+      this.settings.marginMm = 0;
+      this.settings.gprinterRotation180 = false;
+      localStorage.setItem('pos_barcode_paper_format', 'gprinter_pos');
+      if (window.cashier && cashier.showToast) cashier.showToast('✅ Gprinter GP-3120TUC (POS: 3.00" Continuous Roll) সেটিং এক্টিভ হয়েছে!', 'success');
+      else if (window.admin && admin.showToast) admin.showToast('✅ Gprinter GP-3120TUC (POS: 3.00" Continuous Roll) সেটিং এক্টিভ হয়েছে!', 'success');
+    }
+    this.saveSettings();
+    const formatSelect = document.getElementById('printHubFormatSelect');
+    if (formatSelect) formatSelect.value = this.paperFormat;
+    this.reRenderBarcodes();
   }
 
   init() {
@@ -61,7 +90,7 @@ class SmartPrintHub {
               </div>
               <div>
                 <h3 id="printHubMainTitle">স্মার্ট ডিজিটাল প্রিন্ট ও এক্সপোর্ট হাব</h3>
-                <p id="printHubSubTitle">ইনস্ট্যান্ট মেমো প্রিভিউ, লাইভ প্রিন্টার থার্মাল এনিমেশন ও কাস্টম পেপার সেটিং</p>
+                <p id="printHubSubTitle">Gprinter GP-3120TUC থার্মাল ও স্টিকার প্রিন্টার ১০০% রেডি</p>
               </div>
             </div>
             <div class="print-hub-header-actions">
@@ -80,14 +109,16 @@ class SmartPrintHub {
             <div class="toolbar-item">
               <label><i class="fa-solid fa-scroll"></i> পেপার ও স্টিকার ফরম্যাট:</label>
               <select id="printHubFormatSelect" class="form-control form-control-sm">
-                <option value="sticker_38x25" selected>🏷️ BARCODE L - 1.50 in × 1.00 in (38.1mm × 25.4mm Label)</option>
+                <option value="gprinter_barcode_l" selected>🖨️ Gprinter GP-3120TUC — BARCODE L (1.50" × 1.00" / Die-Cut)</option>
+                <option value="gprinter_pos">🧾 Gprinter GP-3120TUC — POS (3.00" Continuous Roll / 80mm)</option>
+                <option value="sticker_38x25">🏷️ 38mm × 25mm কসমেটিকস ও পোশাক ১-আপ রোল (Small Roll)</option>
                 <option value="sticker_50x30">🏷️ 50mm × 30mm স্টিকার রোল (BD Standard 1-Up Roll)</option>
                 <option value="sticker_50x25">🏷️ 50mm × 25mm গ্যাজেট ও জুয়েলারি ১-আপ রোল (Medium Roll)</option>
                 <option value="sticker_75x50">🏷️ 75mm × 50mm কার্টন ও শিপিং লেবেল (Large Shipping Label)</option>
                 <option value="sticker_25x15">🏷️ 25mm × 15mm ফার্মেসী ও অ্যাকসেসোরিজ ট্যাগ (Micro Tag)</option>
                 <option value="2up_label">🏷️ 2-Up ডাবল কলাম স্টিকার (2 Labels Per Row)</option>
                 <option value="a4_grid">📄 A4 বারকোড স্টিকার শিট (A4 Multi-Sticker Grid)</option>
-                <option value="80mm">🧾 POS Invoice - 3.00 in / 80mm রোল (Gprinter POS Receipt)</option>
+                <option value="80mm">🧾 80mm POS থার্মাল রসিদ (Standard POS Receipt)</option>
                 <option value="58mm">🧾 58mm মিনি থার্মাল রসিদ (Mini POS Receipt)</option>
                 <option value="100mm">🧾 100mm লেবেল / ইনভয়েস রোল (100mm Wide Roll)</option>
                 <option value="custom">⚙️ কাস্টম পেপার সাইজ (Custom Width/Height)</option>
@@ -99,7 +130,7 @@ class SmartPrintHub {
               <select id="printHubSpeedSelect" class="form-control form-control-sm">
                 <option value="normal">স্বাভাবিক (Normal 1.5s)</option>
                 <option value="fast">দ্রুত (Fast 0.6s)</option>
-                <option value="instant">ইনস্ট্যান্ট (No Animation)</option>
+                <option value="instant" selected>ইনস্ট্যান্ট (Instant Print)</option>
               </select>
             </div>
 
@@ -113,17 +144,36 @@ class SmartPrintHub {
           <!-- ADVANCED PRINTER & PAPER CUSTOM SIZE SETTINGS DRAWER -->
           <div class="print-hub-settings-drawer" id="printHubSettingsDrawer" style="display:none;">
             <div class="settings-drawer-header">
-              <h4><i class="fa-solid fa-sliders"></i> কাস্টম প্রিন্টার ও পেপার সাইজ এডজাস্টমেন্ট</h4>
+              <h4><i class="fa-solid fa-sliders"></i> Gprinter GP-3120TUC & কাস্টম পেপার সাইজ এডজাস্টমেন্ট</h4>
               <button class="btn btn-xs btn-outline" onclick="printHub.toggleSettingsDrawer()"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <div class="settings-drawer-grid">
+              <!-- GPRINTER DIRECT HARDWARE PRESETS -->
+              <div class="setting-field full-width" style="background: rgba(16, 185, 129, 0.08); border: 1px dashed #10b981; border-radius: 8px; padding: 10px 12px; margin-bottom: 6px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 6px;">
+                  <span style="font-weight:700; color:#10b981; font-size:0.82rem;"><i class="fa-solid fa-print"></i> Gprinter GP-3120TUC Hardware Auto-Calibration Preset:</span>
+                  <span class="badge" style="background:#10b981; color:#fff; font-size:0.68rem; padding:2px 6px;">1-Click Auto Config</span>
+                </div>
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                  <button type="button" class="btn btn-xs btn-success" onclick="printHub.applyGprinterPreset('BARCODE_L')" style="font-weight:700;">
+                    🏷️ Gprinter BARCODE L (1.50" × 1.00" / Portrait 180°)
+                  </button>
+                  <button type="button" class="btn btn-xs btn-outline-success" onclick="printHub.applyGprinterPreset('POS')" style="font-weight:700;">
+                    🧾 Gprinter POS (3.00" / Continuous Roll)
+                  </button>
+                </div>
+                <small style="color:#64748b; font-size:0.72rem; display:block; margin-top:4px;">
+                  আপনার Gprinter GP-3120TUC ড্রাইভারের Die-Cut Labels (1.50 in × 1.00 in, Left/Right 0.08 in, Portrait 180°) এবং POS Continuous (3.00 in) সেটিংসের সাথে হুবহু কনফিগার করা হবে।
+                </small>
+              </div>
+
               <div class="setting-field">
                 <label><i class="fa-solid fa-ruler-horizontal"></i> কাস্টম পেপার উইডথ (mm):</label>
                 <div class="input-group-inline">
                   <input type="number" id="printHubCustomWidthInput" class="form-control form-control-sm" min="30" max="220" value="${this.settings.customWidthMm || 38.1}">
                   <span class="unit-tag">mm</span>
                 </div>
-                <small style="color:#94a3b8; font-size:0.7rem;">যেকোনো প্রিন্টারের আসল পেপার উইডথ বসান (যেমন: 38.1, 50, 76.2, 80)</small>
+                <small style="color:#94a3b8; font-size:0.7rem;">Gprinter BARCODE L = 38.1mm (1.50 in), POS = 76.2mm (3.00 in)</small>
               </div>
 
               <div class="setting-field">
@@ -132,17 +182,7 @@ class SmartPrintHub {
                   <input type="number" id="printHubCustomHeightInput" class="form-control form-control-sm" min="0" max="300" value="${this.settings.customHeightMm || 25.4}">
                   <span class="unit-tag">mm</span>
                 </div>
-                <small style="color:#94a3b8; font-size:0.7rem;">স্টিকার হাইট (যেমন: 25.4, 30) অথবা মেমোর জন্য 0 (Auto Height)</small>
-              </div>
-
-              <div class="setting-field">
-                <label><i class="fa-solid fa-rotate"></i> প্রিন্ট অরিয়েন্টেশন / রোটেশন:</label>
-                <select id="printHubRotationSelect" class="form-control form-control-sm">
-                  <option value="driver_180" ${this.settings.printRotation === 'driver_180' ? 'selected' : ''}>🔄 প্রিন্টার ড্রাইভার ১৮০° (Gprinter Default - Auto Flip)</option>
-                  <option value="web_180" ${this.settings.printRotation === 'web_180' ? 'selected' : ''}>🔄 ওয়েব ১৮০° ফ্লিপ (Web 180° Rotation Mode)</option>
-                  <option value="normal" ${this.settings.printRotation === 'normal' ? 'selected' : ''}>⬆️ সোজা ০° (0° Straight Layout)</option>
-                </select>
-                <small style="color:#94a3b8; font-size:0.7rem;">Gprinter ഡ്രাইভার Portrait 180° থাকলে "প্রিন্টার ড্রাইভার ১৮০°" সিলেক্ট রাখুন</small>
+                <small style="color:#94a3b8; font-size:0.7rem;">Gprinter BARCODE L = 25.4mm (1.00 in), POS = 0 (Auto Height)</small>
               </div>
 
               <div class="setting-field">
@@ -157,7 +197,7 @@ class SmartPrintHub {
               <div class="setting-field">
                 <label><i class="fa-solid fa-border-all"></i> প্রিন্ট মার্জিন (Margin mm):</label>
                 <select id="printHubMarginSelect" class="form-control form-control-sm">
-                  <option value="0">0mm (জিরো মার্জিন - স্টিকারের জন্য)</option>
+                  <option value="0" selected>0mm (জিরো মার্জিন - Gprinter Die-Cut Labels)</option>
                   <option value="2">2mm (প্রিন্টার স্ট্যান্ডার্ড)</option>
                   <option value="5">5mm (মিডিয়াম)</option>
                   <option value="10">10mm (ওয়াইড)</option>
@@ -167,12 +207,17 @@ class SmartPrintHub {
               <div class="setting-field">
                 <label><i class="fa-solid fa-table-cells"></i> বারকোড স্টিকার কলাম (Grid):</label>
                 <select id="printHubStickerColsSelect" class="form-control form-control-sm">
-                  <option value="auto">অটো এডজাস্ট (Auto Layout)</option>
+                  <option value="auto">অটো এডজাস্ট (1-Up Single Roll)</option>
                   <option value="1">১ কলাম (1 Sticker Row)</option>
                   <option value="2">২ কলাম (2 Stickers Row)</option>
-                  <option value="3">৩ কলাম (3 Stickers Row)</option>
-                  <option value="4">৪ কলাম (4 Stickers Row)</option>
                 </select>
+              </div>
+
+              <div class="setting-field full-width">
+                <label class="checkbox-label" style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                  <input type="checkbox" id="printHubGprinter180Check" ${this.settings.gprinterRotation180 !== false ? 'checked' : ''}>
+                  <span><strong>Gprinter Portrait 180° Feed Calibration:</strong> Gprinter GP-3120TUC ড্রাইভারের Portrait 180° পেপার ফিডের সাথে টেক্সট ও বারকোডের অরিয়েন্টেশন ১০০% ম্যাচ করবে।</span>
+                </label>
               </div>
 
               <div class="setting-field full-width">
@@ -197,11 +242,11 @@ class SmartPrintHub {
             <!-- VIRTUAL PRINTER CHASSIS -->
             <div class="printer-chassis">
               <div class="printer-chassis-top">
-                <div class="printer-brand"><i class="fa-solid fa-barcode"></i> SmartPOS Thermal Printer & Label Studio</div>
+                <div class="printer-brand"><i class="fa-solid fa-barcode"></i> Gprinter GP-3120TUC Thermal Label & POS Studio</div>
                 <div class="printer-leds">
                   <span class="led led-power active" title="Power ON"></span>
                   <span class="led led-status ready" id="printerStatusLed" title="Printer Activity"></span>
-                  <span class="led-label" id="printerLedText">READY</span>
+                  <span class="led-label" id="printerLedText">GP-3120TUC READY</span>
                 </div>
               </div>
               <div class="printer-slot">
@@ -318,52 +363,49 @@ class SmartPrintHub {
   applySettingsFromUI() {
     const customWidth = parseFloat(document.getElementById('printHubCustomWidthInput')?.value) || 38.1;
     const customHeight = parseFloat(document.getElementById('printHubCustomHeightInput')?.value) || 25.4;
-    const printRotation = document.getElementById('printHubRotationSelect')?.value || 'driver_180';
     const scale = parseInt(document.getElementById('printHubScaleRange')?.value) || 100;
     const margin = parseInt(document.getElementById('printHubMarginSelect')?.value) || 0;
-    const cols = document.getElementById('printHubStickerColsSelect')?.value || '1';
+    const cols = document.getElementById('printHubStickerColsSelect')?.value || 'auto';
     const autoFit = document.getElementById('printHubAutoFitCheck')?.checked ?? true;
+    const gprinter180 = document.getElementById('printHubGprinter180Check')?.checked ?? true;
 
     this.settings.customWidthMm = customWidth;
     this.settings.customHeightMm = customHeight;
-    this.settings.printRotation = printRotation;
     this.settings.scalePercent = scale;
     this.settings.marginMm = margin;
     this.settings.stickerCols = cols;
     this.settings.autoFit = autoFit;
+    this.settings.gprinterRotation180 = gprinter180;
 
     this.saveSettings();
     this.reRenderBarcodes();
     this.toggleSettingsDrawer(false);
 
-    if (window.cashier && cashier.showToast) cashier.showToast('প্রিন্টার ও পেপার সেটিংস সফলভাবে আপডেট হয়েছে!');
+    if (window.cashier && cashier.showToast) cashier.showToast('Gprinter GP-3120TUC & পেপার সেটিংস সফলভাবে আপডেট হয়েছে!');
+    else if (window.admin && admin.showToast) admin.showToast('Gprinter GP-3120TUC & পেপার সেটিংস সফলভাবে আপডেট হয়েছে!');
   }
 
   resetSettingsToDefault() {
     this.settings = {
-      paperFormat: 'sticker_38x25',
-      customWidthMm: 38.1,
-      customHeightMm: 25.4,
+      paperFormat: '80mm',
+      customWidthMm: 80,
+      customHeightMm: 30,
       scalePercent: 100,
       marginMm: 0,
-      stickerCols: '1',
+      stickerCols: 'auto',
       autoFit: true,
-      printRotation: 'driver_180',
-      speed: 'instant'
+      speed: 'normal'
     };
-    this.paperFormat = 'sticker_38x25';
+    this.paperFormat = '80mm';
 
     const formatSelect = document.getElementById('printHubFormatSelect');
-    if (formatSelect) formatSelect.value = 'sticker_38x25';
+    if (formatSelect) formatSelect.value = '80mm';
 
     const customWidthInput = document.getElementById('printHubCustomWidthInput');
-    if (customWidthInput) customWidthInput.value = 38.1;
+    if (customWidthInput) customWidthInput.value = 80;
 
     const customHeightInput = document.getElementById('printHubCustomHeightInput');
-    if (customHeightInput) customHeightInput.value = 25.4;
-
-    const rotationSelect = document.getElementById('printHubRotationSelect');
-    if (rotationSelect) rotationSelect.value = 'driver_180';
+    if (customHeightInput) customHeightInput.value = 30;
 
     const scaleRange = document.getElementById('printHubScaleRange');
     if (scaleRange) scaleRange.value = 100;
@@ -374,7 +416,7 @@ class SmartPrintHub {
     if (marginSelect) marginSelect.value = 0;
 
     const stickerColsSelect = document.getElementById('printHubStickerColsSelect');
-    if (stickerColsSelect) stickerColsSelect.value = '1';
+    if (stickerColsSelect) stickerColsSelect.value = 'auto';
 
     const autoFitCheck = document.getElementById('printHubAutoFitCheck');
     if (autoFitCheck) autoFitCheck.checked = true;
@@ -393,7 +435,7 @@ class SmartPrintHub {
 
     // Width styling based on paperFormat
     if (this.paperFormat === 'custom') {
-      paperTarget.style.width = `${this.settings.customWidthMm || 38.1}mm`;
+      paperTarget.style.width = `${this.settings.customWidthMm || 80}mm`;
     } else if (this.paperFormat === '58mm') {
       paperTarget.style.width = '240px';
     } else if (this.paperFormat === '80mm') {
@@ -454,31 +496,39 @@ class SmartPrintHub {
       document.head.appendChild(styleTag);
     }
 
-    let widthMm = '38.1mm';
-    let heightMm = '25.4mm';
+    let widthMm = '80mm';
+    let heightMm = 'auto';
     let isStickerRoll = false;
 
     if (mode === 'invoice') {
-      widthMm = '76.2mm';
+      widthMm = '80mm';
       isStickerRoll = false;
       const receiptEl = document.getElementById('printableReceipt');
       if (receiptEl) {
-        const pxHeight = Math.max(receiptEl.scrollHeight || 0, receiptEl.offsetHeight || 0);
-        const baseMm = pxHeight * 0.2645833;
-        const calculatedHeightMm = Math.ceil(baseMm * 1.06) + 15;
-        heightMm = `${Math.max(70, calculatedHeightMm)}mm`;
+        const rect = receiptEl.getBoundingClientRect();
+        const pxHeight = Math.max(receiptEl.offsetHeight || 0, rect.height || 0);
+        // Convert px to mm (1px = 0.2645833mm) + 4mm tiny breathing margin right after footer
+        const calculatedHeightMm = Math.ceil(pxHeight * 0.2645833) + 4;
+        heightMm = `${Math.max(50, calculatedHeightMm)}mm`;
       } else {
         heightMm = 'auto';
       }
     } else {
+      // Default to 38x25 sticker format for barcode mode if non-sticker format passed
       if (!this.paperFormat || this.paperFormat === '80mm' || this.paperFormat === '58mm') {
         this.paperFormat = 'sticker_38x25';
       }
       switch(this.paperFormat) {
+        case 'gprinter_barcode_l':
         case 'sticker_38x25':
-          widthMm = '38.1mm';
-          heightMm = '25.4mm';
+          widthMm = '38.1mm'; // Exact 1.50 in match
+          heightMm = '25.4mm'; // Exact 1.00 in match
           isStickerRoll = true;
+          break;
+        case 'gprinter_pos':
+          widthMm = '76.2mm'; // Exact 3.00 in POS receipt match
+          heightMm = 'auto';
+          isStickerRoll = false;
           break;
         case 'sticker_50x30':
           widthMm = '50mm';
@@ -510,29 +560,31 @@ class SmartPrintHub {
           heightMm = '297mm';
           break;
         case 'custom':
-          widthMm = `${this.settings.customWidthMm || 38.1}mm`;
-          heightMm = `${this.settings.customHeightMm || 25.4}mm`;
+          widthMm = `${this.settings.customWidthMm || 38}mm`;
+          heightMm = `${this.settings.customHeightMm || 25}mm`;
           isStickerRoll = true;
           break;
         default:
-          widthMm = '38.1mm';
-          heightMm = '25.4mm';
+          widthMm = '38mm';
+          heightMm = '25mm';
           isStickerRoll = true;
           break;
       }
     }
 
-    const rotationCss = (this.settings.printRotation === 'web_180') ? 'transform: rotate(180deg) !important; transform-origin: center center !important;' : 'transform: none !important; rotate: 0deg !important;';
+    const scale = (this.settings.scalePercent || 100) / 100;
+    const margin = isStickerRoll ? '0mm' : `${this.settings.marginMm !== undefined ? this.settings.marginMm : 0}mm`;
 
     let pageRule = '';
+    // Always include explicit 'portrait' orientation to prevent 90° rotation on physical printers
     if (mode === 'invoice' && heightMm !== 'auto') {
-      pageRule = `@page { size: 76.2mm ${heightMm}; margin: 0; }`;
+      pageRule = `@page { size: 80mm ${heightMm} portrait !important; margin: 0mm !important; }`;
     } else if (mode === 'invoice') {
-      pageRule = `@page { size: 76.2mm auto; margin: 0; }`;
+      pageRule = `@page { size: 80mm auto portrait !important; margin: 0mm !important; }`;
     } else if (heightMm === 'auto') {
-      pageRule = `@page { size: ${widthMm} auto; margin: 0; }`;
+      pageRule = `@page { size: ${widthMm} auto portrait !important; margin: 0mm !important; }`;
     } else {
-      pageRule = `@page { size: ${widthMm} ${heightMm}; margin: 0; }`;
+      pageRule = `@page { size: ${widthMm} ${heightMm} portrait !important; margin: 0mm !important; }`;
     }
 
     styleTag.innerHTML = `
@@ -544,23 +596,15 @@ class SmartPrintHub {
           writing-mode: horizontal-tb !important;
           transform: none !important;
           rotate: 0deg !important;
-          margin: 0 auto !important;
+          margin: 0 !important;
           padding: 0 !important;
           background: #ffffff !important;
           color: #000000 !important;
           -webkit-print-color-adjust: exact !important;
           print-color-adjust: exact !important;
-          width: ${mode === 'invoice' ? '76.2mm' : widthMm} !important;
-          max-width: ${mode === 'invoice' ? '76.2mm' : widthMm} !important;
-        }
-
-        /* Expand scrollable receipt viewport to full content height in print */
-        .receipt-feed-viewport, .receipt-feed-container {
-          max-height: none !important;
-          height: auto !important;
-          min-height: 0 !important;
-          overflow: visible !important;
-          padding: 0 !important;
+          width: ${mode === 'invoice' ? '80mm' : widthMm} !important;
+          max-width: ${mode === 'invoice' ? '80mm' : widthMm} !important;
+          margin: 0 auto !important;
         }
 
         /* 1. BARCODE PRINTING ISOLATION MODE */
@@ -589,8 +633,8 @@ class SmartPrintHub {
           position: absolute !important;
           left: 0 !important;
           top: 0 !important;
-          width: ${mode === 'invoice' ? '76.2mm' : widthMm} !important;
-          max-width: ${mode === 'invoice' ? '76.2mm' : widthMm} !important;
+          width: ${mode === 'invoice' ? '80mm' : widthMm} !important;
+          max-width: ${mode === 'invoice' ? '80mm' : widthMm} !important;
           height: auto !important;
           background: #ffffff !important;
           color: #000000 !important;
@@ -617,12 +661,12 @@ class SmartPrintHub {
           border: none !important;
           box-shadow: none !important;
           padding: 0 !important;
-          margin: 0 !important;
+          margin: 0 auto !important;
           min-height: 0 !important;
           height: auto !important;
           max-height: none !important;
-          width: ${mode === 'invoice' ? '76.2mm' : widthMm} !important;
-          max-width: ${mode === 'invoice' ? '76.2mm' : widthMm} !important;
+          width: ${mode === 'invoice' ? '80mm' : widthMm} !important;
+          max-width: ${mode === 'invoice' ? '80mm' : widthMm} !important;
           overflow: visible !important;
           display: block !important;
         }
@@ -631,12 +675,12 @@ class SmartPrintHub {
           position: relative !important;
           left: 0 !important;
           top: 0 !important;
-          width: 76.2mm !important;
-          max-width: 76.2mm !important;
-          min-width: 76.2mm !important;
+          width: 80mm !important;
+          max-width: 80mm !important;
+          min-width: 80mm !important;
           height: auto !important;
           margin: 0 auto !important;
-          padding: 2mm 2mm !important;
+          padding: 2mm 3mm !important;
           box-sizing: border-box !important;
           background: #ffffff !important;
           color: #000000 !important;
@@ -666,21 +710,6 @@ class SmartPrintHub {
           direction: ltr !important;
         }
 
-        /* Keep barcode + footer block together — never split to a 2nd page */
-        .receipt-footer {
-          page-break-inside: avoid !important;
-          break-inside: avoid !important;
-          page-break-before: avoid !important;
-          break-before: avoid !important;
-        }
-        #rcptBarcodeSvg {
-          page-break-inside: avoid !important;
-          break-inside: avoid !important;
-          page-break-before: avoid !important;
-          break-before: avoid !important;
-          display: block !important;
-        }
-
         ${isStickerRoll && mode !== 'invoice' ? `
         .barcode-studio-header {
           display: none !important;
@@ -698,8 +727,8 @@ class SmartPrintHub {
           height: ${heightMm} !important;
           max-height: ${heightMm} !important;
           box-sizing: border-box !important;
-          margin: 0 auto !important;
-          padding: 1.2mm 1.5mm !important;
+          margin: 0 !important;
+          padding: 3px 4px 3px 4px !important;
           page-break-before: auto !important;
           page-break-after: always !important;
           break-after: page !important;
@@ -712,7 +741,6 @@ class SmartPrintHub {
           flex-direction: column !important;
           align-items: center !important;
           justify-content: space-between !important;
-          ${rotationCss}
         }
         .barcode-sticker-card:last-child,
         .barcode-sticker-card:last-of-type {
@@ -753,22 +781,22 @@ class SmartPrintHub {
       const now = this.audioCtx.currentTime;
       const totalSec = Math.max(0.3, durationMs / 1000);
 
-      // Motor noise oscillator (subtle soft hum)
+      // Motor noise oscillator
       const osc = this.audioCtx.createOscillator();
       const gain = this.audioCtx.createGain();
       osc.type = 'sawtooth';
       osc.frequency.setValueAtTime(140, now);
       osc.frequency.linearRampToValueAtTime(90, now + totalSec);
 
-      gain.gain.setValueAtTime(0.025, now);
-      gain.gain.linearRampToValueAtTime(0.005, now + totalSec);
+      gain.gain.setValueAtTime(0.08, now);
+      gain.gain.linearRampToValueAtTime(0.01, now + totalSec);
 
       osc.connect(gain);
       gain.connect(this.audioCtx.destination);
       osc.start(now);
       osc.stop(now + totalSec);
 
-      // Thermal head pulse clicks (soft click FX)
+      // Thermal head pulse clicks
       const clickCount = Math.floor(totalSec * 12);
       for (let i = 0; i < clickCount; i++) {
         const clickTime = now + (i * (totalSec / clickCount));
@@ -776,8 +804,8 @@ class SmartPrintHub {
         const clickGain = this.audioCtx.createGain();
         clickOsc.type = 'square';
         clickOsc.frequency.setValueAtTime(800 + (i % 3) * 200, clickTime);
-        clickGain.gain.setValueAtTime(0.012, clickTime);
-        clickGain.gain.exponentialRampToValueAtTime(0.0005, clickTime + 0.03);
+        clickGain.gain.setValueAtTime(0.04, clickTime);
+        clickGain.gain.exponentialRampToValueAtTime(0.001, clickTime + 0.03);
         clickOsc.connect(clickGain);
         clickGain.connect(this.audioCtx.destination);
         clickOsc.start(clickTime);
@@ -797,12 +825,12 @@ class SmartPrintHub {
       const gain = this.audioCtx.createGain();
       osc.type = 'sine';
       osc.frequency.setValueAtTime(987.77, now);
-      gain.gain.setValueAtTime(0.035, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+      gain.gain.setValueAtTime(0.12, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
       osc.connect(gain);
       gain.connect(this.audioCtx.destination);
       osc.start(now);
-      osc.stop(now + 0.15);
+      osc.stop(now + 0.2);
     } catch(e) {}
   }
 
@@ -899,10 +927,10 @@ class SmartPrintHub {
     if (!paperTarget) return;
 
     const itemCount = (this.currentItems && this.currentItems.length > 0) ? this.currentItems.length : 1;
-    let baseTime = Math.max(400, Math.min(1000, itemCount * 100 + 250));
+    let baseTime = Math.max(1600, Math.min(10000, itemCount * 350 + 600));
     let animDuration = baseTime;
-    if (speed === 'fast') animDuration = Math.max(250, Math.round(baseTime * 0.45));
-    if (speed === 'instant') animDuration = 40;
+    if (speed === 'fast') animDuration = Math.max(700, Math.round(baseTime * 0.45));
+    if (speed === 'instant') animDuration = 50;
 
     this.isAnimating = true;
 
@@ -1079,7 +1107,7 @@ class SmartPrintHub {
       const priceHtml = showPrice ? `<div style="font-size:0.66rem; font-weight:800; color:#000; margin-top:1px; margin-bottom:2px; padding-bottom:1px; line-height:1.05;">${priceFormatted}</div>` : '';
 
       stickersHtml += `
-        <div class="barcode-sticker-card hub-sticker" style="background:#fff; color:#000; padding:2px 3px 2px 3px; border:1px solid #ddd; border-radius:4px; text-align:center; box-shadow:0 1px 3px rgba(0,0,0,0.06); display:flex; flex-direction:column; align-items:center; justify-content:space-between; page-break-inside:avoid; break-inside:avoid; box-sizing:border-box; overflow:hidden;">
+        <div class="barcode-sticker-card hub-sticker" style="background:#fff; color:#000; padding:3px 4px 3px 4px; border:1px solid #ddd; border-radius:4px; text-align:center; box-shadow:0 1px 3px rgba(0,0,0,0.06); display:flex; flex-direction:column; align-items:center; justify-content:space-between; page-break-inside:avoid; break-inside:avoid; box-sizing:border-box;">
           ${nameHtml}
           ${variantHtml}
           <div style="width:100%; display:flex; justify-content:center; margin:1px 0;">
@@ -1116,45 +1144,50 @@ class SmartPrintHub {
     let bcFontSize = 8.5;
     let bcMargin = 0;
 
-    if (this.paperFormat === 'sticker_38x25') {
+    if (this.paperFormat === 'gprinter_barcode_l' || this.paperFormat === 'sticker_38x25') {
       bcWidth = 1.05;
-      bcHeight = 17;
-      bcFontSize = 7.5;
+      bcHeight = 22;
+      bcFontSize = 8.5;
       bcMargin = 0;
+    } else if (this.paperFormat === 'gprinter_pos' || this.paperFormat === '80mm') {
+      bcWidth = 1.35;
+      bcHeight = 40;
+      bcFontSize = 9.5;
+      bcMargin = 1;
     } else if (this.paperFormat === 'sticker_50x30') {
       bcWidth = 1.25;
-      bcHeight = 32;
-      bcFontSize = 9.0;
+      bcHeight = 36;
+      bcFontSize = 9.5;
       bcMargin = 1;
     } else if (this.paperFormat === 'sticker_50x25') {
       bcWidth = 1.15;
-      bcHeight = 24;
-      bcFontSize = 8.0;
+      bcHeight = 28;
+      bcFontSize = 8.5;
       bcMargin = 0;
     } else if (this.paperFormat === 'sticker_75x50') {
       bcWidth = 1.6;
-      bcHeight = 48;
-      bcFontSize = 10.5;
+      bcHeight = 54;
+      bcFontSize = 11;
       bcMargin = 2;
     } else if (this.paperFormat === 'sticker_25x15') {
       bcWidth = 0.8;
-      bcHeight = 15;
-      bcFontSize = 7.0;
+      bcHeight = 18;
+      bcFontSize = 7.5;
       bcMargin = 0;
     } else if (this.paperFormat === '2up_label') {
       bcWidth = 1.15;
-      bcHeight = 24;
-      bcFontSize = 8.0;
+      bcHeight = 28;
+      bcFontSize = 8.5;
       bcMargin = 0;
     } else if (this.paperFormat === 'a4_grid') {
       bcWidth = 1.15;
-      bcHeight = 24;
-      bcFontSize = 8.5;
+      bcHeight = 28;
+      bcFontSize = 9;
       bcMargin = 0;
     } else if (this.paperFormat === '58mm') {
       bcWidth = 1.15;
-      bcHeight = 24;
-      bcFontSize = 8.0;
+      bcHeight = 28;
+      bcFontSize = 8.5;
       bcMargin = 0;
     }
 
@@ -1178,9 +1211,9 @@ class SmartPrintHub {
             fontSize: bcFontSize,
             fontOptions: "bold",
             font: "monospace",
-            marginTop: 0,
-            marginBottom: 2,
-            textMargin: 1,
+            marginTop: 1,
+            marginBottom: 4,
+            textMargin: 3,
             background: "#ffffff",
             lineColor: "#000000",
             displayValue: true
@@ -1251,8 +1284,8 @@ class SmartPrintHub {
     let targetWidthMm = 38;
     let targetHeightMm = 25;
 
-    if (this.paperFormat === '80mm') {
-      targetWidthMm = 80;
+    if (this.paperFormat === 'gprinter_pos' || this.paperFormat === '80mm') {
+      targetWidthMm = 76.2;
       targetHeightMm = Math.max(50, calculatedHeightMm);
     } else if (this.paperFormat === '58mm') {
       targetWidthMm = 58;
@@ -1260,9 +1293,9 @@ class SmartPrintHub {
     } else if (this.paperFormat === '100mm') {
       targetWidthMm = 100;
       targetHeightMm = Math.max(50, calculatedHeightMm);
-    } else if (this.paperFormat === 'sticker_38x25') {
-      targetWidthMm = 38;
-      targetHeightMm = 25;
+    } else if (this.paperFormat === 'gprinter_barcode_l' || this.paperFormat === 'sticker_38x25') {
+      targetWidthMm = 38.1;
+      targetHeightMm = 25.4;
     } else if (this.paperFormat === 'sticker_50x30') {
       targetWidthMm = 50;
       targetHeightMm = 30;
@@ -1280,35 +1313,26 @@ class SmartPrintHub {
       targetHeightMm = 25;
     }
 
-    const isSticker = this.paperFormat.startsWith('sticker_') || this.paperFormat === '2up_label';
+    const isSticker = this.paperFormat.startsWith('sticker_') || this.paperFormat === 'gprinter_barcode_l' || this.paperFormat === '2up_label';
     const cards = paperTarget.querySelectorAll('.barcode-sticker-card');
 
     const jsPDFClass = (window.jspdf && window.jspdf.jsPDF) ? window.jspdf.jsPDF : window.jsPDF;
 
     if (window.html2canvas && jsPDFClass) {
       if (isSticker && cards.length > 0) {
-        // Multi-sticker card PDF export (1 page per sticker, exact dimensions matching format)
-        const pageW = targetWidthMm;
-        const pageH = targetHeightMm;
-        const orientation = pageW >= pageH ? 'l' : 'p';
-        const pdfFormat = [pageW, pageH];
-
+        // Multi-sticker card PDF export (1 page per sticker, 0 deg rotation)
+        const formatArg = targetWidthMm > targetHeightMm ? [targetHeightMm, targetWidthMm] : [targetWidthMm, targetHeightMm];
+        const orientationArg = targetWidthMm > targetHeightMm ? 'l' : 'p';
         const doc = new jsPDFClass({
           unit: 'mm',
-          format: pdfFormat,
-          orientation: orientation,
+          format: formatArg,
+          orientation: orientationArg,
           compress: true
         });
 
         let chain = Promise.resolve();
         cards.forEach((card, idx) => {
           chain = chain.then(() => {
-            // Temporarily strip border & shadow to prevent canvas overflow artifacts
-            const origBorder = card.style.border;
-            const origShadow = card.style.boxShadow;
-            card.style.border = 'none';
-            card.style.boxShadow = 'none';
-
             return window.html2canvas(card, {
               scale: 3,
               backgroundColor: '#ffffff',
@@ -1317,14 +1341,11 @@ class SmartPrintHub {
               scrollX: 0,
               scrollY: 0
             }).then(canvas => {
-              card.style.border = origBorder;
-              card.style.boxShadow = origShadow;
-
               const imgData = canvas.toDataURL('image/jpeg', 0.98);
               if (idx > 0) {
-                doc.addPage(pdfFormat, orientation);
+                doc.addPage(formatArg, orientationArg);
               }
-              doc.addImage(imgData, 'JPEG', 0, 0, pageW, pageH, undefined, 'FAST');
+              doc.addImage(imgData, 'JPEG', 0, 0, targetWidthMm, targetHeightMm, undefined, 'FAST');
             });
           });
         });
@@ -1333,7 +1354,7 @@ class SmartPrintHub {
           doc.save(fileName);
         }).catch(err => {
           console.error("PDF multi-card render error:", err);
-          this.systemPrint();
+          window.print();
         });
 
       } else {

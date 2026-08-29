@@ -88,9 +88,9 @@ window.addEventListener('beforeinstallprompt', (e) => {
 
 // Triggered when App installation is completed by merchant
 window.addEventListener('appinstalled', () => {
-  console.log('[PWA] SmartPOS app installed successfully!');
+  console.log('[PWA] Smart POS BD app installed successfully!');
   deferredPrompt = null;
-  alert('🎉 অভিনন্দন! SmartPOS অ্যাপটি আপনার Windows PC / মোবাইলে ইনস্টল করা হয়েছে। এখন আপনার ডেসটপ বা মোবাইল হোম স্ক্রিন আইকন থেকে সরাসরি ওপেন করতে পারবেন।');
+  alert('🎉 অভিনন্দন! Smart POS BD অ্যাপটি আপনার Windows PC / মোবাইলে ইনস্টল করা হয়েছে। এখন আপনার ডেসটপ বা মোবাইল হোম স্ক্রিন আইকন থেকে সরাসরি ওপেন করতে পারবেন।');
 });
 
 // Direct One-Click App Download/Installation Trigger

@@ -718,7 +718,7 @@ class POSApp {
       fontSize: 13,
       fontOptions: "bold",
       font: "monospace",
-      marginTop: 8, marginBottom: 8, marginLeft: 18, marginRight: 18,
+      margin: 8,
       background: "#ffffff",
       lineColor: "#000000"
     });
@@ -1348,7 +1348,7 @@ class POSApp {
 
     if (typeof JsBarcode !== 'undefined') {
       try {
-        JsBarcode("#rcptBarcodeSvg", invId, { format: "CODE128", width: 1.8, height: 48, displayValue: true, fontSize: 13, fontOptions: "bold", font: "monospace", marginTop: 8, marginBottom: 8, marginLeft: 18, marginRight: 18, background: "#ffffff", lineColor: "#000000" });
+        JsBarcode("#rcptBarcodeSvg", invId, { format: "CODE128", width: 1.8, height: 48, displayValue: true, fontSize: 13, fontOptions: "bold", font: "monospace", margin: 8, background: "#ffffff", lineColor: "#000000" });
       } catch(e) {}
     }
 

@@ -177,7 +177,7 @@
               </div>
 
               <div style="display: flex; justify-content: space-between; font-size: 0.95rem; font-weight: 700; font-style: normal; margin-bottom: 0.75rem;">
-                <span id="summaryPkgName">SmartPOS Standard (১ মাস)</span>
+                <span id="summaryPkgName">Smart POS BD Standard (১ মাস)</span>
                 <span style="margin-left: auto; margin-right: 2.2rem;">১</span>
                 <span id="summaryBasePrice">১৫০ ৳</span>
               </div>
@@ -278,7 +278,7 @@
     const grandTotalEl = document.getElementById('summaryGrandTotal');
     const instructionAmountEl = document.getElementById('instructionAmountText');
 
-    if (pkgNameEl) pkgNameEl.textContent = `SmartPOS Standard (${toBnNum(months)} মাস)`;
+    if (pkgNameEl) pkgNameEl.textContent = `Smart POS BD Standard (${toBnNum(months)} মাস)`;
     if (basePriceEl) basePriceEl.textContent = `${toBnNum(baseProductPrice)} ৳`;
     if (productTotalEl) productTotalEl.textContent = `${toBnNum(baseProductPrice)} ৳`;
     if (discountValEl) discountValEl.textContent = `- ${toBnNum(discountValue)} ৳`;
@@ -439,7 +439,7 @@
     const subscription = getActiveSubscriptionState();
 
     const storeName = settings.storeName || subscription.storeName || 'আমার শপ';
-    const planName = subscription.plan || 'SmartPOS Standard';
+    const planName = subscription.plan || 'Smart POS BD Standard';
     const isTrial = subscription.isTrial !== false;
     const isBlocked = subscription.accountBlocked === true || subscription.status === 'Suspended' || subscription.status === 'Stopped';
     const isExpired = subscription.trialExpiresAt ? (new Date(subscription.trialExpiresAt) <= new Date()) : false;

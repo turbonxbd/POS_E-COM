@@ -31,5 +31,5 @@
   <rect x="120" y="248" width="272" height="4" rx="2" fill="#10b981" opacity="0.5"/>
   <!-- Bottom text label area -->
   <rect x="160" y="372" width="192" height="36" rx="8" fill="rgba(16,185,129,0.15)"/>
-  <text x="256" y="396" font-family="monospace" font-size="20" font-weight="bold" fill="#10b981" text-anchor="middle">SmartPOS</text>
+  <text x="256" y="396" font-family="monospace" font-size="18" font-weight="bold" fill="#10b981" text-anchor="middle">Smart POS BD</text>
 </svg>

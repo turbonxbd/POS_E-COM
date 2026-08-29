@@ -306,6 +306,7 @@ class CashierTerminal {
 
     window.addEventListener('storage', reloadCashierState);
     window.addEventListener('pos_cloud_update', reloadCashierState);
+    window.addEventListener('pos_sales_update', reloadCashierState);
     window.addEventListener('pos_tenant_changed', reloadCashierState);
 
     document.addEventListener('click', (e) => {
@@ -332,7 +333,7 @@ class CashierTerminal {
   updateSidebarStoreBranding() {
     const s = this.settings || JSON.parse(localStorage.getItem('pos_settings')) || {};
     const sub = JSON.parse(localStorage.getItem('pos_subscription')) || JSON.parse(localStorage.getItem('pos_active_subscription')) || {};
-    const storeName = s.storeName || sub.storeName || 'SmartPOS Cashier';
+    const storeName = s.storeName || sub.storeName || 'Smart POS BD Cashier';
     const storeLogo = s.storeLogo || sub.storeLogo || '';
 
     const storeNameEl = document.getElementById('cashierSidebarStoreName');
@@ -1379,6 +1380,75 @@ class CashierTerminal {
     }
   }
 
+  updateOrCreateCustomerOnSale(phone, firstName, lastName, fullName, email, address, orderTotal = 0) {
+    const cleanPhone = (phone || '').replace(/\D/g, '').trim();
+    const displayName = (fullName || `${firstName || ''} ${lastName || ''}`).trim() || 'Walk-in Customer';
+
+    if (!cleanPhone && (displayName === 'Walk-in Customer' || displayName.toLowerCase() === 'guest' || displayName === '')) {
+      return {
+        id: 'GUEST',
+        name: 'Walk-in Customer',
+        phone: '',
+        email: email || '',
+        address: address || '',
+        status: 'active'
+      };
+    }
+
+    this.customers = JSON.parse(localStorage.getItem('pos_customers')) || this.customers || [];
+    
+    let cust = this.customers.find(c => (cleanPhone && c.phone && c.phone.replace(/\D/g, '').trim() === cleanPhone) || (c.name && c.name.toLowerCase().trim() === displayName.toLowerCase()));
+
+    if (cust) {
+      if (cust.status === 'blocked') {
+        return cust;
+      }
+      cust.totalOrders = (cust.totalOrders || 0) + 1;
+      cust.totalSpent = (cust.totalSpent || 0) + (orderTotal || 0);
+      cust.lastPurchaseDate = new Date().toISOString();
+      if (email && !cust.email) cust.email = email;
+      if (address && !cust.address) cust.address = address;
+      if (firstName && !cust.firstName) cust.firstName = firstName;
+      if (lastName && !cust.lastName) cust.lastName = lastName;
+    } else {
+      cust = {
+        id: `CUST-${Date.now().toString().slice(-4)}`,
+        firstName: firstName || displayName.split(' ')[0] || '',
+        lastName: lastName || displayName.split(' ').slice(1).join(' ') || '',
+        name: displayName,
+        phone: cleanPhone || '',
+        email: email || '',
+        address: address || '',
+        status: 'active',
+        totalOrders: 1,
+        totalSpent: orderTotal || 0,
+        createdAt: new Date().toISOString().split('T')[0],
+        lastPurchaseDate: new Date().toISOString()
+      };
+      this.customers.unshift(cust);
+    }
+
+    const activeStoreId = (window.posFirebase && window.posFirebase.storeId) || localStorage.getItem('pos_active_store_id') || 'store_demo_101';
+    const custJson = JSON.stringify(this.customers);
+    localStorage.setItem('pos_customers', custJson);
+    localStorage.setItem(`pos_tenant_${activeStoreId}_pos_customers`, custJson);
+
+    if (window.posFirebase && typeof window.posFirebase.saveDoc === 'function') {
+      window.posFirebase.saveDoc('pos_customers', this.customers);
+    } else if (window.posFirebase && typeof window.posFirebase.pushKeyToCloud === 'function') {
+      window.posFirebase.pushKeyToCloud('pos_customers', custJson);
+    }
+
+    try {
+      if (!this.stateChannel) this.stateChannel = new BroadcastChannel('pos_state_sync');
+      this.stateChannel.postMessage({ type: 'customers_updated', timestamp: Date.now() });
+    } catch(e) {}
+
+    window.dispatchEvent(new CustomEvent('pos_cloud_update', { detail: { key: 'pos_customers', data: this.customers } }));
+
+    return cust;
+  }
+
   processCashPayment() {
     const totals = this.getCartTotals();
     const grandTotal = totals.grandTotal;
@@ -1580,16 +1650,46 @@ class CashierTerminal {
     });
 
     this.sales.unshift(saleRecord);
-    localStorage.setItem('pos_products', JSON.stringify(this.products));
-    localStorage.setItem('pos_sales', JSON.stringify(this.sales));
+    this.saveSales();
 
     this.playAudioBeep('success');
     if (window.confetti) confetti({ particleCount: 80, spread: 60, origin: { y: 0.7 } });
 
     this.renderProducts();
-    this.renderShiftSales();
+    if (typeof this.renderShiftSales === 'function') {
+      try { this.renderShiftSales(); } catch(e) {}
+    }
     this.showReceiptModal(saleRecord, true);
     this.clearCart();
+  }
+
+  saveSales() {
+    const salesJson = JSON.stringify(this.sales || []);
+    const prodJson = JSON.stringify(this.products || []);
+    localStorage.setItem('pos_sales', salesJson);
+    localStorage.setItem('pos_products', prodJson);
+
+    const activeStoreId = (window.posFirebase && window.posFirebase.storeId) || localStorage.getItem('pos_active_store_id') || 'store_demo_101';
+    localStorage.setItem(`pos_tenant_${activeStoreId}_pos_sales`, salesJson);
+    localStorage.setItem(`pos_tenant_${activeStoreId}_pos_products`, prodJson);
+
+    if (window.posFirebase) {
+      if (typeof window.posFirebase.saveDoc === 'function') {
+        window.posFirebase.saveDoc('pos_products', this.products);
+        window.posFirebase.saveDoc('pos_sales', this.sales);
+      } else if (typeof window.posFirebase.pushKeyToCloud === 'function') {
+        window.posFirebase.pushKeyToCloud('pos_products', prodJson);
+        window.posFirebase.pushKeyToCloud('pos_sales', salesJson);
+      }
+    }
+
+    try {
+      if (!this.stateChannel) this.stateChannel = new BroadcastChannel('pos_state_sync');
+      this.stateChannel.postMessage({ type: 'sales_updated', timestamp: Date.now() });
+    } catch(e) {}
+
+    window.dispatchEvent(new CustomEvent('pos_sales_update'));
+    window.dispatchEvent(new CustomEvent('pos_cloud_update', { detail: { key: 'pos_sales', data: this.sales } }));
   }
 
   showReceiptModal(saleRecord, isNewSale = false) {
@@ -1742,8 +1842,7 @@ class CashierTerminal {
 
     if (typeof JsBarcode !== 'undefined') {
       JsBarcode("#rcptBarcodeSvg", saleRecord.id, {
-        format: "CODE128", width: 1.8, height: 48, displayValue: true, fontSize: 13, fontOptions: "bold", font: "monospace",
-        marginTop: 8, marginBottom: 8, marginLeft: 18, marginRight: 18,
+        format: "CODE128", width: 1.8, height: 48, displayValue: true, fontSize: 13, fontOptions: "bold", font: "monospace", margin: 8,
         background: "#ffffff", lineColor: "#000000"
       });
     }
@@ -3915,7 +4014,7 @@ class CashierTerminal {
     if (statusText) statusText.innerText = '🖨️ প্রিন্ট হচ্ছে...';
     if (scanline) scanline.style.display = 'block';
 
-    const duration = 450;
+    const duration = 2200;
     if (window.printHub && window.printHub.playPrinterAudio) {
       window.printHub.playPrinterAudio(duration);
     }
@@ -4000,15 +4099,14 @@ class CashierTerminal {
     if (typeof JsBarcode !== 'undefined') {
       try {
         JsBarcode("#rcptBarcodeSvg", invId, {
-          format: "CODE128", width: 1.8, height: 48, displayValue: true, fontSize: 13, fontOptions: "bold", font: "monospace",
-          marginTop: 8, marginBottom: 8, marginLeft: 18, marginRight: 18,
+          format: "CODE128", width: 1.8, height: 48, displayValue: true, fontSize: 13, fontOptions: "bold", font: "monospace", margin: 8,
           background: "#ffffff", lineColor: "#000000"
         });
       } catch(e) {}
     }
 
-    const pxHeight = Math.max(paperEl.scrollHeight || paperEl.offsetHeight || 0, paperEl.getBoundingClientRect().height || 0);
-    const calculatedHeightMm = Math.ceil((pxHeight * 0.2645833) * 1.06) + 15;
+    const pxHeight = Math.max(paperEl.offsetHeight || 0, paperEl.getBoundingClientRect().height || 0);
+    const calculatedHeightMm = Math.ceil(pxHeight * 0.2645833) + 4;
 
     const opt = {
       margin: [2, 2, 2, 2],
@@ -5580,35 +5678,11 @@ class CashierTerminal {
 }
 
 let cashier;
+document.addEventListener('DOMContentLoaded', () => {
+  cashier = new CashierTerminal();
+  window.cashier = cashier;
 
-function initCashierTerminal() {
-  if (window._cashierTerminalInitialized) return;
-  window._cashierTerminalInitialized = true;
-
-  try {
-    cashier = new CashierTerminal();
-    window.cashier = cashier;
-
-    document.getElementById('btnNavCustomers')?.addEventListener('click', () => cashier?.switchTab('cashierCustomersView'));
-    document.getElementById('cashierAddNewCustBtn')?.addEventListener('click', () => cashier?.openAddNewCustomerModal());
-    document.getElementById('cashierCustSearchInput')?.addEventListener('input', () => cashier?.renderCashierCustomers());
-
-    // Listen for storage events across tabs / PWA windows
-    window.addEventListener('storage', (e) => {
-      if (e.key === 'pos_active_store_id' || e.key === 'pos_session_logged_in' || e.key === 'pos_settings') {
-        if (typeof cashier?.renderCashierHeader === 'function') {
-          cashier.renderCashierHeader();
-        }
-      }
-    });
-  } catch (err) {
-    console.error('[Cashier Terminal Initializer Error]:', err);
-  }
-}
-
-if (document.readyState === 'complete' || document.readyState === 'interactive') {
-  initCashierTerminal();
-} else {
-  document.addEventListener('DOMContentLoaded', initCashierTerminal);
-}
-
+  document.getElementById('btnNavCustomers')?.addEventListener('click', () => cashier.switchTab('cashierCustomersView'));
+  document.getElementById('cashierAddNewCustBtn')?.addEventListener('click', () => cashier.openAddNewCustomerModal());
+  document.getElementById('cashierCustSearchInput')?.addEventListener('input', () => cashier.renderCashierCustomers());
+});

@@ -1,7 +1,7 @@
 {
-  "name": "SmartPOS Cloud - Retail Hub",
-  "short_name": "SmartPOS",
-  "description": "স্মার্ট রিটেইল POS সফটওয়্যার - ক্যাশিয়ার কাউন্টার ও মার্চেন্ট ড্যাশবোর্ড",
+  "name": "Smart POS BD — স্মার্ট রিটেইল পজ সফটওয়্যার",
+  "short_name": "Smart POS BD",
+  "description": "Smart POS BD - স্মার্ট রিটেইল POS সফটওয়্যার - ক্যাশিয়ার কাউন্টার ও মার্চেন্ট ড্যাশবোর্ড",
   "start_url": "./portal.html",
   "scope": "./",
   "display": "standalone",
